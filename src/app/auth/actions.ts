@@ -4,6 +4,19 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+function getCallbackUrl(): string {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`;
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/auth/callback`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}/auth/callback`;
+  }
+  return "http://localhost:3000/auth/callback";
+}
+
 export async function signIn(
   email: string,
   password: string
@@ -26,7 +39,7 @@ export async function signUp(
     password,
     options: {
       data: { username },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      emailRedirectTo: getCallbackUrl(),
     },
   });
   if (error) return { error: error.message };
@@ -40,7 +53,7 @@ export async function signInWithMagicLink(
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      emailRedirectTo: getCallbackUrl(),
     },
   });
   if (error) return { error: error.message };

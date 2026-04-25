@@ -294,27 +294,45 @@ export default function SignupPage() {
           )}
         </div>
 
-        {/* Footer link */}
+        {/* Footer links */}
         {!success && (
-          <p
-            className="text-sm text-center mt-6"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Already have an account?{" "}
-            <Link
-              href="/auth/login"
-              className="transition-colors"
-              style={{ color: "var(--purple-light)" }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.color = "var(--gold-light)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.color = "var(--purple-light)")
-              }
+          <>
+            <p
+              className="text-sm text-center mt-6"
+              style={{ color: "var(--text-muted)" }}
             >
-              Sign in
-            </Link>
-          </p>
+              Already have an account?{" "}
+              <Link
+                href="/auth/login"
+                className="transition-colors"
+                style={{ color: "var(--purple-light)" }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.color = "var(--gold-light)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = "var(--purple-light)")
+                }
+              >
+                Sign in
+              </Link>
+            </p>
+            <p className="text-sm text-center mt-3" style={{ color: "var(--text-muted)" }}>
+              Just browsing?{" "}
+              <Link
+                href="/warhammer"
+                className="transition-colors"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.color = "var(--text-primary)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = "var(--text-muted)")
+                }
+              >
+                Continue as Guest →
+              </Link>
+            </p>
+          </>
         )}
       </div>
     </div>

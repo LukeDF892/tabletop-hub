@@ -1,6 +1,7 @@
 "use client";
 
-import { Shield, Swords, Crosshair } from "lucide-react";
+import Link from "next/link";
+import { Shield, Swords, Crosshair, LogIn, Eye } from "lucide-react";
 import GameCard from "@/components/GameCard";
 
 const games = [
@@ -109,12 +110,52 @@ export default function HomePage() {
             </h1>
 
             <p
-              className="text-lg md:text-xl leading-relaxed max-w-xl mx-auto"
+              className="text-lg md:text-xl leading-relaxed max-w-xl mx-auto mb-10"
               style={{ color: "var(--text-muted)" }}
             >
               Manage your characters, campaigns, and armies all in one place.
               Built for players who live and breathe tabletop.
             </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                href="/auth/signup"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all w-full sm:w-auto justify-center"
+                style={{
+                  backgroundColor: "var(--purple)",
+                  color: "#fff",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = "var(--purple-light)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = "var(--purple)")
+                }
+              >
+                <LogIn size={16} />
+                Sign In / Create Account
+              </Link>
+              <Link
+                href="/warhammer"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all w-full sm:w-auto justify-center"
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "var(--text-muted)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.10)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.06)";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+              >
+                <Eye size={16} />
+                Browse as Guest
+              </Link>
+            </div>
           </div>
         </section>
 

@@ -559,9 +559,9 @@ export default function ArmyBuilderPage() {
         <div className="relative z-10 flex flex-col flex-1">
           <Navigation />
 
-          <main className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 overflow-hidden" style={{ maxHeight: "calc(100vh - 64px)" }}>
+          <main className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 lg:overflow-hidden" style={{ height: "auto" }}>
             {/* LEFT — Unit Browser */}
-            <div className="flex flex-col overflow-hidden">
+            <div className="flex flex-col lg:overflow-hidden lg:max-h-[calc(100vh-64px)]">
               {/* Browser header */}
               <div
                 className="px-6 pt-6 pb-3 flex-shrink-0"
@@ -612,7 +612,7 @@ export default function ArmyBuilderPage() {
               </div>
 
               {/* Unit cards list */}
-              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+              <div className="flex-1 lg:overflow-y-auto px-6 py-4 space-y-3">
                 {visibleUnits.length === 0 ? (
                   <p className="text-sm text-center mt-10" style={{ color: "var(--text-muted)" }}>
                     No units in this category.
@@ -738,8 +738,8 @@ export default function ArmyBuilderPage() {
 
             {/* RIGHT — Army List */}
             <div
-              className="flex flex-col overflow-hidden"
-              style={{ borderLeft: "1px solid var(--border-subtle)" }}
+              className="flex flex-col lg:overflow-hidden lg:max-h-[calc(100vh-64px)] border-t lg:border-t-0 lg:border-l"
+              style={{ borderColor: "var(--border-subtle)" }}
             >
               {/* Army list header */}
               <div
@@ -785,7 +785,7 @@ export default function ArmyBuilderPage() {
               </div>
 
               {/* Army entries */}
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+              <div className="flex-1 lg:overflow-y-auto px-5 py-4 space-y-2">
                 {army.length === 0 ? (
                   <p
                     className="text-sm text-center mt-10 leading-relaxed"
