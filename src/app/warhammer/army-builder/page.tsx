@@ -1,23 +1,22 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navigation from "@/components/Navigation";
 import type { Unit, Faction, Detachment } from "@/lib/wh40k/types";
 import { SPACE_MARINES_FACTION } from "@/lib/wh40k/space-marines";
 import { DARK_ANGELS_FACTION } from "@/lib/wh40k/dark-angels";
 import { TYRANIDS_FACTION } from "@/lib/wh40k/tyranids";
 import { NECRONS_FACTION } from "@/lib/wh40k/necrons";
+import { createClient } from "@/lib/supabase/client";
 import {
   X,
   Plus,
   Minus,
   ChevronDown,
   ChevronRight,
-  Shield,
-  Crosshair,
-  Swords,
-  Zap,
   Info,
+  Loader2,
 } from "lucide-react";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -56,7 +55,7 @@ const CATEGORIES = ["HQ", "Battleline", "Elites", "Fast Attack", "Heavy Support"
 interface ArmyEntry {
   unit: Unit;
   modelCount: number;
-  quantity: number; // number of this unit slot added
+  quantity: number;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -106,7 +105,6 @@ function UnitModal({
           <X size={16} />
         </button>
 
-        {/* Header */}
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-1">
             <span
@@ -138,7 +136,6 @@ function UnitModal({
           </p>
         </div>
 
-        {/* Stats */}
         <div
           className="flex gap-4 flex-wrap rounded-lg p-3 mb-4"
           style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid var(--border-subtle)" }}
@@ -151,7 +148,6 @@ function UnitModal({
           <StatBadge label="OC" value={unit.stats.oc} />
         </div>
 
-        {/* Weapons */}
         <div className="mb-4">
           <h3 className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: accentColor }}>
             Weapons
@@ -178,7 +174,6 @@ function UnitModal({
           </div>
         </div>
 
-        {/* Abilities */}
         <div className="mb-4">
           <h3 className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: accentColor }}>
             Abilities
@@ -197,7 +192,6 @@ function UnitModal({
           </div>
         </div>
 
-        {/* Wargear Options */}
         {unit.wargearOptions && unit.wargearOptions.length > 0 && (
           <div className="mb-4">
             <h3 className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: accentColor }}>
@@ -214,7 +208,6 @@ function UnitModal({
           </div>
         )}
 
-        {/* Keywords */}
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: accentColor }}>
             Keywords
@@ -240,9 +233,13 @@ function UnitModal({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main inner component (uses useSearchParams) ───────────────────────────────
 
-export default function ArmyBuilderPage() {
+function ArmyBuilderInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editArmyId = searchParams.get("armyId");
+
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [gameSize, setGameSize] = useState<(typeof GAME_SIZES)[number] | null>(null);
   const [faction, setFaction] = useState<Faction | null>(null);
@@ -251,6 +248,93 @@ export default function ArmyBuilderPage() {
   const [activeCategory, setActiveCategory] = useState<string>("HQ");
   const [unitModal, setUnitModal] = useState<Unit | null>(null);
   const [stratagemExpanded, setStratagemExpanded] = useState(false);
+  const [armyName, setArmyName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loadingArmy, setLoadingArmy] = useState(!!editArmyId);
+
+  useEffect(() => {
+    if (!editArmyId) return;
+    async function loadArmy() {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("warhammer_armies")
+        .select("*")
+        .eq("id", editArmyId)
+        .single();
+
+      if (error || !data) {
+        setLoadingArmy(false);
+        return;
+      }
+
+      const gs = GAME_SIZES.find((s) => s.points === data.points_limit) ?? GAME_SIZES[2];
+      setGameSize(gs);
+
+      const fac = FACTIONS.find((f) => f.name === data.faction);
+      if (!fac) { setLoadingArmy(false); return; }
+      setFaction(fac);
+
+      const det = fac.detachments.find((d) => d.name === data.subfaction) ?? fac.detachments[0];
+      setDetachment(det);
+
+      const saved = data.units as { entries?: Array<{ unitId: string; modelCount: number; quantity: number }> };
+      if (saved?.entries) {
+        const restored: ArmyEntry[] = [];
+        for (const e of saved.entries) {
+          const unit = fac.units.find((u) => u.id === e.unitId);
+          if (unit) restored.push({ unit, modelCount: e.modelCount, quantity: e.quantity });
+        }
+        setArmy(restored);
+      }
+
+      setArmyName(data.name ?? "");
+      setStep(4);
+      setLoadingArmy(false);
+    }
+    loadArmy();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editArmyId]);
+
+  async function handleSaveArmy() {
+    if (!faction || !detachment || !gameSize) return;
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { alert("Sign in to save armies."); setSaving(false); return; }
+
+      const payload = {
+        user_id: user.id,
+        name: armyName.trim() || `${faction.name} — ${detachment.name}`,
+        game_system: "wh40k",
+        faction: faction.name,
+        subfaction: detachment.name,
+        points_limit: gameSize.points,
+        total_points: totalPts,
+        units: {
+          entries: army.map((e) => ({
+            unitId: e.unit.id,
+            modelCount: e.modelCount,
+            quantity: e.quantity,
+          })),
+        },
+        updated_at: new Date().toISOString(),
+      };
+
+      if (editArmyId) {
+        await supabase.from("warhammer_armies").update(payload).eq("id", editArmyId);
+      } else {
+        await supabase.from("warhammer_armies").insert(payload);
+      }
+
+      router.push("/warhammer/armies");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save army. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const accentColor = useMemo(() => {
     if (!faction) return "#d97706";
@@ -306,6 +390,14 @@ export default function ArmyBuilderPage() {
     if (!faction) return [];
     return faction.units.filter((u) => u.category === activeCategory);
   }, [faction, activeCategory]);
+
+  if (loadingArmy) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <Loader2 size={32} className="animate-spin" style={{ color: "#d97706" }} />
+      </div>
+    );
+  }
 
   // ─── Step 1: Game Size ──────────────────────────────────────────────────────
   if (step === 1) {
@@ -562,7 +654,6 @@ export default function ArmyBuilderPage() {
           <main className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 lg:overflow-hidden" style={{ height: "auto" }}>
             {/* LEFT — Unit Browser */}
             <div className="flex flex-col lg:overflow-hidden lg:max-h-[calc(100vh-64px)]">
-              {/* Browser header */}
               <div
                 className="px-6 pt-6 pb-3 flex-shrink-0"
                 style={{ borderBottom: "1px solid var(--border-subtle)" }}
@@ -579,7 +670,6 @@ export default function ArmyBuilderPage() {
                   Unit Browser
                 </h1>
 
-                {/* Category tabs */}
                 <div className="flex gap-1 mt-3 overflow-x-auto pb-1">
                   {CATEGORIES.filter((cat) =>
                     faction.units.some((u) => u.category === cat)
@@ -611,7 +701,6 @@ export default function ArmyBuilderPage() {
                 </div>
               </div>
 
-              {/* Unit cards list */}
               <div className="flex-1 lg:overflow-y-auto px-6 py-4 space-y-3">
                 {visibleUnits.length === 0 ? (
                   <p className="text-sm text-center mt-10" style={{ color: "var(--text-muted)" }}>
@@ -664,14 +753,12 @@ export default function ArmyBuilderPage() {
                             >
                               {unit.name}
                             </h3>
-                            {/* Mini stat row */}
                             <div className="flex gap-3 mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
                               <span>M{unit.stats.movement}</span>
                               <span>T{unit.stats.toughness}</span>
                               <span>Sv{unit.stats.save}</span>
                               <span>W{unit.stats.wounds}</span>
                             </div>
-                            {/* Keywords preview */}
                             <div className="flex gap-1 mt-1.5 flex-wrap">
                               {unit.keywords.slice(0, 3).map((k) => (
                                 <span
@@ -741,7 +828,6 @@ export default function ArmyBuilderPage() {
               className="flex flex-col lg:overflow-hidden lg:max-h-[calc(100vh-64px)] border-t lg:border-t-0 lg:border-l"
               style={{ borderColor: "var(--border-subtle)" }}
             >
-              {/* Army list header */}
               <div
                 className="px-5 pt-6 pb-3 flex-shrink-0"
                 style={{ borderBottom: "1px solid var(--border-subtle)" }}
@@ -769,7 +855,6 @@ export default function ArmyBuilderPage() {
                   </span>
                 </div>
 
-                {/* Points bar */}
                 <div
                   className="h-2 rounded-full overflow-hidden mt-2"
                   style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
@@ -784,7 +869,6 @@ export default function ArmyBuilderPage() {
                 </div>
               </div>
 
-              {/* Army entries */}
               <div className="flex-1 lg:overflow-y-auto px-5 py-4 space-y-2">
                 {army.length === 0 ? (
                   <p
@@ -818,7 +902,6 @@ export default function ArmyBuilderPage() {
                               )}
                               {entry.unit.name}
                             </p>
-                            {/* Model count adjuster */}
                             {entry.unit.models.min !== entry.unit.models.max && (
                               <div className="flex items-center gap-1 mt-1">
                                 <button
@@ -875,7 +958,6 @@ export default function ArmyBuilderPage() {
                 )}
               </div>
 
-              {/* Stratagems reference */}
               <div
                 className="px-5 py-3 flex-shrink-0"
                 style={{ borderTop: "1px solid var(--border-subtle)" }}
@@ -917,29 +999,45 @@ export default function ArmyBuilderPage() {
                 )}
               </div>
 
-              {/* Save button */}
-              <div className="px-5 pb-5 flex-shrink-0">
+              {/* Army name + Save */}
+              <div className="px-5 pb-5 flex-shrink-0 space-y-3">
+                <input
+                  type="text"
+                  value={armyName}
+                  onChange={(e) => setArmyName(e.target.value)}
+                  placeholder={`${faction?.name ?? "My"} — ${detachment?.name ?? "Army"}`}
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none transition-all"
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: "var(--text-primary)",
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = `${accentColor}70`)}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
+                />
                 <button
-                  disabled={army.length === 0}
-                  className="w-full py-3 rounded-xl font-cinzel font-semibold text-sm transition-all disabled:opacity-40"
+                  disabled={army.length === 0 || saving}
+                  className="w-full py-3 rounded-xl font-cinzel font-semibold text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2"
                   style={{
                     backgroundColor: `${accentColor}20`,
                     border: `1px solid ${accentColor}50`,
                     color: accentColor,
                   }}
                   onMouseEnter={(e) => {
-                    if (army.length > 0) {
+                    if (army.length > 0 && !saving) {
                       e.currentTarget.style.backgroundColor = `${accentColor}30`;
                     }
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = `${accentColor}20`;
                   }}
-                  onClick={() => {
-                    alert("Army saved! (Supabase persistence requires sign-in)");
-                  }}
+                  onClick={handleSaveArmy}
                 >
-                  Save Army · {totalPts}pts
+                  {saving ? (
+                    <><Loader2 size={14} className="animate-spin" /> Saving…</>
+                  ) : (
+                    <>{editArmyId ? "Update Army" : "Save Army"} · {totalPts}pts</>
+                  )}
                 </button>
               </div>
             </div>
@@ -950,4 +1048,23 @@ export default function ArmyBuilderPage() {
   }
 
   return null;
+}
+
+// ─── Page export wrapped in Suspense for useSearchParams ──────────────────────
+
+export default function ArmyBuilderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ backgroundColor: "var(--bg-primary)" }}
+        >
+          <Loader2 size={32} className="animate-spin" style={{ color: "#d97706" }} />
+        </div>
+      }
+    >
+      <ArmyBuilderInner />
+    </Suspense>
+  );
 }
