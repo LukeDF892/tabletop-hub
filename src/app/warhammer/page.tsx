@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Navigation from "@/components/Navigation";
-import { Crosshair, Swords, Target, BookOpen } from "lucide-react";
+import { Crosshair, Swords, Target, BookOpen, Shield } from "lucide-react";
 
 const tiles = [
   {
@@ -15,6 +15,18 @@ const tiles = [
     borderColor: "rgba(217, 119, 6, 0.35)",
     glowColor: "rgba(217, 119, 6, 0.18)",
     badge: "Build",
+    comingSoon: false,
+  },
+  {
+    title: "My Armies",
+    description:
+      "View and manage your saved army lists. Edit existing forces, track points, and launch straight into battle from your collection.",
+    icon: Shield,
+    href: "/warhammer/armies",
+    accentColor: "#a855f7",
+    borderColor: "rgba(168, 85, 247, 0.35)",
+    glowColor: "rgba(168, 85, 247, 0.18)",
+    badge: "Collection",
     comingSoon: false,
   },
   {
@@ -149,7 +161,7 @@ export default function WarhammerPage() {
 
           {/* Tiles */}
           <section className="max-w-6xl mx-auto w-full px-6 pb-24">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {tiles.map((tile) => {
                 const Icon = tile.icon;
                 return (
