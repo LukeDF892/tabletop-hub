@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navigation from "@/components/Navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Shield, Target, ChevronRight, Users, User } from "lucide-react";
+import { Shield, Target, ChevronRight, Users, User, CheckCircle, Loader2 } from "lucide-react";
 
 const GAME_SYSTEMS = [
   {
@@ -20,6 +20,74 @@ const POINT_LIMITS = [500, 1000, 2000, 3000];
 
 type GameMode = "2player" | "solo";
 
+interface WarhammerArmy {
+  id: string;
+  name: string;
+  faction: string;
+  subfaction: string | null;
+  points_limit: number;
+  total_points: number;
+}
+
+const FACTION_COLORS: Record<string, string> = {
+  "Space Marines": "#1e40af",
+  "Dark Angels": "#166534",
+  "Tyranids": "#7c3aed",
+  "Necrons": "#15803d",
+};
+
+function getArmyColor(faction: string): string {
+  return FACTION_COLORS[faction] ?? "#d97706";
+}
+
+function ArmyCard({
+  army,
+  selected,
+  onSelect,
+}: {
+  army: WarhammerArmy;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const color = getArmyColor(army.faction);
+  return (
+    <button
+      onClick={onSelect}
+      className="text-left rounded-xl p-3 transition-all w-full"
+      style={
+        selected
+          ? {
+              backgroundColor: `${color}18`,
+              border: `2px solid ${color}80`,
+            }
+          : {
+              backgroundColor: "var(--bg-card)",
+              border: "2px solid var(--border-card)",
+            }
+      }
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p
+            className="text-sm font-semibold truncate"
+            style={{ color: selected ? color : "var(--text-primary)" }}
+          >
+            {army.name}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+            {army.faction}
+            {army.subfaction ? ` · ${army.subfaction}` : ""}
+          </p>
+          <p className="text-xs mt-1" style={{ color }}>
+            {army.total_points} / {army.points_limit} pts
+          </p>
+        </div>
+        {selected && <CheckCircle size={16} style={{ color, flexShrink: 0 }} />}
+      </div>
+    </button>
+  );
+}
+
 export default function NewWarhammerGamePage() {
   const router = useRouter();
   const [gameName, setGameName] = useState("");
@@ -27,7 +95,33 @@ export default function NewWarhammerGamePage() {
   const [pointsLimit, setPointsLimit] = useState(2000);
   const [gameMode, setGameMode] = useState<GameMode>("2player");
   const [loading, setLoading] = useState(false);
+  const [loadingArmies, setLoadingArmies] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [armies, setArmies] = useState<WarhammerArmy[]>([]);
+  const [p1ArmyId, setP1ArmyId] = useState<string | null>(null);
+  const [p2ArmyId, setP2ArmyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchArmies() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setLoadingArmies(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("warhammer_armies")
+        .select("id, name, faction, subfaction, points_limit, total_points")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+      setArmies((data as WarhammerArmy[]) ?? []);
+      setLoadingArmies(false);
+    }
+    fetchArmies();
+  }, []);
 
   async function handleCreate() {
     if (!gameName.trim()) {
@@ -49,7 +143,7 @@ export default function NewWarhammerGamePage() {
         return;
       }
 
-      // Ensure profile exists (handles race condition after signup)
+      // Ensure profile exists
       const { data: profile } = await supabase
         .from("profiles")
         .select("id")
@@ -69,12 +163,23 @@ export default function NewWarhammerGamePage() {
           game_system: gameSystem,
           host_id: user.id,
           game_mode: gameMode,
+          player1_army_id: p1ArmyId,
+          player2_army_id: gameMode === "solo" ? p2ArmyId : null,
+          current_round: 1,
+          current_phase: "rolloff",
           game_state: {
             pointsLimit,
             maxPlayers: gameMode === "solo" ? 1 : 2,
             round: 1,
-            phase: "command",
-            players: [],
+            phase: "rolloff",
+            markers: [],
+            p1Cp: 4,
+            p2Cp: 4,
+            p1Vp: 0,
+            p2Vp: 0,
+            rolloffResults: { attacker: null, firstDeployer: null, firstTurn: null },
+            activePlayer: "P1",
+            deployment: { p1UnitsPlaced: [], p2UnitsPlaced: [], currentDeployer: "P1" },
           },
         })
         .select()
@@ -177,7 +282,6 @@ export default function NewWarhammerGamePage() {
                 Game Mode
               </label>
               <div className="grid grid-cols-2 gap-3">
-                {/* 2-Player */}
                 <button
                   onClick={() => setGameMode("2player")}
                   className="rounded-xl p-4 text-left transition-all"
@@ -222,7 +326,6 @@ export default function NewWarhammerGamePage() {
                   </p>
                 </button>
 
-                {/* Solo */}
                 <button
                   onClick={() => setGameMode("solo")}
                   className="rounded-xl p-4 text-left transition-all"
@@ -278,6 +381,89 @@ export default function NewWarhammerGamePage() {
                   }}
                 >
                   Solo mode: you switch between Player 1 and Player 2 perspectives using a toggle in the game room. Both sides are fully controllable.
+                </div>
+              )}
+            </div>
+
+            {/* Army Selection */}
+            <div>
+              <label
+                className="block text-xs font-medium uppercase tracking-widest mb-2"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {gameMode === "solo" ? "Armies" : "Your Army (P1)"}
+              </label>
+
+              {loadingArmies ? (
+                <div className="flex items-center gap-2 py-4" style={{ color: "var(--text-muted)" }}>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span className="text-xs">Loading armies…</span>
+                </div>
+              ) : armies.length === 0 ? (
+                <div
+                  className="px-4 py-3 rounded-xl text-sm"
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.04)",
+                    border: "1px solid var(--border-card)",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  No armies saved yet.{" "}
+                  <a
+                    href="/warhammer/army-builder"
+                    style={{ color: "#d97706", textDecoration: "underline" }}
+                  >
+                    Build an army first
+                  </a>{" "}
+                  or proceed without armies (bare board only).
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* P1 Army */}
+                  <div>
+                    <p
+                      className="text-xs mb-2 font-medium"
+                      style={{ color: "#ef4444" }}
+                    >
+                      {gameMode === "solo" ? "Player 1 Army" : "Your Army"}
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {armies.map((army) => (
+                        <ArmyCard
+                          key={army.id}
+                          army={army}
+                          selected={p1ArmyId === army.id}
+                          onSelect={() =>
+                            setP1ArmyId((prev) => (prev === army.id ? null : army.id))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* P2 Army (solo only) */}
+                  {gameMode === "solo" && (
+                    <div>
+                      <p
+                        className="text-xs mb-2 font-medium"
+                        style={{ color: "#3b82f6" }}
+                      >
+                        Player 2 Army
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {armies.map((army) => (
+                          <ArmyCard
+                            key={army.id}
+                            army={army}
+                            selected={p2ArmyId === army.id}
+                            onSelect={() =>
+                              setP2ArmyId((prev) => (prev === army.id ? null : army.id))
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
