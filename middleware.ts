@@ -31,8 +31,11 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+  // Only protect routes that require a real session (game rooms, profile).
+  // /dnd and /warhammer (including army-builder) are allowed for guest browsing.
   const isProtected =
-    pathname.startsWith("/dnd") || pathname.startsWith("/warhammer");
+    pathname.startsWith("/warhammer/games") ||
+    pathname.startsWith("/profile");
 
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
