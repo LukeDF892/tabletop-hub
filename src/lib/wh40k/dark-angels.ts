@@ -25,6 +25,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Primarch", "Lion El'Jonson"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["da-inner-circle-companions", "sm-bladeguard", "da-deathwing-knights"],
   },
   {
     id: "da-azrael",
@@ -46,6 +47,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Chapter Master", "Azrael"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-bladeguard", "sm-hellblasters", "da-inner-circle-companions"],
   },
   {
     id: "da-belial",
@@ -73,6 +75,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     wargearOptions: [
       { description: "Belial may be equipped with Thunder Hammer + Storm Shield, Twin Lightning Claws, or Sword of Silence + Storm Bolter." },
     ],
+    canLeadUnits: ["da-deathwing-knights", "da-deathwing-terminators"],
   },
   {
     id: "da-sammael",
@@ -96,6 +99,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     ],
     keywords: ["Mounted", "Character", "Epic Hero", "Fly", "Ravenwing", "Sammael"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["da-ravenwing-black-knights"],
   },
   {
     id: "da-ezekiel",
@@ -117,6 +121,51 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Psyker", "Librarian", "Ezekiel"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-hellblasters"],
+  },
+  {
+    id: "da-inner-circle-companions",
+    name: "Inner Circle Companions",
+    role: "Infantry",
+    category: "Elites",
+    stats: { movement: '6"', toughness: 4, save: "2+", wounds: 3, leadership: "5+", oc: 1 },
+    models: { min: 5, max: 5 },
+    points: 180,
+    weapons: [
+      { name: "Calibanite War Blade", type: "Melee", attacks: "4", skill: "WS2+", strength: "5", ap: "-3", damage: "2" },
+      { name: "Mace of Absolution", type: "Melee", attacks: "3", skill: "WS2+", strength: "8", ap: "-2", damage: "2" },
+    ],
+    abilities: [
+      { name: "Inner Circle", description: "This unit has the Fights First ability — it always fights before units without Fights First in the Fight phase." },
+      { name: "Bladeguard of the First", description: "While this unit is within 3\" of a friendly Dark Angels CHARACTER, improve its Save characteristic by 1." },
+    ],
+    keywords: ["Infantry", "Core", "Inner Circle", "Inner Circle Companions"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    wargearOptions: [
+      { description: "Any model may replace Calibanite War Blades with Maces of Absolution." },
+    ],
+  },
+  {
+    id: "da-ravenwing-talonmaster",
+    name: "Ravenwing Talonmaster",
+    role: "Character",
+    category: "HQ",
+    canFly: true,
+    stats: { movement: '14"', toughness: 6, save: "3+/4++", wounds: 6, leadership: "4+", oc: 2 },
+    models: { min: 1, max: 1 },
+    points: 150,
+    weapons: [
+      { name: "Twin Auto Boltstorm Gauntlets", type: "Pistol", range: '12"', attacks: "6", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+      { name: "Power Sword", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "-2", damage: "1" },
+    ],
+    abilities: [
+      { name: "Speed of the Raven", description: "Friendly Ravenwing units within 6\" add 2\" to their Move characteristic." },
+      { name: "Jinking", description: "Each time this model is targeted by a ranged attack, it counts as being in cover." },
+      { name: "Fly", description: "This model can move over models and terrain." },
+    ],
+    keywords: ["Mounted", "Character", "Fly", "Ravenwing", "Talonmaster"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["da-ravenwing-black-knights"],
   },
   // ─── DEATHWING UNITS ──────────────────────────────────────────────
   {

@@ -21,6 +21,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Terminator", "Chapter Master", "Marneus Calgar"],
     factionKeywords: ["Adeptus Astartes", "Ultramarines"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-bladeguard", "sm-sternguard", "sm-terminators", "sm-eradicators", "sm-hellblasters"],
   },
   {
     id: "sm-chief-librarian-tigurius",
@@ -41,6 +42,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Psyker", "Librarian"],
     factionKeywords: ["Adeptus Astartes", "Ultramarines"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-hellblasters"],
   },
   {
     id: "sm-captain",
@@ -65,6 +67,7 @@ export const SM_UNITS: Unit[] = [
       { description: "May replace Master-Crafted Power Weapon with a Thunder Hammer (+10pts) or Power Fist (+5pts)." },
       { description: "May take a Storm Shield (+15pts) for a 4++ invulnerable save." },
     ],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-bladeguard", "sm-sternguard", "sm-terminators", "sm-eradicators", "sm-hellblasters"],
   },
   {
     id: "sm-librarian",
@@ -84,6 +87,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Psyker", "Librarian"],
     factionKeywords: ["Adeptus Astartes"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-hellblasters"],
   },
   {
     id: "sm-chaplain",
@@ -103,6 +107,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Chaplain"],
     factionKeywords: ["Adeptus Astartes"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-bladeguard", "sm-terminators"],
   },
   {
     id: "sm-techmarine",
@@ -140,6 +145,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Lieutenant"],
     factionKeywords: ["Adeptus Astartes"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-eradicators", "sm-hellblasters", "sm-bike-squad", "sm-inceptors"],
   },
   // ─── BATTLELINE ───────────────────────────────────────────────────
   {
@@ -288,6 +294,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Apothecary"],
     factionKeywords: ["Adeptus Astartes"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-bladeguard", "sm-terminators"],
   },
   {
     id: "sm-bladeguard",
@@ -495,6 +502,164 @@ export const SM_UNITS: Unit[] = [
       { description: "May replace Heavy Flamer with Storm Bolter." },
     ],
   },
+  {
+    id: "sm-ballistus-dreadnought",
+    name: "Ballistus Dreadnought",
+    role: "Vehicle",
+    category: "Elites",
+    stats: { movement: '8"', toughness: 9, save: "3+", wounds: 9, leadership: "5+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 130,
+    weapons: [
+      { name: "Twin Lascannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+2" },
+      { name: "Missile Launcher (Krak)", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "8", ap: "-2", damage: "D6" },
+      { name: "Missile Launcher (Frag)", type: "Heavy", range: '48"', attacks: "6", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+      { name: "Twin Bolt Rifle", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+      { name: "Armoured Tracks", type: "Melee", attacks: "3", skill: "WS4+", strength: "7", ap: "0", damage: "1" },
+    ],
+    abilities: [
+      { name: "Lethal Hits", description: "Unmodified hit rolls of 6 with this model's weapons are critical hits." },
+      { name: "Smoke", description: "Once per battle, this model can use its smoke launchers for cover benefit." },
+    ],
+    keywords: ["Vehicle", "Core", "Smoke", "Walker", "Dreadnought", "Ballistus Dreadnought"],
+    factionKeywords: ["Adeptus Astartes"],
+  },
+  {
+    id: "sm-brutalis-dreadnought",
+    name: "Brutalis Dreadnought",
+    role: "Vehicle",
+    category: "Elites",
+    stats: { movement: '8"', toughness: 10, save: "3+", wounds: 12, leadership: "5+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 170,
+    weapons: [
+      { name: "Twin Multi-melta", type: "Heavy", range: '18"', attacks: "2", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 3"] },
+      { name: "Twin Bolt Rifle", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+      { name: "Brutalis Fists", type: "Melee", attacks: "5", skill: "WS3+", strength: "12", ap: "-3", damage: "3" },
+      { name: "Brutalis Talons", type: "Melee", attacks: "5", skill: "WS3+", strength: "7", ap: "-2", damage: "2" },
+    ],
+    abilities: [
+      { name: "Bludgeon", description: "Unmodified wound rolls of 6 with Brutalis Fists inflict 3 additional mortal wounds." },
+      { name: "Inescapable Wrath", description: "This model is eligible to charge even when it Advanced this turn." },
+      { name: "Smoke", description: "Once per battle, this model can use its smoke launchers for cover benefit." },
+    ],
+    keywords: ["Vehicle", "Core", "Smoke", "Walker", "Dreadnought", "Brutalis Dreadnought"],
+    factionKeywords: ["Adeptus Astartes"],
+    wargearOptions: [
+      { description: "May replace Twin Multi-melta with Twin Bolt Rifle." },
+    ],
+  },
+  {
+    id: "sm-venerable-dreadnought",
+    name: "Venerable Dreadnought",
+    role: "Vehicle",
+    category: "Elites",
+    stats: { movement: '6"', toughness: 9, save: "2+", wounds: 8, leadership: "5+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 155,
+    weapons: [
+      { name: "Multi-melta", type: "Heavy", range: '18"', attacks: "2", skill: "BS2+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
+      { name: "Lascannon", type: "Heavy", range: '48"', attacks: "1", skill: "BS2+", strength: "12", ap: "-3", damage: "D6+1" },
+      { name: "Dreadnought Combat Weapon", type: "Melee", attacks: "5", skill: "WS2+", strength: "12", ap: "-3", damage: "3" },
+    ],
+    abilities: [
+      { name: "Ancient Warrior", description: "Once per phase, re-roll one hit roll and one wound roll for this model's attacks." },
+      { name: "Smoke", description: "Once per battle, this model can use its smoke launchers for cover benefit." },
+    ],
+    keywords: ["Vehicle", "Core", "Smoke", "Walker", "Dreadnought", "Venerable Dreadnought"],
+    factionKeywords: ["Adeptus Astartes"],
+    wargearOptions: [
+      { description: "May replace Multi-melta with Lascannon." },
+    ],
+  },
+  {
+    id: "sm-contemptor-dreadnought",
+    name: "Contemptor Dreadnought",
+    role: "Vehicle",
+    category: "Elites",
+    stats: { movement: '8"', toughness: 10, save: "2+", wounds: 9, leadership: "5+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 135,
+    weapons: [
+      { name: "Kheres Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "7", ap: "-1", damage: "2" },
+      { name: "Dreadnought Combat Weapon", type: "Melee", attacks: "5", skill: "WS3+", strength: "12", ap: "-2", damage: "3" },
+    ],
+    abilities: [
+      { name: "Smoke", description: "Once per battle, this model can use its smoke launchers for cover benefit." },
+    ],
+    keywords: ["Vehicle", "Core", "Smoke", "Walker", "Dreadnought", "Contemptor Dreadnought"],
+    factionKeywords: ["Adeptus Astartes"],
+  },
+  {
+    id: "sm-ironclad-dreadnought",
+    name: "Ironclad Dreadnought",
+    role: "Vehicle",
+    category: "Heavy Support",
+    stats: { movement: '6"', toughness: 10, save: "2+", wounds: 8, leadership: "5+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 150,
+    weapons: [
+      { name: "Seismic Hammer", type: "Melee", attacks: "3", skill: "WS2+", strength: "14", ap: "-3", damage: "D6" },
+      { name: "Hurricane Bolter", type: "Rapid Fire", range: '24"', attacks: "6", skill: "BS4+", strength: "4", ap: "0", damage: "1" },
+      { name: "Meltagun", type: "Heavy", range: '9"', attacks: "1", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
+      { name: "Dreadnought Combat Weapon", type: "Melee", attacks: "5", skill: "WS3+", strength: "12", ap: "-2", damage: "3" },
+    ],
+    abilities: [
+      { name: "Siege Fighter", description: "This model ignores the effects of difficult terrain and can move through walls of terrain features." },
+      { name: "Smoke", description: "Once per battle, this model can use its smoke launchers for cover benefit." },
+    ],
+    keywords: ["Vehicle", "Core", "Smoke", "Walker", "Dreadnought", "Ironclad Dreadnought"],
+    factionKeywords: ["Adeptus Astartes"],
+    wargearOptions: [
+      { description: "May replace Seismic Hammer + Hurricane Bolter with Dreadnought Combat Weapon + Meltagun." },
+    ],
+  },
+  {
+    id: "sm-leviathan-dreadnought",
+    name: "Leviathan Dreadnought",
+    role: "Vehicle",
+    category: "Heavy Support",
+    stats: { movement: '6"', toughness: 12, save: "2+/4++", wounds: 14, leadership: "5+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 280,
+    weapons: [
+      { name: "Storm Cannon Array", type: "Heavy", range: '24"', attacks: "14", skill: "BS3+", strength: "7", ap: "-2", damage: "2" },
+      { name: "Siege Drills", type: "Melee", attacks: "4", skill: "WS2+", strength: "16", ap: "-4", damage: "D6+2" },
+    ],
+    abilities: [
+      { name: "Feel No Pain 5+++", description: "Each time a wound is allocated to this model, roll a D6; on a 5+ that wound is ignored." },
+      { name: "Smoke", description: "Once per battle, this model can use its smoke launchers for cover benefit." },
+    ],
+    keywords: ["Vehicle", "Core", "Smoke", "Walker", "Dreadnought", "Leviathan Dreadnought"],
+    factionKeywords: ["Adeptus Astartes"],
+    wargearOptions: [
+      { description: "May replace Storm Cannon Arrays with Siege Drills." },
+    ],
+  },
+  {
+    id: "sm-redemptor-dreadnought",
+    name: "Redemptor Dreadnought",
+    role: "Vehicle",
+    category: "Elites",
+    stats: { movement: '8"', toughness: 10, save: "3+", wounds: 12, leadership: "5+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 185,
+    weapons: [
+      { name: "Macro Plasma Incinerator (Standard)", type: "Heavy", range: '36"', attacks: "5", skill: "BS3+", strength: "8", ap: "-3", damage: "3" },
+      { name: "Macro Plasma Incinerator (Supercharge)", type: "Heavy", range: '36"', attacks: "5", skill: "BS3+", strength: "9", ap: "-4", damage: "4", keywords: ["Hazardous"] },
+      { name: "Onslaught Gatling Cannon", type: "Heavy", range: '24"', attacks: "12", skill: "BS3+", strength: "6", ap: "-1", damage: "2" },
+      { name: "Icarus Rocket Pod", type: "Heavy", range: '24"', attacks: "2", skill: "BS3+", strength: "8", ap: "-1", damage: "2" },
+      { name: "Redemptor Fist", type: "Melee", attacks: "5", skill: "WS3+", strength: "14", ap: "-3", damage: "D3+3" },
+    ],
+    abilities: [
+      { name: "Smoke", description: "Once per battle, this model can use its smoke launchers for cover benefit." },
+    ],
+    keywords: ["Vehicle", "Core", "Smoke", "Walker", "Dreadnought", "Redemptor Dreadnought"],
+    factionKeywords: ["Adeptus Astartes"],
+    wargearOptions: [
+      { description: "May replace Macro Plasma Incinerator with Onslaught Gatling Cannon." },
+    ],
+  },
   // ─── LORD OF WAR ─────────────────────────────────────────────────
   {
     id: "sm-roboute-guilliman",
@@ -518,6 +683,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Primarch", "Roboute Guilliman"],
     factionKeywords: ["Adeptus Astartes", "Ultramarines"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-bladeguard", "sm-sternguard", "sm-terminators", "sm-eradicators", "sm-hellblasters", "sm-devastator-squad", "sm-assault-marines", "sm-bike-squad", "sm-inceptors"],
   },
 ];
 

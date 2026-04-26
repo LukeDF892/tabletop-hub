@@ -56,6 +56,7 @@ interface ArmyEntry {
   unit: Unit;
   modelCount: number;
   quantity: number;
+  attachedLeaderId?: string;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -249,6 +250,7 @@ function ArmyBuilderInner() {
   const [unitModal, setUnitModal] = useState<Unit | null>(null);
   const [stratagemExpanded, setStratagemExpanded] = useState(false);
   const [armyName, setArmyName] = useState("");
+  const [attachLeaderFor, setAttachLeaderFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingArmy, setLoadingArmy] = useState(!!editArmyId);
 
@@ -277,12 +279,12 @@ function ArmyBuilderInner() {
       const det = fac.detachments.find((d) => d.name === data.subfaction) ?? fac.detachments[0];
       setDetachment(det);
 
-      const saved = data.units as { entries?: Array<{ unitId: string; modelCount: number; quantity: number }> };
+      const saved = data.units as { entries?: Array<{ unitId: string; modelCount: number; quantity: number; attachedLeaderId?: string }> };
       if (saved?.entries) {
         const restored: ArmyEntry[] = [];
         for (const e of saved.entries) {
           const unit = fac.units.find((u) => u.id === e.unitId);
-          if (unit) restored.push({ unit, modelCount: e.modelCount, quantity: e.quantity });
+          if (unit) restored.push({ unit, modelCount: e.modelCount, quantity: e.quantity, attachedLeaderId: e.attachedLeaderId });
         }
         setArmy(restored);
       }
@@ -316,6 +318,7 @@ function ArmyBuilderInner() {
             unitId: e.unit.id,
             modelCount: e.modelCount,
             quantity: e.quantity,
+            attachedLeaderId: e.attachedLeaderId,
           })),
         },
         updated_at: new Date().toISOString(),
@@ -372,8 +375,23 @@ function ArmyBuilderInner() {
           e.unit.id === unitId ? { ...e, quantity: e.quantity - 1 } : e
         );
       }
-      return prev.filter((e) => e.unit.id !== unitId);
+      return prev
+        .filter((e) => e.unit.id !== unitId)
+        .map((e) => e.attachedLeaderId === unitId ? { ...e, attachedLeaderId: undefined } : e);
     });
+  }
+
+  function attachLeader(unitId: string, leaderId: string) {
+    setArmy((prev) => prev.map((e) =>
+      e.unit.id === unitId ? { ...e, attachedLeaderId: leaderId } : e
+    ));
+    setAttachLeaderFor(null);
+  }
+
+  function detachLeader(unitId: string) {
+    setArmy((prev) => prev.map((e) =>
+      e.unit.id === unitId ? { ...e, attachedLeaderId: undefined } : e
+    ));
   }
 
   function changeModelCount(unitId: string, delta: number) {
@@ -390,6 +408,11 @@ function ArmyBuilderInner() {
     if (!faction) return [];
     return faction.units.filter((u) => u.category === activeCategory);
   }, [faction, activeCategory]);
+
+  const attachedCharacterIds = useMemo(
+    () => new Set(army.map((e) => e.attachedLeaderId).filter(Boolean) as string[]),
+    [army]
+  );
 
   if (loadingArmy) {
     return (
@@ -880,81 +903,157 @@ function ArmyBuilderInner() {
                     Browse the unit list and click&nbsp;<strong>+ Add</strong>.
                   </p>
                 ) : (
-                  army.map((entry) => {
-                    const entryPts = entry.unit.points * entry.quantity;
-                    return (
-                      <div
-                        key={entry.unit.id}
-                        className="rounded-lg px-3 py-2.5"
-                        style={{
-                          backgroundColor: "rgba(255,255,255,0.03)",
-                          border: "1px solid var(--border-subtle)",
-                        }}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className="text-xs font-medium truncate"
-                              style={{ color: "var(--text-primary)" }}
-                            >
-                              {entry.quantity > 1 && (
-                                <span style={{ color: accentColor }}>×{entry.quantity} </span>
+                  army
+                    .filter((e) => !attachedCharacterIds.has(e.unit.id))
+                    .map((entry) => {
+                      const entryPts = entry.unit.points * entry.quantity;
+                      const eligibleLeaders = army.filter(
+                        (e) => e.unit.canLeadUnits?.includes(entry.unit.id)
+                      );
+                      const attachedLeaderEntry = entry.attachedLeaderId
+                        ? army.find((e) => e.unit.id === entry.attachedLeaderId)
+                        : null;
+                      const showLeaderDropdown = attachLeaderFor === entry.unit.id;
+
+                      return (
+                        <div
+                          key={entry.unit.id}
+                          className="rounded-lg px-3 py-2.5"
+                          style={{
+                            backgroundColor: "rgba(255,255,255,0.03)",
+                            border: "1px solid var(--border-subtle)",
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className="text-xs font-medium truncate"
+                                style={{ color: "var(--text-primary)" }}
+                              >
+                                {entry.quantity > 1 && (
+                                  <span style={{ color: accentColor }}>×{entry.quantity} </span>
+                                )}
+                                {entry.unit.name}
+                              </p>
+                              {entry.unit.models.min !== entry.unit.models.max && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <button
+                                    onClick={() => changeModelCount(entry.unit.id, -1)}
+                                    className="w-4 h-4 rounded flex items-center justify-center"
+                                    style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
+                                  >
+                                    <Minus size={9} />
+                                  </button>
+                                  <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                    {entry.modelCount} models
+                                  </span>
+                                  <button
+                                    onClick={() => changeModelCount(entry.unit.id, 1)}
+                                    className="w-4 h-4 rounded flex items-center justify-center"
+                                    style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
+                                  >
+                                    <Plus size={9} />
+                                  </button>
+                                </div>
                               )}
-                              {entry.unit.name}
-                            </p>
-                            {entry.unit.models.min !== entry.unit.models.max && (
-                              <div className="flex items-center gap-1 mt-1">
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold" style={{ color: accentColor }}>
+                                {entryPts}pts
+                              </span>
+                              <div className="flex gap-0.5">
                                 <button
-                                  onClick={() => changeModelCount(entry.unit.id, -1)}
-                                  className="w-4 h-4 rounded flex items-center justify-center"
-                                  style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
+                                  onClick={() => addUnit(entry.unit)}
+                                  className="w-6 h-6 rounded flex items-center justify-center transition-colors"
+                                  style={{
+                                    backgroundColor: `${accentColor}18`,
+                                    color: accentColor,
+                                  }}
                                 >
-                                  <Minus size={9} />
+                                  <Plus size={11} />
                                 </button>
-                                <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                                  {entry.modelCount} models
-                                </span>
                                 <button
-                                  onClick={() => changeModelCount(entry.unit.id, 1)}
-                                  className="w-4 h-4 rounded flex items-center justify-center"
-                                  style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
+                                  onClick={() => removeUnit(entry.unit.id)}
+                                  className="w-6 h-6 rounded flex items-center justify-center transition-colors"
+                                  style={{
+                                    backgroundColor: "rgba(220,38,38,0.1)",
+                                    color: "#ef4444",
+                                  }}
                                 >
-                                  <Plus size={9} />
+                                  <Minus size={11} />
                                 </button>
                               </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold" style={{ color: accentColor }}>
-                              {entryPts}pts
-                            </span>
-                            <div className="flex gap-0.5">
-                              <button
-                                onClick={() => addUnit(entry.unit)}
-                                className="w-6 h-6 rounded flex items-center justify-center transition-colors"
-                                style={{
-                                  backgroundColor: `${accentColor}18`,
-                                  color: accentColor,
-                                }}
-                              >
-                                <Plus size={11} />
-                              </button>
-                              <button
-                                onClick={() => removeUnit(entry.unit.id)}
-                                className="w-6 h-6 rounded flex items-center justify-center transition-colors"
-                                style={{
-                                  backgroundColor: "rgba(220,38,38,0.1)",
-                                  color: "#ef4444",
-                                }}
-                              >
-                                <Minus size={11} />
-                              </button>
                             </div>
                           </div>
+
+                          {/* Attach Leader button — only for non-character units with eligible leaders */}
+                          {eligibleLeaders.length > 0 && !entry.attachedLeaderId && entry.unit.role !== "Character" && (
+                            <button
+                              onClick={() => setAttachLeaderFor(showLeaderDropdown ? null : entry.unit.id)}
+                              className="mt-1.5 text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-colors"
+                              style={{
+                                backgroundColor: showLeaderDropdown ? `${accentColor}20` : "rgba(255,255,255,0.05)",
+                                border: `1px solid ${showLeaderDropdown ? accentColor + "50" : "rgba(255,255,255,0.1)"}`,
+                                color: showLeaderDropdown ? accentColor : "var(--text-muted)",
+                              }}
+                            >
+                              👤 Attach Leader
+                            </button>
+                          )}
+
+                          {/* Leader selection dropdown */}
+                          {showLeaderDropdown && (
+                            <div
+                              className="mt-1.5 rounded-lg overflow-hidden"
+                              style={{ border: `1px solid ${accentColor}30`, backgroundColor: "rgba(0,0,0,0.25)" }}
+                            >
+                              {eligibleLeaders.map((leader) => (
+                                <button
+                                  key={leader.unit.id}
+                                  onClick={() => attachLeader(entry.unit.id, leader.unit.id)}
+                                  className="w-full text-left px-3 py-1.5 text-[10px] transition-opacity hover:opacity-70"
+                                  style={{
+                                    color: "var(--text-primary)",
+                                    borderBottom: `1px solid ${accentColor}15`,
+                                  }}
+                                >
+                                  {leader.unit.name}
+                                  <span className="ml-1.5" style={{ color: accentColor }}>
+                                    {leader.unit.points}pts
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Attached leader sub-row */}
+                          {attachedLeaderEntry && (
+                            <div
+                              className="mt-1.5 rounded px-2 py-1 flex items-center gap-2"
+                              style={{
+                                backgroundColor: `${accentColor}0A`,
+                                borderLeft: `2px solid ${accentColor}50`,
+                              }}
+                            >
+                              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>🔗</span>
+                              <span className="text-[10px] flex-1 truncate" style={{ color: accentColor }}>
+                                {attachedLeaderEntry.unit.name}
+                              </span>
+                              <span className="text-[10px] font-bold shrink-0" style={{ color: accentColor }}>
+                                {attachedLeaderEntry.unit.points * attachedLeaderEntry.quantity}pts
+                              </span>
+                              <button
+                                onClick={() => detachLeader(entry.unit.id)}
+                                className="shrink-0"
+                                style={{ color: "var(--text-muted)" }}
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })
                 )}
               </div>
 

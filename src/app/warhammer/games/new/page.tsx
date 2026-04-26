@@ -47,6 +47,19 @@ export default function NewWarhammerGamePage() {
         return;
       }
 
+      // Ensure profile exists (handles race condition after signup)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile) {
+        await supabase
+          .from("profiles")
+          .insert({ id: user.id, username: user.email?.split("@")[0] || "player" });
+      }
+
       const { data, error: dbErr } = await supabase
         .from("warhammer_games")
         .insert({
@@ -64,7 +77,11 @@ export default function NewWarhammerGamePage() {
         .select()
         .single();
 
-      if (dbErr) throw dbErr;
+      if (dbErr) {
+        console.error("Game creation error:", dbErr.code, dbErr.message, dbErr.details);
+        setError(dbErr.message ?? "Failed to create game. Please try again.");
+        return;
+      }
 
       router.push(`/warhammer/games/${data.id}`);
     } catch (err: unknown) {

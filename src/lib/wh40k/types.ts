@@ -46,6 +46,8 @@ export interface Unit {
   isTitanic?: boolean;
   canFly?: boolean;
   canDeepStrike?: boolean;
+  canLeadUnits?: string[];   // unit IDs this character can lead
+  canBeLeadBy?: string[];    // character IDs that can lead this unit
 }
 
 export interface Stratagem {
