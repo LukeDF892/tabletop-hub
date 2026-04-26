@@ -225,6 +225,8 @@ export default function WarhammerGameRoom() {
 
   // Game state
   const [gameName, setGameName] = useState("Loading…");
+  const [gameMode, setGameMode] = useState<"solo" | "2player">("2player");
+  const [soloActiveSide, setSoloActiveSide] = useState<"P1" | "P2">("P1");
   const [round, setRound] = useState(1);
   const [phase, setPhase] = useState<Phase>("command");
   const [currentPlayer, setCurrentPlayer] = useState<"P1" | "P2">("P1");
@@ -287,6 +289,9 @@ export default function WarhammerGameRoom() {
       .then(({ data }) => {
         if (data) {
           setGameName(data.name);
+          if (data.game_mode === "solo" || data.game_mode === "2player") {
+            setGameMode(data.game_mode);
+          }
           const gs = data.game_state as Record<string, unknown> | null;
           if (gs) {
             if (typeof gs.round === "number") setRound(gs.round);
@@ -478,6 +483,43 @@ export default function WarhammerGameRoom() {
           >
             End Round
           </button>
+
+          {/* Solo mode side toggle */}
+          {gameMode === "solo" && (
+            <div className="flex items-center gap-2 ml-2">
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>Playing as</span>
+            <div
+              className="flex items-center rounded-full p-0.5"
+              style={{
+                backgroundColor: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <button
+                onClick={() => setSoloActiveSide("P1")}
+                className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
+                style={
+                  soloActiveSide === "P1"
+                    ? { backgroundColor: "rgba(217,119,6,0.3)", color: "#d97706" }
+                    : { color: "var(--text-muted)" }
+                }
+              >
+                P1
+              </button>
+              <button
+                onClick={() => setSoloActiveSide("P2")}
+                className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
+                style={
+                  soloActiveSide === "P2"
+                    ? { backgroundColor: "rgba(217,119,6,0.3)", color: "#d97706" }
+                    : { color: "var(--text-muted)" }
+                }
+              >
+                P2
+              </button>
+            </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -492,7 +534,12 @@ export default function WarhammerGameRoom() {
           {/* Player 1 */}
           <div
             className="p-4"
-            style={{ borderBottom: "1px solid var(--border-subtle)" }}
+            style={{
+              borderBottom: "1px solid var(--border-subtle)",
+              ...(gameMode === "solo" && soloActiveSide === "P1"
+                ? { boxShadow: "inset 2px 0 0 #d97706", backgroundColor: "rgba(217,119,6,0.04)" }
+                : {}),
+            }}
           >
             <div className="flex items-center gap-2 mb-3">
               <div
@@ -606,7 +653,14 @@ export default function WarhammerGameRoom() {
           </div>
 
           {/* Player 2 */}
-          <div className="p-4">
+          <div
+            className="p-4"
+            style={
+              gameMode === "solo" && soloActiveSide === "P2"
+                ? { boxShadow: "inset 2px 0 0 #d97706", backgroundColor: "rgba(217,119,6,0.04)" }
+                : {}
+            }
+          >
             <div className="flex items-center gap-2 mb-3">
               <div
                 className="w-2.5 h-2.5 rounded-full"

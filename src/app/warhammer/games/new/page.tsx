@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Navigation from "@/components/Navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Shield, Target, ChevronRight } from "lucide-react";
+import { Shield, Target, ChevronRight, Users, User } from "lucide-react";
 
 const GAME_SYSTEMS = [
   {
@@ -18,12 +18,14 @@ const GAME_SYSTEMS = [
 
 const POINT_LIMITS = [500, 1000, 2000, 3000];
 
+type GameMode = "2player" | "solo";
+
 export default function NewWarhammerGamePage() {
   const router = useRouter();
   const [gameName, setGameName] = useState("");
   const [gameSystem] = useState("wh40k");
-  const [maxPlayers, setMaxPlayers] = useState(2);
   const [pointsLimit, setPointsLimit] = useState(2000);
+  const [gameMode, setGameMode] = useState<GameMode>("2player");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,9 +68,10 @@ export default function NewWarhammerGamePage() {
           name: gameName.trim(),
           game_system: gameSystem,
           host_id: user.id,
+          game_mode: gameMode,
           game_state: {
             pointsLimit,
-            maxPlayers,
+            maxPlayers: gameMode === "solo" ? 1 : 2,
             round: 1,
             phase: "command",
             players: [],
@@ -165,6 +168,120 @@ export default function NewWarhammerGamePage() {
               />
             </div>
 
+            {/* Game Mode */}
+            <div>
+              <label
+                className="block text-xs font-medium uppercase tracking-widest mb-2"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Game Mode
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {/* 2-Player */}
+                <button
+                  onClick={() => setGameMode("2player")}
+                  className="rounded-xl p-4 text-left transition-all"
+                  style={
+                    gameMode === "2player"
+                      ? {
+                          backgroundColor: "rgba(124,58,237,0.15)",
+                          border: "2px solid rgba(124,58,237,0.6)",
+                        }
+                      : {
+                          backgroundColor: "var(--bg-card)",
+                          border: "2px solid var(--border-card)",
+                        }
+                  }
+                >
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
+                    style={{
+                      backgroundColor:
+                        gameMode === "2player"
+                          ? "rgba(124,58,237,0.2)"
+                          : "rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    <Users
+                      size={18}
+                      style={{
+                        color: gameMode === "2player" ? "#7c3aed" : "var(--text-muted)",
+                      }}
+                    />
+                  </div>
+                  <p
+                    className="text-sm font-semibold mb-1"
+                    style={{
+                      color: gameMode === "2player" ? "#a78bfa" : "var(--text-primary)",
+                    }}
+                  >
+                    2-Player (Online)
+                  </p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    Play against an opponent via invite code
+                  </p>
+                </button>
+
+                {/* Solo */}
+                <button
+                  onClick={() => setGameMode("solo")}
+                  className="rounded-xl p-4 text-left transition-all"
+                  style={
+                    gameMode === "solo"
+                      ? {
+                          backgroundColor: "rgba(217,119,6,0.15)",
+                          border: "2px solid rgba(217,119,6,0.6)",
+                        }
+                      : {
+                          backgroundColor: "var(--bg-card)",
+                          border: "2px solid var(--border-card)",
+                        }
+                  }
+                >
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
+                    style={{
+                      backgroundColor:
+                        gameMode === "solo"
+                          ? "rgba(217,119,6,0.2)"
+                          : "rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    <User
+                      size={18}
+                      style={{
+                        color: gameMode === "solo" ? "#d97706" : "var(--text-muted)",
+                      }}
+                    />
+                  </div>
+                  <p
+                    className="text-sm font-semibold mb-1"
+                    style={{
+                      color: gameMode === "solo" ? "#d97706" : "var(--text-primary)",
+                    }}
+                  >
+                    Solo
+                  </p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    Control both sides yourself — no invite needed
+                  </p>
+                </button>
+              </div>
+
+              {gameMode === "solo" && (
+                <div
+                  className="mt-3 px-4 py-2.5 rounded-lg text-xs"
+                  style={{
+                    backgroundColor: "rgba(217,119,6,0.08)",
+                    border: "1px solid rgba(217,119,6,0.25)",
+                    color: "#d97706",
+                  }}
+                >
+                  Solo mode: you switch between Player 1 and Player 2 perspectives using a toggle in the game room. Both sides are fully controllable.
+                </div>
+              )}
+            </div>
+
             {/* Game System */}
             <div>
               <label
@@ -244,40 +361,6 @@ export default function NewWarhammerGamePage() {
                     }
                   >
                     {pts}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Max Players */}
-            <div>
-              <label
-                className="block text-xs font-medium uppercase tracking-widest mb-2"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Players
-              </label>
-              <div className="flex gap-2">
-                {[2].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setMaxPlayers(n)}
-                    className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all"
-                    style={
-                      maxPlayers === n
-                        ? {
-                            backgroundColor: "rgba(220,38,38,0.18)",
-                            border: "1px solid rgba(220,38,38,0.5)",
-                            color: "#dc2626",
-                          }
-                        : {
-                            backgroundColor: "var(--bg-card)",
-                            border: "1px solid var(--border-card)",
-                            color: "var(--text-muted)",
-                          }
-                    }
-                  >
-                    {n} Players
                   </button>
                 ))}
               </div>
