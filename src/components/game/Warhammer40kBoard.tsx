@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import type { UnitMarker, RangeIndicator } from "@/lib/wh40k/gameTypes";
-import type { TerrainPiece, MapObjective } from "@/lib/wh40k/mapPresets";
+import type { TerrainPiece, MapObjective, DeploymentZone } from "@/lib/wh40k/mapPresets";
 import { getSilhouettePath, silhouetteTypeForUnit, BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
 
 // Board: 60" wide × 44" tall. 1 SVG unit = 1 inch.
@@ -42,6 +42,9 @@ export interface Warhammer40kBoardProps {
   objectives?: MapObjective[];
   rangeIndicators?: RangeIndicator[];
   deploymentDepth?: number;
+  p1Zone?: DeploymentZone;
+  p2Zone?: DeploymentZone;
+  objectiveControl?: ('P1' | 'P2' | null)[];
 }
 
 export default function Warhammer40kBoard({
@@ -54,6 +57,9 @@ export default function Warhammer40kBoard({
   objectives,
   rangeIndicators = [],
   deploymentDepth = 9,
+  p1Zone,
+  p2Zone,
+  objectiveControl,
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -268,15 +274,29 @@ export default function Warhammer40kBoard({
               <rect width={BOARD_W * INCH_PX} height={BOARD_H * INCH_PX} fill="url(#boardFelt)" />
 
               {/* P2 deployment zone */}
-              <rect x={0} y={0} width={BOARD_W * INCH_PX} height={deploymentDepth * INCH_PX} fill="rgba(37,99,235,0.15)" />
+              {p2Zone ? (
+                <rect
+                  x={p2Zone.x * INCH_PX} y={p2Zone.y * INCH_PX}
+                  width={p2Zone.w * INCH_PX} height={p2Zone.h * INCH_PX}
+                  fill="rgba(37,99,235,0.15)"
+                />
+              ) : (
+                <rect x={0} y={0} width={BOARD_W * INCH_PX} height={deploymentDepth * INCH_PX} fill="rgba(37,99,235,0.15)" />
+              )}
               {/* P1 deployment zone */}
-              <rect
-                x={0}
-                y={(BOARD_H - deploymentDepth) * INCH_PX}
-                width={BOARD_W * INCH_PX}
-                height={deploymentDepth * INCH_PX}
-                fill="rgba(220,38,38,0.15)"
-              />
+              {p1Zone ? (
+                <rect
+                  x={p1Zone.x * INCH_PX} y={p1Zone.y * INCH_PX}
+                  width={p1Zone.w * INCH_PX} height={p1Zone.h * INCH_PX}
+                  fill="rgba(220,38,38,0.15)"
+                />
+              ) : (
+                <rect
+                  x={0} y={(BOARD_H - deploymentDepth) * INCH_PX}
+                  width={BOARD_W * INCH_PX} height={deploymentDepth * INCH_PX}
+                  fill="rgba(220,38,38,0.15)"
+                />
+              )}
 
               {/* Grid */}
               {gridLines}
@@ -368,28 +388,37 @@ export default function Warhammer40kBoard({
                 P1 DEPLOYMENT ZONE
               </text>
 
-              {/* Objective markers — 40mm physical = 1.6" radius */}
+              {/* Objective markers — 40mm physical = 1.6" radius, 3" capture radius */}
               {displayedObjectives.map((obj, idx) => {
                 const cx = obj.x * INCH_PX;
                 const cy = obj.y * INCH_PX;
                 const r = OBJ_RADIUS_INCHES * INCH_PX;
+                const captureR = 3 * INCH_PX; // 3" capture radius ring
                 const num = idx + 1;
+                const ctrl = objectiveControl ? objectiveControl[idx] : null;
+                const ctrlColor = ctrl === "P1" ? "#ef4444" : ctrl === "P2" ? "#3b82f6" : null;
                 return (
                   <g key={`obj-${idx}`}>
+                    {/* 3" capture radius ring (faint dashed) */}
+                    <circle cx={cx} cy={cy} r={captureR} fill="none" stroke="rgba(234,179,8,0.12)" strokeWidth={1.5} strokeDasharray="8 6" />
+                    {/* Control ownership ring */}
+                    {ctrlColor && (
+                      <circle cx={cx} cy={cy} r={r + 10} fill="none" stroke={ctrlColor} strokeWidth={4} opacity={0.7} />
+                    )}
                     {/* Outer glow ring */}
-                    <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="rgba(234,179,8,0.2)" strokeWidth={3} />
+                    <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke={ctrlColor ?? "rgba(234,179,8,0.2)"} strokeWidth={3} />
                     {/* Main circle */}
-                    <circle cx={cx} cy={cy} r={r} fill="rgba(234,179,8,0.15)" stroke="#eab308" strokeWidth={3} />
+                    <circle cx={cx} cy={cy} r={r} fill={ctrlColor ? `${ctrlColor}22` : "rgba(234,179,8,0.15)"} stroke={ctrlColor ?? "#eab308"} strokeWidth={3} />
                     {/* Inner ring */}
                     <circle cx={cx} cy={cy} r={r * 0.65} fill="rgba(234,179,8,0.08)" stroke="rgba(234,179,8,0.4)" strokeWidth={1.5} />
                     {/* Objective number */}
-                    <text x={cx} y={cy - 8} textAnchor="middle" fontSize={36} fontWeight="bold" fill="#eab308" fontFamily="Georgia, serif">
+                    <text x={cx} y={cy - 8} textAnchor="middle" fontSize={36} fontWeight="bold" fill={ctrlColor ?? "#eab308"} fontFamily="Georgia, serif">
                       {num}
                     </text>
                     {/* Small crown/flag icon (triangle) */}
                     <polygon
                       points={`${cx},${cy+14} ${cx-10},${cy+28} ${cx+10},${cy+28}`}
-                      fill="rgba(234,179,8,0.5)"
+                      fill={ctrlColor ? `${ctrlColor}80` : "rgba(234,179,8,0.5)"}
                     />
                   </g>
                 );

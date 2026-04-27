@@ -49,17 +49,14 @@ const ROLLOFF_LABELS = ["Attacker / Defender", "First Deployment", "First Turn"]
 
 type RoomPhase = "loading" | "rolloff" | "deployment" | "game" | "finished";
 
-type GamePhase = "command" | "movement" | "shooting" | "charge" | "fight" | "morale" | "scoring";
+// 10th ed turn order: each player runs all 5 phases, then scoring at end of battle round.
+// TODO: Battle-shock (replaces morale in 10th ed): units below half-strength test on Leadership; on fail can't use special abilities.
+type GamePhase = "command" | "movement" | "shooting" | "charge" | "fight" | "scoring";
 
-const GAME_PHASES: GamePhase[] = [
-  "command",
-  "movement",
-  "shooting",
-  "charge",
-  "fight",
-  "morale",
-  "scoring",
-];
+// The 5 phases each player runs through before switching turns
+const PLAYER_PHASES: GamePhase[] = ["command", "movement", "shooting", "charge", "fight"];
+// Alias for phase chip display (excludes scoring which is a between-turns state)
+const GAME_PHASES = PLAYER_PHASES;
 
 const PHASE_ICONS: Record<GamePhase, React.ComponentType<{ size?: number }>> = {
   command: Star,
@@ -67,7 +64,6 @@ const PHASE_ICONS: Record<GamePhase, React.ComponentType<{ size?: number }>> = {
   shooting: Target,
   charge: Zap,
   fight: Sword,
-  morale: Heart,
   scoring: Activity,
 };
 
@@ -77,7 +73,6 @@ const PHASE_LABELS: Record<GamePhase, string> = {
   shooting: "Shooting",
   charge: "Charge",
   fight: "Fight",
-  morale: "Morale",
   scoring: "Scoring",
 };
 
@@ -209,8 +204,14 @@ function findUnit(factionName: string, unitId: string): Unit | undefined {
 function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
   const entries = army.units?.entries ?? [];
   const markers: UnitMarker[] = [];
+  // Units that appear as attachedLeaderId in another entry should not also appear
+  // as a standalone entry — they deploy automatically with their parent unit.
+  const attachedLeaderIds = new Set(
+    entries.map((e) => e.attachedLeaderId).filter(Boolean)
+  );
 
   entries.forEach((entry) => {
+    if (attachedLeaderIds.has(entry.unitId)) return; // skip — already an attached leader
     const unit = findUnit(army.faction, entry.unitId);
     if (!unit) return;
 
@@ -725,8 +726,8 @@ export default function WarhammerGameRoom() {
   const [round, setRound] = useState(1);
   const [gamePhase, setGamePhase] = useState<GamePhase>("command");
   const [activePlayer, setActivePlayer] = useState<"P1" | "P2">("P1");
-  const [p1Cp, setP1Cp] = useState(4);
-  const [p2Cp, setP2Cp] = useState(4);
+  const [p1Cp, setP1Cp] = useState(0);
+  const [p2Cp, setP2Cp] = useState(0);
   const [p1Vp, setP1Vp] = useState(0);
   const [p2Vp, setP2Vp] = useState(0);
 
@@ -790,7 +791,11 @@ export default function WarhammerGameRoom() {
           setRolloffResults(savedState.rolloffResults as RolloffResult);
         }
         if (savedState.activePlayer) setActivePlayer(savedState.activePlayer as "P1" | "P2");
-        if (savedState.gamePhase) setGamePhase(savedState.gamePhase as GamePhase);
+        if (savedState.gamePhase) {
+          // "morale" removed in 10th ed refactor — treat as "fight" for old saves
+          const saved = savedState.gamePhase as string;
+          setGamePhase((saved === "morale" ? "fight" : saved) as GamePhase);
+        }
         if (Array.isArray(savedState.markers) && savedState.markers.length > 0) {
           setMarkers(savedState.markers as UnitMarker[]);
         }
@@ -947,16 +952,20 @@ export default function WarhammerGameRoom() {
     const marker = markers.find((m) => m.id === deploySelectedId);
     if (!marker) return;
 
-    const depth = mapPreset.deploymentDepth;
-    const isP1Zone = cellY >= BOARD_H_CONST - depth;
-    const isP2Zone = cellY < depth;
+    const { p1Zone, p2Zone } = mapPreset;
+    const inP1Zone =
+      cellX >= p1Zone.x && cellX < p1Zone.x + p1Zone.w &&
+      cellY >= p1Zone.y && cellY < p1Zone.y + p1Zone.h;
+    const inP2Zone =
+      cellX >= p2Zone.x && cellX < p2Zone.x + p2Zone.w &&
+      cellY >= p2Zone.y && cellY < p2Zone.y + p2Zone.h;
 
-    if (marker.player === "P1" && !isP1Zone) {
-      addLog(`P1 must deploy in the bottom deployment zone (last ${depth}").`, "system");
+    if (marker.player === "P1" && !inP1Zone) {
+      addLog("P1 must deploy within their designated deployment zone.", "system");
       return;
     }
-    if (marker.player === "P2" && !isP2Zone) {
-      addLog(`P2 must deploy in the top deployment zone (first ${depth}").`, "system");
+    if (marker.player === "P2" && !inP2Zone) {
+      addLog("P2 must deploy within their designated deployment zone.", "system");
       return;
     }
 
@@ -1025,20 +1034,115 @@ export default function WarhammerGameRoom() {
     setGamePhase("command");
     persistState({ current_phase: "command", game_state: { markers, round: 1, gamePhase: "command", activePlayer: firstPlayer, p1Cp, p2Cp, p1Vp, p2Vp } });
     addLog(`Deployment complete. ${firstPlayer} goes first. Round 1 — Command Phase.`, "system");
+    // First player gains their Command Phase CP immediately
+    giveCommandPhaseCP(firstPlayer, markers);
   }
 
   // ── Game phase logic ──
 
+  // 10th ed CP: +1 CP per Command Phase; +1 extra if Azrael leads a unit on the battlefield.
+  function giveCommandPhaseCP(player: "P1" | "P2", currentMarkers: UnitMarker[]) {
+    const hasAzrael = currentMarkers.some(
+      (m) => m.player === player && !m.isInReserve && !m.isDestroyed && m.unitName === "Azrael"
+    );
+    const gain = hasAzrael ? 2 : 1;
+    if (player === "P1") setP1Cp((n) => n + gain);
+    else setP2Cp((n) => n + gain);
+    const msg = hasAzrael
+      ? `${player} gains 2 CP in Command Phase (Azrael +1 bonus).`
+      : `${player} gains 1 CP in Command Phase.`;
+    addLog(msg, player);
+  }
+
+  // 10th ed primary objectives: 5VP per objective controlled at end of scoring player's turn.
+  // Capture radius = 3". If both players contest, more units wins; tie = no control.
+  function scoreObjectivesForPlayer(player: "P1" | "P2", currentMarkers: UnitMarker[]) {
+    // TODO: Secondary objectives (Tactical missions) — hidden objectives drawn from a deck each round.
+    const captureRadius = 3;
+    const active = currentMarkers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
+    const controlledNums: number[] = [];
+    let vp = 0;
+
+    mapPreset.objectives.forEach((obj, idx) => {
+      const p1Near = active.filter(
+        (m) => m.player === "P1" &&
+               Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
+      );
+      const p2Near = active.filter(
+        (m) => m.player === "P2" &&
+               Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
+      );
+
+      let controller: "P1" | "P2" | null = null;
+      if (p1Near.length > 0 && p2Near.length === 0) controller = "P1";
+      else if (p2Near.length > 0 && p1Near.length === 0) controller = "P2";
+      else if (p1Near.length > p2Near.length) controller = "P1";
+      else if (p2Near.length > p1Near.length) controller = "P2";
+
+      if (controller === player) {
+        vp += 5;
+        controlledNums.push(idx + 1);
+      }
+    });
+
+    if (vp > 0) {
+      if (player === "P1") setP1Vp((n) => n + vp);
+      else setP2Vp((n) => n + vp);
+      addLog(
+        `Scoring: ${player} controls obj ${controlledNums.join(", ")} — +${vp} VP (${controlledNums.length}×5).`,
+        player
+      );
+    } else {
+      addLog(`Scoring: ${player} controls no objectives this turn.`, "system");
+    }
+  }
+
+  // 10th ed phase sequence per player: command → movement → shooting → charge → fight
+  // After P1's fight: score P1's objectives → P2's command phase
+  // After P2's fight: score P2's objectives → end-of-round scoring phase
   function advancePhase() {
-    const idx = GAME_PHASES.indexOf(gamePhase);
-    if (idx < GAME_PHASES.length - 1) {
-      const next = GAME_PHASES[idx + 1];
+    setSelectedMarkerId(null);
+    setCombat(INIT_COMBAT);
+    setMoveUnit(null);
+
+    if (gamePhase === "fight") {
+      // Score objectives for the player who just finished their turn
+      scoreObjectivesForPlayer(activePlayer, markers);
+
+      if (activePlayer === "P1") {
+        // P1 done → start P2's turn
+        const newPlayer: "P1" | "P2" = "P2";
+        setActivePlayer(newPlayer);
+        setGamePhase("command");
+        // Reset P2's unit action flags for their fresh turn
+        setMarkers((prev) =>
+          prev.map((m) =>
+            m.player === "P2"
+              ? { ...m, hasAdvanced: false, hasCharged: false, hasFought: false, hasShotThisTurn: false }
+              : m
+          )
+        );
+        // Solo mode: auto-switch to P2
+        if (gameMode === "solo") setSoloSide("P2");
+        addLog(`P1's turn complete. Round ${round} — Player 2's Turn: Command Phase.`, "system");
+        giveCommandPhaseCP("P2", markers);
+      } else {
+        // P2 done → end of battle round (scoring phase shows "End Round" button)
+        setGamePhase("scoring");
+        addLog(`P2's turn complete. End of Round ${round} — click "End Round" to continue.`, "system");
+      }
+      return;
+    }
+
+    if (gamePhase === "command") {
+      // CP was already granted when we entered command phase; just advance
+    }
+
+    const idx = PLAYER_PHASES.indexOf(gamePhase);
+    if (idx >= 0 && idx < PLAYER_PHASES.length - 1) {
+      const next = PLAYER_PHASES[idx + 1];
       setGamePhase(next);
-      setSelectedMarkerId(null);
-      setCombat(INIT_COMBAT);
-      setMoveUnit(null);
-      addLog(`→ ${PHASE_LABELS[next]} Phase`, "system");
-      if (next === "scoring") scoreObjectives();
+      addLog(`→ ${activePlayer}'s ${PHASE_LABELS[next]} Phase`, "system");
     }
   }
 
@@ -1046,16 +1150,18 @@ export default function WarhammerGameRoom() {
     if (round >= 5) {
       const winner = p1Vp > p2Vp ? "P1" : p2Vp > p1Vp ? "P2" : "Draw";
       setRoomPhase("finished");
-      addLog(`Battle ends! Final score — P1: ${p1Vp}VP, P2: ${p2Vp}VP. ${winner === "Draw" ? "It's a draw!" : `${winner} wins!`}`, "system");
+      addLog(
+        `Battle ends! Final score — P1: ${p1Vp}VP, P2: ${p2Vp}VP. ${winner === "Draw" ? "It's a draw!" : `${winner} wins!`}`,
+        "system"
+      );
       persistState({ current_phase: "finished" });
       return;
     }
     const nextRound = round + 1;
     setRound(nextRound);
+    setActivePlayer("P1");
     setGamePhase("command");
-    setP1Cp((n) => n + 1);
-    setP2Cp((n) => n + 1);
-    // Reset per-round unit flags
+    // Reset all unit action flags for the new round
     setMarkers((prev) =>
       prev.map((m) => ({
         ...m,
@@ -1068,38 +1174,10 @@ export default function WarhammerGameRoom() {
     setSelectedMarkerId(null);
     setCombat(INIT_COMBAT);
     setMoveUnit(null);
-    addLog(`Round ${nextRound} begins. Both players gain +1 CP.`, "system");
-  }
-
-  // Objective scoring — uses 5 objectives from mapPreset, 1.6" capture radius
-  function scoreObjectives() {
-    let p1Scored = 0;
-    let p2Scored = 0;
-    const activeMarkers = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
-    const captureRadius = 1.6;
-
-    mapPreset.objectives.forEach((obj) => {
-      const p1Near = activeMarkers.filter(
-        (m) => m.player === "P1" && Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
-      );
-      const p2Near = activeMarkers.filter(
-        (m) => m.player === "P2" && Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
-      );
-      if (p1Near.length > 0 && p2Near.length === 0) p1Scored++;
-      else if (p2Near.length > 0 && p1Near.length === 0) p2Scored++;
-    });
-
-    if (p1Scored > 0) {
-      setP1Vp((n) => n + p1Scored);
-      addLog(`Scoring: P1 controls ${p1Scored} objective(s) — +${p1Scored} VP`, "P1");
-    }
-    if (p2Scored > 0) {
-      setP2Vp((n) => n + p2Scored);
-      addLog(`Scoring: P2 controls ${p2Scored} objective(s) — +${p2Scored} VP`, "P2");
-    }
-    if (p1Scored === 0 && p2Scored === 0) {
-      addLog("Scoring: No objectives controlled.", "system");
-    }
+    // Solo mode: back to P1's perspective
+    if (gameMode === "solo") setSoloSide("P1");
+    addLog(`Round ${nextRound} begins. Player 1's Turn — Command Phase.`, "system");
+    giveCommandPhaseCP("P1", markers);
   }
 
   // ── Cell click handler (context-sensitive) ──
@@ -1122,6 +1200,12 @@ export default function WarhammerGameRoom() {
       }
       const occupied = markers.some((m) => m.id !== moveUnit && m.x === x && m.y === y && !m.isDestroyed && !m.isInReserve);
       if (occupied) { addLog("Cell occupied.", "system"); return; }
+      // Units cannot end movement inside terrain (10th ed — treat all terrain as solid ruins).
+      // TODO: Infantry keyword can move through area terrain freely but still cannot end inside.
+      const inTerrain = mapPreset.terrain.some(
+        (t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h
+      );
+      if (inTerrain) { addLog("Cannot move into solid terrain.", "system"); return; }
       const oldX = marker.x;
       const oldY = marker.y;
       setMarkers((prev) =>
@@ -1166,6 +1250,52 @@ export default function WarhammerGameRoom() {
         if (combat.step === "selectTarget") {
           const attacker = markers.find((mk) => mk.id === combat.attackerId);
           if (!attacker || m.player === attacker.player) return;
+
+          // Range validation
+          if (combat.weaponIdx !== null) {
+            const weapon = attacker.weapons[combat.weaponIdx];
+            if (weapon?.range) {
+              const rangeIn = parseStat(weapon.range);
+              if (rangeIn > 0) {
+                const dist = Math.sqrt(
+                  (attacker.x + 0.5 - (m.x + 0.5)) ** 2 +
+                  (attacker.y + 0.5 - (m.y + 0.5)) ** 2
+                );
+                if (dist > rangeIn) {
+                  addLog(
+                    `Target out of range (${dist.toFixed(1)}" away, weapon range ${rangeIn}").`,
+                    "system"
+                  );
+                  return;
+                }
+              }
+            }
+          }
+
+          // LOS validation — terrain blocks if line passes through it and target is NOT inside
+          const targetInside = (t: { x: number; y: number; w: number; h: number }) =>
+            m.x >= t.x && m.x < t.x + t.w && m.y >= t.y && m.y < t.y + t.h;
+
+          const losBlocked = mapPreset.terrain.some((t) => {
+            if (!lineIntersectsRect(
+              attacker.x + 0.5, attacker.y + 0.5,
+              m.x + 0.5, m.y + 0.5,
+              t.x, t.y, t.w, t.h
+            )) return false;
+            return !targetInside(t); // blocked only when target is NOT inside the terrain
+          });
+
+          if (losBlocked) {
+            addLog("No LOS — terrain blocks line of sight to target.", "system");
+            return;
+          }
+
+          // Inform if target has cover (they're inside ruins)
+          const hasCover = mapPreset.terrain.some((t) => targetInside(t));
+          if (hasCover) {
+            addLog(`${m.unitName} is in ruins — will receive +1 cover save.`, "system");
+          }
+
           setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
           setSelectedMarkerId(markerId);
           return;
@@ -1241,21 +1371,21 @@ export default function WarhammerGameRoom() {
     const saveBase = parseSave(target.stats.save);
     const invSave = parseInvSave(target.stats.save);
     const effectiveSave = Math.min(saveBase - ap, invSave ?? 7);
-    // Terrain cover: if line of sight crosses terrain, grant +1 to saves
+    // Cover: target inside ruins grants +1 to saving throw (10th ed ruins rule)
     let coverSave = effectiveSave;
-    const hasLosBlock = mapPreset.terrain.some((t) =>
-      lineIntersectsRect(attacker.x + 0.5, attacker.y + 0.5, target.x + 0.5, target.y + 0.5, t.x, t.y, t.w, t.h)
+    const targetInRuins = mapPreset.terrain.some(
+      (t) => target.x >= t.x && target.x < t.x + t.w && target.y >= t.y && target.y < t.y + t.h
     );
-    if (hasLosBlock && effectiveSave < 7) {
+    if (targetInRuins && effectiveSave < 7) {
       coverSave = Math.min(7, effectiveSave + 1);
-      addLog(`Cover: target is obscured by terrain — save improved to ${coverSave}+.`, "system");
+      addLog(`Cover: ${target.unitName} is in ruins — save improved to ${coverSave}+.`, "system");
     }
 
     const rolls = rollDice(combat.wounds);
     const unsaved = rolls.filter((r) => r < coverSave).length;
     const dmgPer = parseDiceExpr(weapon.damage);
     const totalDmg = unsaved * dmgPer;
-    addLog(`Saves: ${coverSave}+ needed (Sv${saveBase}, AP${ap}${hasLosBlock ? ", +1 cover" : ""}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
+    addLog(`Saves: ${coverSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
     showRoll({ rolls, type: "save", threshold: coverSave, label: `Save Rolls (${coverSave}+)` });
 
     // Apply damage
@@ -1496,7 +1626,7 @@ export default function WarhammerGameRoom() {
             Command Phase
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Use stratagems, issue orders. Both players gain +1 CP at the start of each round.
+            {activePlayer} gained +1 CP this phase. Use stratagems or issue orders.
           </p>
           <button
             onClick={advancePhase}
@@ -1695,52 +1825,27 @@ export default function WarhammerGameRoom() {
       );
     }
 
-    if (gamePhase === "morale") {
-      return (
-        <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-            Morale Phase (Battleshock)
-          </p>
-          <button
-            onClick={() => resolveMorale("P1")}
-            className="w-full py-2 rounded-lg text-xs font-semibold"
-            style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.25)" }}
-          >
-            P1 Battleshock Tests
-          </button>
-          <button
-            onClick={() => resolveMorale("P2")}
-            className="w-full py-2 rounded-lg text-xs font-semibold"
-            style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.25)" }}
-          >
-            P2 Battleshock Tests
-          </button>
-          <button
-            onClick={advancePhase}
-            className="w-full py-2 rounded-lg text-xs font-semibold mt-2"
-            style={{ backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.35)" }}
-          >
-            End Morale Phase →
-          </button>
-        </div>
-      );
-    }
+    // TODO: Battle-shock (10th ed morale replacement): units below half-strength test on Leadership;
+    // on fail, they cannot use special abilities until the end of the phase.
 
     if (gamePhase === "scoring") {
       return (
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-            Scoring Phase
+            End of Round {round}
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            VP auto-calculated from objectives. P1: {p1Vp}VP · P2: {p2Vp}VP
+            Both players have scored VP for objectives they controlled at end of their turn.
+          </p>
+          <p className="text-xs font-medium mt-1" style={{ color: "var(--text-primary)" }}>
+            P1: {p1Vp} VP · P2: {p2Vp} VP
           </p>
           <button
             onClick={endRound}
             className="w-full py-2 rounded-lg text-xs font-semibold mt-2"
             style={{ backgroundColor: "rgba(220,38,38,0.15)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.3)" }}
           >
-            {round >= 5 ? "End Battle" : `End Round ${round} →`}
+            {round >= 5 ? "End Battle" : `Begin Round ${round + 1} →`}
           </button>
         </div>
       );
@@ -1857,6 +1962,18 @@ export default function WarhammerGameRoom() {
             <span className="text-xs font-bold flex-shrink-0" style={{ color: "#d97706" }}>
               Round {round}/5
             </span>
+            {gamePhase !== "scoring" && (
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
+                style={{
+                  backgroundColor: activePlayer === "P1" ? "rgba(220,38,38,0.2)" : "rgba(37,99,235,0.2)",
+                  color: activePlayer === "P1" ? "#f87171" : "#60a5fa",
+                  border: `1px solid ${activePlayer === "P1" ? "rgba(220,38,38,0.5)" : "rgba(37,99,235,0.5)"}`,
+                }}
+              >
+                {activePlayer === "P1" ? "Player 1's Turn" : "Player 2's Turn"}
+              </span>
+            )}
             <div className="flex gap-1 flex-shrink-0">
               {GAME_PHASES.map((p) => {
                 const Icon = PHASE_ICONS[p];
@@ -2126,18 +2243,43 @@ export default function WarhammerGameRoom() {
 
         {/* ── CENTER — Board ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Warhammer40kBoard
-            markers={markers}
-            selectedMarkerId={selectedMarkerId ?? deploySelectedId}
-            onCellClick={handleCellClick}
-            onUnitClick={handleUnitClick}
-            phase={isDeployment ? "deployment" : gamePhase}
-            activePlayer={activeSide}
-            terrain={mapPreset.terrain}
-            objectives={mapPreset.objectives}
-            rangeIndicators={rangeIndicators}
-            deploymentDepth={mapPreset.deploymentDepth}
-          />
+          {(() => {
+            // Compute which player controls each objective for ring colouring
+            const captureR = 3;
+            const activeM = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
+            const objectiveControl: ('P1' | 'P2' | null)[] = mapPreset.objectives.map((obj) => {
+              const p1n = activeM.filter(
+                (m) => m.player === "P1" &&
+                       Math.sqrt((m.x+0.5-obj.x)**2 + (m.y+0.5-obj.y)**2) <= captureR
+              );
+              const p2n = activeM.filter(
+                (m) => m.player === "P2" &&
+                       Math.sqrt((m.x+0.5-obj.x)**2 + (m.y+0.5-obj.y)**2) <= captureR
+              );
+              if (p1n.length > 0 && p2n.length === 0) return "P1";
+              if (p2n.length > 0 && p1n.length === 0) return "P2";
+              if (p1n.length > p2n.length) return "P1";
+              if (p2n.length > p1n.length) return "P2";
+              return null;
+            });
+            return (
+              <Warhammer40kBoard
+                markers={markers}
+                selectedMarkerId={selectedMarkerId ?? deploySelectedId}
+                onCellClick={handleCellClick}
+                onUnitClick={handleUnitClick}
+                phase={isDeployment ? "deployment" : gamePhase}
+                activePlayer={activeSide}
+                terrain={mapPreset.terrain}
+                objectives={mapPreset.objectives}
+                rangeIndicators={rangeIndicators}
+                deploymentDepth={mapPreset.deploymentDepth}
+                p1Zone={mapPreset.p1Zone}
+                p2Zone={mapPreset.p2Zone}
+                objectiveControl={objectiveControl}
+              />
+            );
+          })()}
           <DiceRollerPopup request={diceRequest} onDismiss={dismissDice} />
         </div>
 

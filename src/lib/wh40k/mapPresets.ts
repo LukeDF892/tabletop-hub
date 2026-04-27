@@ -11,13 +11,25 @@ export interface MapObjective {
   y: number;
 }
 
+// Board is 60" wide × 44" tall (x=0-60 horizontal, y=0-44 vertical, y=0 is top)
+export interface DeploymentZone {
+  type: 'rect';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface MapPreset {
   id: string;
   name: string;
   description: string;
   objectives: MapObjective[];
   terrain: TerrainPiece[];
-  deploymentDepth: number;
+  deploymentDepth: number; // kept for board fallback rendering
+  deploymentType: 'standard' | 'dawn_of_war' | 'search_and_destroy' | 'crucible' | 'sweeping';
+  p1Zone: DeploymentZone;
+  p2Zone: DeploymentZone;
 }
 
 export const MAP_PRESETS: MapPreset[] = [
@@ -40,11 +52,14 @@ export const MAP_PRESETS: MapPreset[] = [
       { x: 36, y: 30, w: 6, h: 4, label: "Ruin E" },
     ],
     deploymentDepth: 9,
+    deploymentType: 'standard',
+    p1Zone: { type: 'rect', x: 0, y: 35, w: 60, h: 9 },
+    p2Zone: { type: 'rect', x: 0, y: 0,  w: 60, h: 9 },
   },
   {
     id: "dawn_of_war",
     name: "Dawn of War",
-    description: "Wider 12\" deployment zones, sparser terrain, objectives spread further apart.",
+    description: "Deploy from the short table edge — 12\" zones on left/right flanks.",
     objectives: [
       { x: 30, y: 22 },
       { x: 8,  y: 14 },
@@ -58,11 +73,14 @@ export const MAP_PRESETS: MapPreset[] = [
       { x: 10, y: 20, w: 5, h: 4, label: "Ruin C" },
     ],
     deploymentDepth: 12,
+    deploymentType: 'dawn_of_war',
+    p1Zone: { type: 'rect', x: 0,  y: 0, w: 12, h: 44 },
+    p2Zone: { type: 'rect', x: 48, y: 0, w: 12, h: 44 },
   },
   {
     id: "search_and_destroy",
     name: "Search and Destroy",
-    description: "9\" zones with 6 terrain pieces spread across the board.",
+    description: "Diagonal corner deployment — P1 bottom-left, P2 top-right.",
     objectives: [
       { x: 30, y: 22 },
       { x: 12, y: 9  },
@@ -79,6 +97,9 @@ export const MAP_PRESETS: MapPreset[] = [
       { x: 27, y: 30, w: 6, h: 4, label: "Ruin F" },
     ],
     deploymentDepth: 9,
+    deploymentType: 'search_and_destroy',
+    p1Zone: { type: 'rect', x: 0,  y: 22, w: 30, h: 22 },
+    p2Zone: { type: 'rect', x: 30, y: 0,  w: 30, h: 22 },
   },
   {
     id: "crucible_of_battle",
@@ -101,11 +122,14 @@ export const MAP_PRESETS: MapPreset[] = [
       { x: 36, y: 27, w: 6, h: 4, label: "Ruin G" },
     ],
     deploymentDepth: 9,
+    deploymentType: 'crucible',
+    p1Zone: { type: 'rect', x: 0, y: 35, w: 60, h: 9 },
+    p2Zone: { type: 'rect', x: 0, y: 0,  w: 60, h: 9 },
   },
   {
     id: "sweeping_engagement",
     name: "Sweeping Engagement",
-    description: "9\" zones with asymmetric terrain favouring P1's right flank.",
+    description: "Wider 12\" zones — more room to manoeuvre before contact.",
     objectives: [
       { x: 30, y: 22 },
       { x: 8,  y: 11 },
@@ -120,7 +144,10 @@ export const MAP_PRESETS: MapPreset[] = [
       { x: 42, y: 14, w: 5, h: 4, label: "Ruin D" },
       { x: 44, y: 22, w: 5, h: 4, label: "Ruin E" },
     ],
-    deploymentDepth: 9,
+    deploymentDepth: 12,
+    deploymentType: 'sweeping',
+    p1Zone: { type: 'rect', x: 0, y: 32, w: 60, h: 12 },
+    p2Zone: { type: 'rect', x: 0, y: 0,  w: 60, h: 12 },
   },
 ];
 
