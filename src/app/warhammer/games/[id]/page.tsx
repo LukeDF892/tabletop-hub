@@ -9,8 +9,13 @@ import { SPACE_MARINES_FACTION } from "@/lib/wh40k/space-marines";
 import { DARK_ANGELS_FACTION } from "@/lib/wh40k/dark-angels";
 import { TYRANIDS_FACTION } from "@/lib/wh40k/tyranids";
 import { NECRONS_FACTION } from "@/lib/wh40k/necrons";
-import type { UnitMarker, RolloffResult } from "@/lib/wh40k/gameTypes";
+import type { UnitMarker, RolloffResult, RangeIndicator } from "@/lib/wh40k/gameTypes";
 import type { Unit } from "@/lib/wh40k/types";
+import { MAP_PRESETS, DEFAULT_PRESET, getPresetById } from "@/lib/wh40k/mapPresets";
+import type { MapPreset } from "@/lib/wh40k/mapPresets";
+import { BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
+import type { BaseSize } from "@/lib/wh40k/gameTypes";
+import { DiceRollerPopup, useDiceRoller } from "@/components/game/DiceRollerPopup";
 import {
   Dice6,
   Plus,
@@ -30,6 +35,8 @@ import {
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const BOARD_H_CONST = 44; // board height in inches
 
 const ALL_FACTIONS = [
   SPACE_MARINES_FACTION,
@@ -130,6 +137,47 @@ function parseSkill(skill: string): number {
   return m ? parseInt(m[1]) : 4;
 }
 
+// ─── Base size from unit keywords ─────────────────────────────────────────────
+
+function baseSizeFromKeywords(keywords: string[]): BaseSize {
+  const kw = keywords.map((k) => k.toUpperCase());
+  if (kw.some((k) => k.includes("TITAN") || k.includes("SUPERHEAVY"))) return "titan";
+  if (kw.some((k) => k.includes("MONSTER") || k.includes("VEHICLE"))) return "monster";
+  if (kw.some((k) => k.includes("DREADNOUGHT") || k.includes("WALKER"))) return "dreadnought";
+  if (kw.some((k) => k.includes("TERMINATOR"))) return "terminator";
+  if (kw.some((k) => k.includes("CAVALRY") || k.includes("MOUNTED") || k.includes("BIKE"))) return "cavalry";
+  return "infantry";
+}
+
+// Check if a line segment (ax,ay)→(bx,by) passes through a rectangle
+function lineIntersectsRect(
+  ax: number, ay: number, bx: number, by: number,
+  rx: number, ry: number, rw: number, rh: number
+): boolean {
+  // Separating axis test
+  const minX = Math.min(ax, bx);
+  const maxX = Math.max(ax, bx);
+  const minY = Math.min(ay, by);
+  const maxY = Math.max(ay, by);
+  if (maxX < rx || minX > rx + rw || maxY < ry || minY > ry + rh) return false;
+  // Parametric clip
+  const dx = bx - ax;
+  const dy = by - ay;
+  let tMin = 0, tMax = 1;
+  function clip(p: number, q: number) {
+    if (p === 0) return q >= 0;
+    const r = q / p;
+    if (p < 0) { if (r > tMax) return false; if (r > tMin) tMin = r; }
+    else { if (r < tMin) return false; if (r < tMax) tMax = r; }
+    return true;
+  }
+  if (!clip(-dx, ax - rx)) return false;
+  if (!clip(dx, rx + rw - ax)) return false;
+  if (!clip(-dy, ay - ry)) return false;
+  if (!clip(dy, ry + rh - ay)) return false;
+  return tMin < tMax;
+}
+
 // ─── Activity log ─────────────────────────────────────────────────────────────
 
 interface LogEntry {
@@ -161,12 +209,53 @@ function findUnit(factionName: string, unitId: string): Unit | undefined {
 function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
   const entries = army.units?.entries ?? [];
   const markers: UnitMarker[] = [];
+
   entries.forEach((entry) => {
     const unit = findUnit(army.faction, entry.unitId);
     if (!unit) return;
+
     for (let i = 0; i < Math.max(1, entry.quantity); i++) {
+      const uid = `${player}-${entry.unitId}-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const baseSize = baseSizeFromKeywords(unit.keywords ?? []);
+
+      // Resolve attached character (leader)
+      let attachedCharacterId: string | undefined;
+      let attachedCharacterName: string | undefined;
+      let charMarker: UnitMarker | undefined;
+
+      if (entry.attachedLeaderId) {
+        const charUnit = findUnit(army.faction, entry.attachedLeaderId);
+        if (charUnit) {
+          const charId = `${player}-${entry.attachedLeaderId}-attached-${uid}`;
+          attachedCharacterId = charId;
+          attachedCharacterName = charUnit.name;
+          charMarker = {
+            id: charId,
+            unitId: entry.attachedLeaderId,
+            unitName: charUnit.name,
+            player,
+            x: 0,
+            y: 0,
+            currentWounds: charUnit.stats.wounds,
+            maxWounds: charUnit.stats.wounds,
+            stats: charUnit.stats,
+            weapons: charUnit.weapons,
+            hasAdvanced: false,
+            hasCharged: false,
+            hasFought: false,
+            hasShotThisTurn: false,
+            isInReserve: true,
+            isDestroyed: false,
+            baseSize: baseSizeFromKeywords(charUnit.keywords ?? []),
+            faction: army.faction,
+            isAttached: true,
+            attachedToMarkerId: uid,
+          };
+        }
+      }
+
       markers.push({
-        id: `${player}-${entry.unitId}-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: uid,
         unitId: entry.unitId,
         unitName: unit.name,
         player,
@@ -180,11 +269,18 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         hasCharged: false,
         hasFought: false,
         hasShotThisTurn: false,
-        isInReserve: true, // all start off-board until deployed
+        isInReserve: true,
         isDestroyed: false,
+        baseSize,
+        faction: army.faction,
+        attachedCharacterId,
+        attachedCharacterName,
       });
+
+      if (charMarker) markers.push(charMarker);
     }
   });
+
   return markers;
 }
 
@@ -470,7 +566,10 @@ function DeploymentPanel({
   onEndDeployment,
   allDone,
 }: DeploymentPanelProps) {
-  const currentUnits = undeployedMarkers.filter((m) => m.player === currentDeployer);
+  // Hide attached character markers — they deploy automatically with the parent unit
+  const currentUnits = undeployedMarkers.filter(
+    (m) => m.player === currentDeployer && !m.isAttached
+  );
 
   return (
     <div
@@ -516,7 +615,14 @@ function DeploymentPanel({
               style={{ color: "var(--text-primary)" }}
               onClick={() => onSelect(m.id)}
             >
-              {m.unitName}
+              <span className="flex items-center gap-1">
+                {m.attachedCharacterName && (
+                  <span title="Has attached character" style={{ color: "#eab308", fontSize: 9 }}>⚔</span>
+                )}
+                {m.attachedCharacterName
+                  ? `${m.unitName} + ${m.attachedCharacterName}`
+                  : m.unitName}
+              </span>
               <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
                 T{m.stats.toughness} · W{m.maxWounds} · Sv{m.stats.save}
               </span>
@@ -636,6 +742,12 @@ export default function WarhammerGameRoom() {
   ]);
   const logRef = useRef<HTMLDivElement>(null);
 
+  // ── Map preset ──
+  const [mapPreset, setMapPreset] = useState<MapPreset>(DEFAULT_PRESET);
+
+  // ── Dice roller popup ──
+  const { request: diceRequest, showRoll, dismiss: dismissDice } = useDiceRoller();
+
   // ── Stratagem panels ──
   const [p1StratOpen, setP1StratOpen] = useState(false);
   const [p2StratOpen, setP2StratOpen] = useState(false);
@@ -686,6 +798,13 @@ export default function WarhammerGameRoom() {
           const dep = savedState.deployment as { currentDeployer?: "P1" | "P2" };
           if (dep.currentDeployer) setDeployDeployer(dep.currentDeployer);
         }
+        if (typeof savedState.mapPresetId === "string") {
+          setMapPreset(getPresetById(savedState.mapPresetId));
+        }
+      }
+      // Also check top-level map_preset column
+      if (game.map_preset && typeof game.map_preset === "string") {
+        setMapPreset(getPresetById(game.map_preset));
       }
 
       // Load army names
@@ -828,15 +947,16 @@ export default function WarhammerGameRoom() {
     const marker = markers.find((m) => m.id === deploySelectedId);
     if (!marker) return;
 
-    const isP1Zone = cellY >= 35;
-    const isP2Zone = cellY < 9;
+    const depth = mapPreset.deploymentDepth;
+    const isP1Zone = cellY >= BOARD_H_CONST - depth;
+    const isP2Zone = cellY < depth;
 
     if (marker.player === "P1" && !isP1Zone) {
-      addLog('P1 must deploy in the bottom deployment zone (y ≥ 35, last 9").', "system");
+      addLog(`P1 must deploy in the bottom deployment zone (last ${depth}").`, "system");
       return;
     }
     if (marker.player === "P2" && !isP2Zone) {
-      addLog('P2 must deploy in the top deployment zone (y < 9, first 9").', "system");
+      addLog(`P2 must deploy in the top deployment zone (first ${depth}").`, "system");
       return;
     }
 
@@ -848,11 +968,23 @@ export default function WarhammerGameRoom() {
       return;
     }
 
-    const updatedMarkers = markers.map((m) =>
-      m.id === deploySelectedId ? { ...m, x: cellX, y: cellY, isInReserve: false } : m
-    );
+    // Place unit — and attached character one cell above (or below for P2)
+    const charOffset = marker.player === "P1" ? -1 : 1;
+    const charY = Math.max(0, Math.min(43, cellY + charOffset));
+
+    let updatedMarkers = markers.map((m) => {
+      if (m.id === deploySelectedId) return { ...m, x: cellX, y: cellY, isInReserve: false };
+      if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
+        return { ...m, x: cellX, y: charY, isInReserve: false };
+      }
+      return m;
+    });
     setMarkers(updatedMarkers);
-    addLog(`${marker.player} deployed ${marker.unitName} at (${cellX}, ${cellY}).`, marker.player);
+
+    const deployed = marker.attachedCharacterName
+      ? `${marker.unitName} + ${marker.attachedCharacterName}`
+      : marker.unitName;
+    addLog(`${marker.player} deployed ${deployed} at (${cellX}, ${cellY}).`, marker.player);
     setDeploySelectedId(null);
 
     // Alternate deployer
@@ -939,27 +1071,19 @@ export default function WarhammerGameRoom() {
     addLog(`Round ${nextRound} begins. Both players gain +1 CP.`, "system");
   }
 
-  // Objective scoring
-  const OBJECTIVES_POSITIONS = [
-    { id: 1, x: 10, y: 7 },
-    { id: 2, x: 50, y: 7 },
-    { id: 3, x: 10, y: 22 },
-    { id: 4, x: 50, y: 22 },
-    { id: 5, x: 10, y: 37 },
-    { id: 6, x: 50, y: 37 },
-  ];
-
+  // Objective scoring — uses 5 objectives from mapPreset, 1.6" capture radius
   function scoreObjectives() {
     let p1Scored = 0;
     let p2Scored = 0;
-    const activeMarkers = markers.filter((m) => !m.isDestroyed && !m.isInReserve);
+    const activeMarkers = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
+    const captureRadius = 1.6;
 
-    OBJECTIVES_POSITIONS.forEach((obj) => {
+    mapPreset.objectives.forEach((obj) => {
       const p1Near = activeMarkers.filter(
-        (m) => m.player === "P1" && Math.sqrt((m.x - obj.x) ** 2 + (m.y - obj.y) ** 2) <= 3
+        (m) => m.player === "P1" && Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
       );
       const p2Near = activeMarkers.filter(
-        (m) => m.player === "P2" && Math.sqrt((m.x - obj.x) ** 2 + (m.y - obj.y) ** 2) <= 3
+        (m) => m.player === "P2" && Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
       );
       if (p1Near.length > 0 && p2Near.length === 0) p1Scored++;
       else if (p2Near.length > 0 && p1Near.length === 0) p2Scored++;
@@ -998,8 +1122,19 @@ export default function WarhammerGameRoom() {
       }
       const occupied = markers.some((m) => m.id !== moveUnit && m.x === x && m.y === y && !m.isDestroyed && !m.isInReserve);
       if (occupied) { addLog("Cell occupied.", "system"); return; }
+      const oldX = marker.x;
+      const oldY = marker.y;
       setMarkers((prev) =>
-        prev.map((m) => m.id === moveUnit ? { ...m, x, y, hasAdvanced: moveAdvance } : m)
+        prev.map((m) => {
+          if (m.id === moveUnit) return { ...m, x, y, hasAdvanced: moveAdvance };
+          // Move attached character at the same offset
+          if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
+            const dx = x - oldX;
+            const dy = y - oldY;
+            return { ...m, x: Math.max(0, Math.min(59, m.x + dx)), y: Math.max(0, Math.min(43, m.y + dy)), hasAdvanced: moveAdvance };
+          }
+          return m;
+        })
       );
       addLog(`${marker.player} moved ${marker.unitName} to (${x}, ${y})${moveAdvance ? " (Advanced)" : ""}.`, marker.player);
       setMoveUnit(null);
@@ -1078,6 +1213,7 @@ export default function WarhammerGameRoom() {
     const rolls = rollDice(numAttacks);
     const hits = rolls.filter((r) => r >= skillTarget).length;
     addLog(`Shooting: ${numAttacks} attack(s) → ${rolls.join(", ")} → ${hits} hit(s) (needing ${skillTarget}+).`, attacker.player);
+    showRoll({ rolls, type: "hit", threshold: skillTarget, label: `Hit Rolls (${skillTarget}+)` });
     setCombat((prev) => ({ ...prev, hitRolls: rolls, hits, step: "woundRolls" }));
   }
 
@@ -1092,6 +1228,7 @@ export default function WarhammerGameRoom() {
     const rolls = rollDice(combat.hits);
     const wounds = rolls.filter((r) => r >= woundTarget).length;
     addLog(`Wounding: S${S} vs T${T} (${woundTarget}+) → ${rolls.join(", ")} → ${wounds} wound(s).`, attacker.player);
+    showRoll({ rolls, type: "wound", threshold: woundTarget, label: `Wound Rolls (${woundTarget}+)` });
     setCombat((prev) => ({ ...prev, woundRolls: rolls, wounds, step: "saveRolls" }));
   }
 
@@ -1104,11 +1241,22 @@ export default function WarhammerGameRoom() {
     const saveBase = parseSave(target.stats.save);
     const invSave = parseInvSave(target.stats.save);
     const effectiveSave = Math.min(saveBase - ap, invSave ?? 7);
+    // Terrain cover: if line of sight crosses terrain, grant +1 to saves
+    let coverSave = effectiveSave;
+    const hasLosBlock = mapPreset.terrain.some((t) =>
+      lineIntersectsRect(attacker.x + 0.5, attacker.y + 0.5, target.x + 0.5, target.y + 0.5, t.x, t.y, t.w, t.h)
+    );
+    if (hasLosBlock && effectiveSave < 7) {
+      coverSave = Math.min(7, effectiveSave + 1);
+      addLog(`Cover: target is obscured by terrain — save improved to ${coverSave}+.`, "system");
+    }
+
     const rolls = rollDice(combat.wounds);
-    const unsaved = rolls.filter((r) => r < effectiveSave).length;
+    const unsaved = rolls.filter((r) => r < coverSave).length;
     const dmgPer = parseDiceExpr(weapon.damage);
     const totalDmg = unsaved * dmgPer;
-    addLog(`Saves: ${effectiveSave}+ needed (Sv${saveBase}, AP${ap}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
+    addLog(`Saves: ${coverSave}+ needed (Sv${saveBase}, AP${ap}${hasLosBlock ? ", +1 cover" : ""}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
+    showRoll({ rolls, type: "save", threshold: coverSave, label: `Save Rolls (${coverSave}+)` });
 
     // Apply damage
     setMarkers((prev) =>
@@ -1140,6 +1288,7 @@ export default function WarhammerGameRoom() {
     const roll1 = d6();
     const roll2 = d6();
     const total = roll1 + roll2;
+    showRoll({ rolls: [roll1, roll2], type: "charge", threshold: Math.ceil(dist), label: `Charge Roll (need ${Math.ceil(dist)}+)` });
     addLog(
       `Charge: ${attacker.unitName} → ${target.unitName} (dist ${dist.toFixed(1)}"). Rolled ${roll1}+${roll2}=${total}.`,
       attacker.player
@@ -1276,6 +1425,68 @@ export default function WarhammerGameRoom() {
   const selectedMarker = markers.find((m) => m.id === selectedMarkerId);
   const combatAttacker = markers.find((m) => m.id === combat.attackerId);
   const combatTarget = markers.find((m) => m.id === combat.targetId);
+
+  // ── Range indicators computed from current phase + selection ──
+  const rangeIndicators: RangeIndicator[] = [];
+
+  if (roomPhase === "game") {
+    if (gamePhase === "movement" && moveUnit) {
+      const mu = markers.find((m) => m.id === moveUnit);
+      if (mu) {
+        const moveIn = parseStat(mu.stats.movement);
+        rangeIndicators.push({
+          centreX: mu.x + 0.5,
+          centreY: mu.y + 0.5,
+          radiusInches: moveIn,
+          colour: "#4ade80",
+          opacity: 0.08,
+          strokeOpacity: 0.5,
+          label: `${moveIn}"`,
+        });
+        if (mu.hasAdvanced || moveAdvance) {
+          rangeIndicators.push({
+            centreX: mu.x + 0.5,
+            centreY: mu.y + 0.5,
+            radiusInches: moveIn + 6,
+            colour: "#f97316",
+            opacity: 0.05,
+            strokeOpacity: 0.35,
+            label: `Adv max ${moveIn + 6}"`,
+          });
+        }
+      }
+    }
+
+    if (gamePhase === "shooting" && combat.step === "selectWeapon" && combatAttacker && combat.weaponIdx !== null) {
+      const weapon = combatAttacker.weapons[combat.weaponIdx];
+      if (weapon?.range) {
+        const rangeIn = parseStat(weapon.range);
+        if (rangeIn > 0) {
+          rangeIndicators.push({
+            centreX: combatAttacker.x + 0.5,
+            centreY: combatAttacker.y + 0.5,
+            radiusInches: rangeIn,
+            colour: "#ef4444",
+            opacity: 0.07,
+            strokeOpacity: 0.4,
+            label: `${rangeIn}"`,
+          });
+        }
+      }
+    }
+
+    if (gamePhase === "charge" && combat.step === "selectTarget" && combatAttacker) {
+      rangeIndicators.push({
+        centreX: combatAttacker.x + 0.5,
+        centreY: combatAttacker.y + 0.5,
+        radiusInches: 12,
+        colour: "#facc15",
+        opacity: 0.07,
+        strokeOpacity: 0.4,
+        label: "12\" charge",
+      });
+    }
+  }
 
   function PhasePanel() {
     if (gamePhase === "command") {
@@ -1922,7 +2133,12 @@ export default function WarhammerGameRoom() {
             onUnitClick={handleUnitClick}
             phase={isDeployment ? "deployment" : gamePhase}
             activePlayer={activeSide}
+            terrain={mapPreset.terrain}
+            objectives={mapPreset.objectives}
+            rangeIndicators={rangeIndicators}
+            deploymentDepth={mapPreset.deploymentDepth}
           />
+          <DiceRollerPopup request={diceRequest} onDismiss={dismissDice} />
         </div>
 
         {/* ── RIGHT PANEL ── */}

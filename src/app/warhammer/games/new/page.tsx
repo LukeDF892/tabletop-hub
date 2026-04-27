@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navigation from "@/components/Navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Shield, Target, ChevronRight, Users, User, CheckCircle, Loader2 } from "lucide-react";
+import { Shield, Target, ChevronRight, Users, User, CheckCircle, Loader2, Map } from "lucide-react";
+import { MAP_PRESETS } from "@/lib/wh40k/mapPresets";
+import type { MapPreset } from "@/lib/wh40k/mapPresets";
 
 const GAME_SYSTEMS = [
   {
@@ -101,6 +103,7 @@ export default function NewWarhammerGamePage() {
   const [armies, setArmies] = useState<WarhammerArmy[]>([]);
   const [p1ArmyId, setP1ArmyId] = useState<string | null>(null);
   const [p2ArmyId, setP2ArmyId] = useState<string | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<MapPreset>(MAP_PRESETS[0]);
 
   useEffect(() => {
     async function fetchArmies() {
@@ -167,6 +170,7 @@ export default function NewWarhammerGamePage() {
           player2_army_id: gameMode === "solo" ? p2ArmyId : null,
           current_round: 1,
           current_phase: "rolloff",
+          map_preset: selectedPreset.id,
           game_state: {
             pointsLimit,
             maxPlayers: gameMode === "solo" ? 1 : 2,
@@ -180,6 +184,7 @@ export default function NewWarhammerGamePage() {
             rolloffResults: { attacker: null, firstDeployer: null, firstTurn: null },
             activePlayer: "P1",
             deployment: { p1UnitsPlaced: [], p2UnitsPlaced: [], currentDeployer: "P1" },
+            mapPresetId: selectedPreset.id,
           },
         })
         .select()
@@ -549,6 +554,95 @@ export default function NewWarhammerGamePage() {
                     {pts}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Map Preset */}
+            <div>
+              <label
+                className="block text-xs font-medium uppercase tracking-widest mb-2"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <Map size={12} className="inline mr-1" />
+                Map Layout
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                {MAP_PRESETS.map((preset) => {
+                  const isSelected = selectedPreset.id === preset.id;
+                  const MINI_W = 60;
+                  const MINI_H = 44;
+                  const scaleX = 180 / MINI_W;
+                  const scaleY = 56 / MINI_H;
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() => setSelectedPreset(preset)}
+                      className="text-left rounded-xl p-3 transition-all"
+                      style={
+                        isSelected
+                          ? { backgroundColor: "rgba(220,38,38,0.1)", border: "2px solid rgba(220,38,38,0.5)" }
+                          : { backgroundColor: "var(--bg-card)", border: "2px solid var(--border-card)" }
+                      }
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Mini map preview */}
+                        <svg
+                          width={180}
+                          height={56}
+                          style={{ flexShrink: 0, borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}
+                        >
+                          <rect width={180} height={56} fill="#163418" rx={4} />
+                          {/* Deployment zones */}
+                          <rect x={0} y={0} width={180} height={(preset.deploymentDepth / MINI_H) * 56} fill="rgba(37,99,235,0.25)" />
+                          <rect x={0} y={56 - (preset.deploymentDepth / MINI_H) * 56} width={180} height={(preset.deploymentDepth / MINI_H) * 56} fill="rgba(220,38,38,0.25)" />
+                          {/* Terrain */}
+                          {preset.terrain.map((t, i) => (
+                            <rect
+                              key={i}
+                              x={t.x * scaleX}
+                              y={t.y * scaleY}
+                              width={t.w * scaleX}
+                              height={t.h * scaleY}
+                              fill="rgba(80,70,60,0.8)"
+                              stroke="rgba(120,100,80,0.9)"
+                              strokeWidth={0.5}
+                            />
+                          ))}
+                          {/* Objectives */}
+                          {preset.objectives.map((obj, i) => (
+                            <circle
+                              key={i}
+                              cx={obj.x * scaleX}
+                              cy={obj.y * scaleY}
+                              r={4}
+                              fill="rgba(234,179,8,0.6)"
+                              stroke="#eab308"
+                              strokeWidth={0.8}
+                            />
+                          ))}
+                        </svg>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p
+                              className="text-sm font-semibold"
+                              style={{ color: isSelected ? "#dc2626" : "var(--text-primary)" }}
+                            >
+                              {preset.name}
+                            </p>
+                            {isSelected && <CheckCircle size={14} style={{ color: "#dc2626", flexShrink: 0 }} />}
+                          </div>
+                          <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                            {preset.description}
+                          </p>
+                          <p className="text-[10px] mt-1" style={{ color: isSelected ? "#dc2626" : "rgba(255,255,255,0.35)" }}>
+                            {preset.deploymentDepth}&quot; zones · {preset.terrain.length} terrain · {preset.objectives.length} objectives
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

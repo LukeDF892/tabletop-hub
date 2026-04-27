@@ -12,6 +12,19 @@ export type GamePhase =
   | "morale"
   | "scoring";
 
+export type BaseSize =
+  | "infantry"
+  | "cavalry"
+  | "bike"
+  | "elite_infantry"
+  | "terminator"
+  | "dreadnought"
+  | "walker"
+  | "monster"
+  | "vehicle"
+  | "titan"
+  | "superheavy";
+
 export interface RolloffResult {
   attacker: "P1" | "P2" | null;
   firstDeployer: "P1" | "P2" | null;
@@ -35,6 +48,12 @@ export interface UnitMarker {
   hasShotThisTurn: boolean;
   isInReserve: boolean;
   isDestroyed: boolean;
+  baseSize: BaseSize;
+  faction: string;
+  attachedCharacterId?: string;    // marker ID of character riding along
+  attachedCharacterName?: string;  // display name
+  isAttached?: boolean;            // true = this marker is the attached character
+  attachedToMarkerId?: string;     // parent unit marker ID
 }
 
 export interface DeploymentState {
@@ -55,4 +74,14 @@ export interface GameState {
   activePlayer: "P1" | "P2";
   deployment: DeploymentState;
   pointsLimit: number;
+}
+
+export interface RangeIndicator {
+  centreX: number;     // inches
+  centreY: number;     // inches
+  radiusInches: number;
+  colour: string;
+  opacity?: number;
+  strokeOpacity?: number;
+  label?: string;
 }
