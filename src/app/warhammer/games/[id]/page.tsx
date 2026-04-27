@@ -256,6 +256,9 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
             y: 0,
             currentWounds: charUnit.stats.wounds,
             maxWounds: charUnit.stats.wounds,
+            modelCount: 1,
+            woundsPerModel: charUnit.stats.wounds,
+            startingModelCount: 1,
             stats: charUnit.stats,
             weapons: charUnit.weapons,
             hasAdvanced: false,
@@ -288,6 +291,7 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         }
       }
 
+      const modelMin = Math.max(1, unit.models.min);
       markers.push({
         id: uid,
         unitId: entry.unitId,
@@ -297,6 +301,9 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         y: 0,
         currentWounds: unit.stats.wounds,
         maxWounds: unit.stats.wounds,
+        modelCount: modelMin,
+        woundsPerModel: unit.stats.wounds,
+        startingModelCount: modelMin,
         stats: unit.stats,
         weapons: effectiveWeapons,
         hasAdvanced: false,
@@ -837,6 +844,21 @@ export default function WarhammerGameRoom() {
   // ── Fight phase tracking ──
   const [foughtThisPhase, setFoughtThisPhase] = useState<Set<string>>(new Set());
   const [fightBackMode, setFightBackMode] = useState(false);
+  const [fightPhaseStep, setFightPhaseStep] = useState<'active' | 'fightback'>('active');
+
+  // ── Per-phase action tracking (one action per unit per phase) ──
+  const [movedThisTurn, setMovedThisTurn] = useState<string[]>([]);
+  const [shotThisTurn, setShotThisTurn] = useState<string[]>([]);
+  const [chargedThisTurn, setChargedThisTurn] = useState<string[]>([]);
+  const [foughtThisTurn, setFoughtThisTurn] = useState<string[]>([]);
+
+  // ── Overwatch prompt ──
+  const [overwatchPrompt, setOverwatchPrompt] = useState<{
+    attackerId: string;
+    targetId: string;
+    chargeRoll: number;
+    needed: number;
+  } | null>(null);
 
   // ── Redo history ──
   const [future, setFuture] = useState<{ markers: UnitMarker[]; p1Cp: number; p2Cp: number; p1Vp: number; p2Vp: number }[]>([]);
@@ -1427,7 +1449,12 @@ export default function WarhammerGameRoom() {
     if (gamePhase === "fight") {
       setFoughtThisPhase(new Set());
       setFightBackMode(false);
+      setFightPhaseStep('active');
+      setFoughtThisTurn([]);
     }
+    if (gamePhase === "movement") setMovedThisTurn([]);
+    if (gamePhase === "shooting") setShotThisTurn([]);
+    if (gamePhase === "charge") setChargedThisTurn([]);
 
     if (gamePhase === "fight") {
       // Run Battle-shock at end of fight phase
@@ -1570,6 +1597,11 @@ export default function WarhammerGameRoom() {
     setCombat(INIT_COMBAT);
     setMoveUnit(null);
     setFightBackMode(false);
+    setFightPhaseStep('active');
+    setMovedThisTurn([]);
+    setShotThisTurn([]);
+    setChargedThisTurn([]);
+    setFoughtThisTurn([]);
     if (gameMode === "solo") setSoloSide("P1");
     addLog(`Round ${nextRound} begins. Player 1's Turn — Command Phase.`, "system");
     giveCommandPhaseCP("P1", markers);
@@ -1685,6 +1717,7 @@ export default function WarhammerGameRoom() {
       if (moveAdvance) {
         setAdvancedThisTurn((prev) => [...prev, moveUnit]);
       }
+      setMovedThisTurn((prev) => [...prev, moveUnit]);
       addLog(`${marker.player} moved ${marker.unitName} to (${x}, ${y})${moveAdvance ? " (Advanced)" : ""}.`, marker.player);
       setMoveUnit(null);
       setMoveAdvance(false);
@@ -1700,6 +1733,10 @@ export default function WarhammerGameRoom() {
       if (gamePhase === "movement") {
         const activeSide = gameMode === "solo" ? soloSide : activePlayer;
         if (m.player !== activeSide) return;
+        if (movedThisTurn.includes(markerId)) {
+          addLog(`${m.unitName} has already moved this phase.`, "system");
+          return;
+        }
         setMoveUnit((prev) => (prev === markerId ? null : markerId));
         setSelectedMarkerId(markerId);
         return;
@@ -1708,6 +1745,10 @@ export default function WarhammerGameRoom() {
         if (combat.step === "idle" || combat.step === "selectAttacker") {
           const activeSide = gameMode === "solo" ? soloSide : activePlayer;
           if (m.player !== activeSide) return;
+          if (shotThisTurn.includes(markerId)) {
+            addLog(`${m.unitName} has already shot this phase.`, "system");
+            return;
+          }
           setCombat({ ...INIT_COMBAT, step: "selectWeapon", attackerId: markerId });
           setSelectedMarkerId(markerId);
           return;
@@ -1769,6 +1810,10 @@ export default function WarhammerGameRoom() {
       if (gamePhase === "charge") {
         const activeSide = gameMode === "solo" ? soloSide : activePlayer;
         if (combat.step === "idle" && m.player === activeSide) {
+          if (chargedThisTurn.includes(markerId)) {
+            addLog(`${m.unitName} has already charged this phase.`, "system");
+            return;
+          }
           setCombat({ ...INIT_COMBAT, step: "selectTarget", attackerId: markerId });
           setSelectedMarkerId(markerId);
           return;
@@ -1788,6 +1833,10 @@ export default function WarhammerGameRoom() {
             ? (activeSide === "P1" ? "P2" : "P1")
             : activeSide;
           if (m.player !== fightingPlayer) return;
+          if (!fightBackMode && foughtThisTurn.includes(markerId)) {
+            addLog(`${m.unitName} has already fought this phase.`, "system");
+            return;
+          }
           const hasMelee = m.weapons.some((w) => w.type === "Melee");
           if (!hasMelee) { addLog(`${m.unitName} has no melee weapons.`, "system"); return; }
           setCombat({ ...INIT_COMBAT, step: "selectWeapon", attackerId: markerId, isFightback: fightBackMode });
@@ -1817,14 +1866,23 @@ export default function WarhammerGameRoom() {
     const attacker = markers.find((m) => m.id === combat.attackerId);
     if (!attacker || combat.weaponIdx === null) return;
     const weapon = attacker.weapons[combat.weaponIdx];
-    const numAttacks = parseDiceExpr(weapon.attacks);
+    const attacksPerModel = parseDiceExpr(weapon.attacks);
+    const numAttacks = attacksPerModel * (attacker.modelCount ?? 1);
     const skillTarget = parseSkill(weapon.skill);
     const rolls = rollDice(numAttacks);
     const hits = rolls.filter((r) => r >= skillTarget).length;
-    addLog(`Shooting: ${numAttacks} attack(s) → ${rolls.join(", ")} → ${hits} hit(s) (needing ${skillTarget}+).`, attacker.player);
+    const modelNote = (attacker.modelCount ?? 1) > 1 ? ` (${attacker.modelCount} models × ${attacksPerModel})` : "";
+    addLog(`${gamePhase === "fight" ? "Fight" : "Shooting"}: ${numAttacks} attack(s)${modelNote} → ${rolls.join(", ")} → ${hits} hit(s) (needing ${skillTarget}+).`, attacker.player);
     showRoll({ rolls, type: "hit", threshold: skillTarget, label: `Hit Rolls (${skillTarget}+)` });
     setCombat((prev) => ({ ...prev, hitRolls: rolls, hits, step: "woundRolls" }));
     pushHistory();
+    // Track shooting action
+    if (gamePhase === "shooting" && combat.attackerId) {
+      setShotThisTurn((prev) => [...prev, combat.attackerId!]);
+    }
+    if (gamePhase === "fight" && combat.attackerId) {
+      setFoughtThisTurn((prev) => [...prev, combat.attackerId!]);
+    }
   }
 
   function resolveWoundRolls() {
@@ -1868,10 +1926,26 @@ export default function WarhammerGameRoom() {
     addLog(`Saves: ${coverSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
     showRoll({ rolls, type: "save", threshold: coverSave, label: `Save Rolls (${coverSave}+)` });
 
-    // Compute new wound total before applying (needed to decide fight-back)
+    // Damage cascade: apply damage across models, killing models as wounds hit 0
     const currentTarget = markers.find((m) => m.id === combat.targetId);
-    const newTargetWounds = Math.max(0, (currentTarget?.currentWounds ?? 0) - totalDmg);
-    const targetDestroyed = newTargetWounds <= 0;
+    let remainingDmg = totalDmg;
+    let curWounds = currentTarget?.currentWounds ?? 0;
+    let curModelCount = currentTarget?.modelCount ?? 1;
+    const wpm = currentTarget?.woundsPerModel ?? currentTarget?.maxWounds ?? 1;
+    while (remainingDmg > 0 && curModelCount > 0) {
+      if (remainingDmg >= curWounds) {
+        remainingDmg -= curWounds;
+        curModelCount--;
+        curWounds = curModelCount > 0 ? wpm : 0;
+      } else {
+        curWounds -= remainingDmg;
+        remainingDmg = 0;
+      }
+    }
+    const targetDestroyed = curModelCount <= 0;
+    const newTargetWounds = curWounds;
+    const newModelCount = Math.max(0, curModelCount);
+    const modelsKilled = (currentTarget?.modelCount ?? 1) - newModelCount;
 
     // Apply damage and mark attacker
     const attackerId = combat.attackerId;
@@ -1886,8 +1960,10 @@ export default function WarhammerGameRoom() {
             addLog(`${m.unitName} destroyed!`, "system");
             setDestroyedThisTurn((p) => [...p, m.id]);
             setDestroyedThisPhase((p) => [...p, m.id]);
+          } else if (modelsKilled > 0) {
+            addLog(`${m.unitName}: ${modelsKilled} model(s) slain — ${newModelCount} remain.`, "system");
           }
-          return { ...m, currentWounds: newTargetWounds, isDestroyed: targetDestroyed };
+          return { ...m, currentWounds: newTargetWounds, modelCount: newModelCount, isDestroyed: targetDestroyed };
         }
         if (m.id === attackerId) {
           return isFightPhase
@@ -1900,23 +1976,6 @@ export default function WarhammerGameRoom() {
 
     if (isFightPhase && attackerId) {
       setFoughtThisPhase((prev) => new Set([...prev, attackerId]));
-    }
-
-    // Fight-back: after attacker resolves, if target survived and this isn't already a fight-back
-    if (isFightPhase && !isFightback && !targetDestroyed && targetId && attackerId) {
-      const defender = markers.find((m) => m.id === targetId);
-      if (defender) {
-        addLog(`${defender.unitName} fights back!`, defender.player);
-        setFightBackMode(true);
-        setCombat({
-          ...INIT_COMBAT,
-          step: "selectWeapon",
-          attackerId: targetId,
-          targetId: attackerId,
-          isFightback: true,
-        });
-        return;
-      }
     }
 
     if (isFightPhase && isFightback) {
@@ -1938,36 +1997,68 @@ export default function WarhammerGameRoom() {
     const roll1 = d6();
     const roll2 = d6();
     const total = roll1 + roll2;
-    showRoll({ rolls: [roll1, roll2], type: "charge", threshold: Math.ceil(dist), label: `Charge Roll (need ${Math.ceil(dist)}+)` });
+    const needed = Math.ceil(dist);
+    showRoll({ rolls: [roll1, roll2], type: "charge", threshold: needed, label: `Charge Roll (need ${needed}+)` });
     addLog(
       `Charge: ${attacker.unitName} → ${target.unitName} (dist ${dist.toFixed(1)}"). Rolled ${roll1}+${roll2}=${total}.`,
       attacker.player
     );
 
-    if (total >= Math.ceil(dist)) {
-      // Successful charge: move attacker to within 1" of target
-      const dx = target.x - attacker.x;
-      const dy = target.y - attacker.y;
-      const newX = target.x - Math.sign(dx);
-      const newY = target.y - Math.sign(dy);
-      setMarkers((prev) =>
-        prev.map((m) => m.id === attackerId ? { ...m, x: newX, y: newY, hasCharged: true } : m)
-      );
-      addLog(`Charge succeeds! ${attacker.unitName} moves adjacent to ${target.unitName}.`, attacker.player);
-
-      // Overwatch: target fires on 6s (no damage dealt — just logging per 10th ed simplified)
-      const owRolls = rollDice(1);
-      const owHits = owRolls.filter((r) => r === 6).length;
-      if (owHits > 0) {
-        addLog(`Overwatch: ${target.unitName} — ${owRolls.join(",")} — ${owHits} hit(s)! (no damage in Overwatch unless ability allows)`, target.player);
-      } else {
-        addLog(`Overwatch: ${owRolls.join(",")} — no hits.`, target.player);
-      }
-    } else {
-      // Failed charge: unit stays put, no movement
-      addLog(`Charge fails! ${attacker.unitName} stays in place (rolled ${total}, needed ${Math.ceil(dist)}).`, attacker.player);
+    if (total >= needed) {
+      // Prompt for Overwatch before completing the charge move
+      setOverwatchPrompt({ attackerId, targetId, chargeRoll: total, needed });
+      addLog(`Charge roll ${total} succeeds (needed ${needed}). Overwatch opportunity for ${target.unitName}...`, target.player);
+      return;
     }
 
+    // Failed charge: unit stays put
+    addLog(`Charge fails! ${attacker.unitName} stays in place (rolled ${total}, needed ${needed}).`, attacker.player);
+    setChargedThisTurn((prev) => [...prev, attackerId]);
+    setCombat(INIT_COMBAT);
+    setSelectedMarkerId(null);
+  }
+
+  function confirmOverwatch(spendCp: boolean) {
+    if (!overwatchPrompt) return;
+    const { attackerId, targetId } = overwatchPrompt;
+    const attacker = markers.find((m) => m.id === attackerId);
+    const target = markers.find((m) => m.id === targetId);
+    if (!attacker || !target) { setOverwatchPrompt(null); return; }
+
+    if (spendCp) {
+      const defPlayer = target.player;
+      const defCp = defPlayer === "P1" ? p1Cp : p2Cp;
+      if (defCp < 1) {
+        addLog(`${defPlayer} has no CP — Overwatch cannot be fired.`, "system");
+      } else {
+        if (defPlayer === "P1") setP1Cp((n) => n - 1);
+        else setP2Cp((n) => n - 1);
+        const owRolls = rollDice(1);
+        const owHits = owRolls.filter((r) => r === 6).length;
+        addLog(`Overwatch: ${target.unitName} fires — ${owRolls.join(",")} — ${owHits} hit(s)${owHits > 0 ? "!" : "."}`, target.player);
+      }
+    } else {
+      addLog(`${target.unitName} does not fire Overwatch.`, "system");
+    }
+
+    // Complete the charge move
+    const dx = target.x - attacker.x;
+    const dy = target.y - attacker.y;
+    const newX = target.x - Math.sign(dx);
+    const newY = target.y - Math.sign(dy);
+    const charDx = newX - attacker.x;
+    const charDy = newY - attacker.y;
+    const charId = attacker.attachedCharacterId;
+    setMarkers((prev) =>
+      prev.map((m) => {
+        if (m.id === attackerId) return { ...m, x: newX, y: newY, hasCharged: true };
+        if (charId && m.id === charId) return { ...m, x: m.x + charDx, y: m.y + charDy };
+        return m;
+      })
+    );
+    addLog(`Charge succeeds! ${attacker.unitName} moves adjacent to ${target.unitName}.`, attacker.player);
+    setChargedThisTurn((prev) => [...prev, attackerId]);
+    setOverwatchPrompt(null);
     setCombat(INIT_COMBAT);
     setSelectedMarkerId(null);
   }
@@ -2419,7 +2510,7 @@ export default function WarhammerGameRoom() {
       const fightTarget = markers.find((m) => m.id === combat.targetId);
       return (
         <div className="space-y-2">
-          {fightBackMode ? (
+          {fightPhaseStep === 'fightback' ? (
             <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: "#3b82f6" }}>
               ⚔️ FIGHT-BACK
             </p>
@@ -2429,23 +2520,36 @@ export default function WarhammerGameRoom() {
             </p>
           )}
 
-          {combat.step === "idle" && !fightBackMode && (
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Click a friendly unit (with melee weapons) to fight. Charged units fight first.
-            </p>
-          )}
-
-          {combat.step === "idle" && fightBackMode && (
+          {combat.step === "idle" && fightPhaseStep === 'active' && (
             <div className="space-y-1">
-              <p className="text-xs" style={{ color: "#3b82f6" }}>
-                Defending player: click a unit in engagement range to fight back.
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Click a friendly unit (with melee weapons) to fight. Charged units fight first.
               </p>
               <button
-                onClick={endFightBack}
+                onClick={() => {
+                  setFightPhaseStep('fightback');
+                  setFightBackMode(true);
+                  addLog(`${activePlayer} done fighting — fight-back phase begins.`, "system");
+                }}
                 className="w-full py-1.5 rounded-lg text-xs font-semibold"
-                style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" }}
+                style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.3)" }}
               >
-                End Fight-Back
+                Done Fighting →
+              </button>
+            </div>
+          )}
+
+          {combat.step === "idle" && fightPhaseStep === 'fightback' && (
+            <div className="space-y-1">
+              <p className="text-xs" style={{ color: "#3b82f6" }}>
+                {activePlayer === "P1" ? "P2" : "P1"}: click an engaged unit to fight back.
+              </p>
+              <button
+                onClick={advancePhase}
+                className="w-full py-1.5 rounded-lg text-xs font-semibold"
+                style={{ backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.35)" }}
+              >
+                End Fight Phase →
               </button>
             </div>
           )}
@@ -2542,14 +2646,6 @@ export default function WarhammerGameRoom() {
               ✓ Combat resolved.
             </div>
           )}
-
-          <button
-            onClick={advancePhase}
-            className="w-full py-2 rounded-lg text-xs font-semibold mt-2"
-            style={{ backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.35)" }}
-          >
-            End Fight Phase →
-          </button>
         </div>
       );
     }
@@ -3204,6 +3300,7 @@ export default function WarhammerGameRoom() {
                 p2Zone={mapPreset.p2Zone}
                 objectiveControl={objectiveControl}
                 showMeasurementLine={showMeasurementLine}
+                actedThisTurn={[...movedThisTurn, ...shotThisTurn, ...chargedThisTurn, ...foughtThisTurn]}
               />
             );
           })()}
@@ -3393,6 +3490,38 @@ export default function WarhammerGameRoom() {
           </div>
         </div>
       </div>
+
+      {/* ── Overwatch modal ── */}
+      {overwatchPrompt && (() => {
+        const defender = markers.find((m) => m.id === overwatchPrompt.targetId);
+        const defCp = defender?.player === "P1" ? p1Cp : p2Cp;
+        return (
+          <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: "rgba(0,0,0,0.72)" }}>
+            <div className="rounded-xl p-6 space-y-4 max-w-xs w-full mx-4" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-card)" }}>
+              <p className="font-cinzel font-bold text-base" style={{ color: "var(--text-primary)" }}>Overwatch Opportunity</p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {defender?.unitName} can fire Overwatch (1 CP). {defender?.player} has {defCp} CP.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => confirmOverwatch(true)}
+                  className="flex-1 py-2 rounded-lg text-xs font-semibold"
+                  style={{ backgroundColor: "rgba(220,38,38,0.18)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.4)" }}
+                >
+                  Spend 1 CP
+                </button>
+                <button
+                  onClick={() => confirmOverwatch(false)}
+                  className="flex-1 py-2 rounded-lg text-xs font-semibold"
+                  style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Undo toast ── */}
       {undoToast && (

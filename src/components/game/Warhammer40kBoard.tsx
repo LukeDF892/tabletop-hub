@@ -46,6 +46,7 @@ export interface Warhammer40kBoardProps {
   p2Zone?: DeploymentZone;
   objectiveControl?: ('P1' | 'P2' | null)[];
   showMeasurementLine?: boolean;
+  actedThisTurn?: string[];
 }
 
 export default function Warhammer40kBoard({
@@ -63,6 +64,7 @@ export default function Warhammer40kBoard({
   p2Zone,
   objectiveControl,
   showMeasurementLine = false,
+  actedThisTurn = [],
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -584,10 +586,11 @@ export default function Warhammer40kBoard({
                 const cx = (m.x + 0.5) * INCH_PX;
                 const cy = (m.y + 0.5) * INCH_PX;
                 const isSelected = m.id === selectedMarkerId;
+                const hasActed = actedThisTurn.includes(m.id);
                 const isP1 = m.player === "P1";
                 const fillColor = isP1 ? "rgba(220,38,38,0.88)" : "rgba(37,99,235,0.88)";
                 const strokeColor = isP1 ? "#f87171" : "#60a5fa";
-                const hpFrac = m.currentWounds / m.maxWounds;
+                const hpFrac = m.currentWounds / (m.woundsPerModel ?? m.maxWounds);
                 const hpColor = hpFrac > 0.6 ? "#4ade80" : hpFrac > 0.3 ? "#facc15" : "#f87171";
                 const isAttachedChar = m.isAttached;
 
@@ -614,7 +617,7 @@ export default function Warhammer40kBoard({
                       setTooltip({ marker: { ...m, unitName: displayName }, x: e.clientX - rect.left, y: e.clientY - rect.top });
                     }}
                     onMouseLeave={() => setTooltip(null)}
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: "pointer", opacity: hasActed ? 0.5 : 1 }}
                   >
                     {/* Selection ring */}
                     {isSelected && (
@@ -659,7 +662,7 @@ export default function Warhammer40kBoard({
                       fill={hpColor}
                       fontFamily="monospace"
                     >
-                      {m.currentWounds}W
+                      {m.currentWounds}/{m.woundsPerModel ?? m.maxWounds}W{(m.modelCount ?? 1) > 1 ? ` ×${m.modelCount}` : ""}
                     </text>
 
                     {/* Attached-character link icon */}
@@ -722,7 +725,7 @@ export default function Warhammer40kBoard({
                 ["M",  tooltip.marker.stats.movement],
                 ["T",  String(tooltip.marker.stats.toughness)],
                 ["Sv", tooltip.marker.stats.save],
-                ["W",  `${tooltip.marker.currentWounds}/${tooltip.marker.maxWounds}`],
+                ["W",  `${tooltip.marker.currentWounds}/${tooltip.marker.woundsPerModel ?? tooltip.marker.maxWounds}${(tooltip.marker.modelCount ?? 1) > 1 ? ` ×${tooltip.marker.modelCount}` : ""}`],
                 ["Ld", tooltip.marker.stats.leadership],
                 ["OC", String(tooltip.marker.stats.oc)],
               ].map(([label, val]) => (
