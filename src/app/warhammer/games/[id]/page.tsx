@@ -1978,10 +1978,6 @@ export default function WarhammerGameRoom() {
       setFoughtThisPhase((prev) => new Set([...prev, attackerId]));
     }
 
-    if (isFightPhase && isFightback) {
-      setFightBackMode(false);
-    }
-
     setCombat({ ...INIT_COMBAT, step: "done" });
     setTimeout(() => setCombat(INIT_COMBAT), 2000);
   }
@@ -2574,7 +2570,7 @@ export default function WarhammerGameRoom() {
                       onClick={() => setCombat((prev) => ({
                         ...prev,
                         weaponIdx: origIdx,
-                        step: isFightback ? "hitRolls" : "selectTarget",
+                        step: "selectTarget",
                       }))}
                       className="w-full text-left px-2 py-1.5 rounded text-xs"
                       style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "var(--text-primary)", border: "1px solid rgba(220,38,38,0.2)" }}
@@ -2587,7 +2583,7 @@ export default function WarhammerGameRoom() {
                   ))}
               </div>
               <button
-                onClick={() => { setCombat(INIT_COMBAT); setSelectedMarkerId(null); if (isFightback) setFightBackMode(false); }}
+                onClick={() => { setCombat(INIT_COMBAT); setSelectedMarkerId(null); }}
                 className="w-full py-1.5 rounded-lg text-xs mt-2"
                 style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
               >
