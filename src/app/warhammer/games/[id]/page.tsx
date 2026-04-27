@@ -15,6 +15,11 @@ import { MAP_PRESETS, DEFAULT_PRESET, getPresetById } from "@/lib/wh40k/mapPrese
 import type { MapPreset } from "@/lib/wh40k/mapPresets";
 import { BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
 import type { BaseSize } from "@/lib/wh40k/gameTypes";
+import { FACTION_RULES, getFactionRules } from "@/lib/wh40k/factionRules";
+import type { FactionRule } from "@/lib/wh40k/factionRules";
+import { TACTICAL_MISSIONS, shuffleDeck } from "@/lib/wh40k/secondaryObjectives";
+import type { TacticalMission } from "@/lib/wh40k/secondaryObjectives";
+import type { WeaponProfile } from "@/lib/wh40k/types";
 import { DiceRollerPopup, useDiceRoller } from "@/components/game/DiceRollerPopup";
 import {
   Dice6,
@@ -32,6 +37,9 @@ import {
   ArrowRight,
   Archive,
   Loader2,
+  RotateCcw,
+  BookOpen,
+  Scroll,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -193,7 +201,15 @@ interface ArmyRow {
   name: string;
   faction: string;
   subfaction: string | null;
-  units: { entries: { unitId: string; modelCount: number; quantity: number; attachedLeaderId?: string }[] };
+  units: {
+    entries: {
+      unitId: string;
+      modelCount: number;
+      quantity: number;
+      attachedLeaderId?: string;
+      selectedWeapons?: Record<string, WeaponProfile>;
+    }[];
+  };
 }
 
 function findUnit(factionName: string, unitId: string): Unit | undefined {
@@ -255,6 +271,22 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         }
       }
 
+      // Apply weapon loadout selections from army builder
+      let effectiveWeapons = [...unit.weapons];
+      if (unit.weaponOptions && entry.selectedWeapons && Object.keys(entry.selectedWeapons).length > 0) {
+        for (const optGroup of unit.weaponOptions) {
+          const selected = entry.selectedWeapons[optGroup.replaces];
+          const allOptionNames = optGroup.options.map((o) => o.name);
+          // Remove alternative weapons that appear in the weapons array
+          effectiveWeapons = effectiveWeapons.filter((w) => !allOptionNames.includes(w.name));
+          if (selected) {
+            // Remove the default weapon, add the selected one
+            effectiveWeapons = effectiveWeapons.filter((w) => w.name !== optGroup.replaces);
+            effectiveWeapons.push(selected);
+          }
+        }
+      }
+
       markers.push({
         id: uid,
         unitId: entry.unitId,
@@ -265,7 +297,7 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         currentWounds: unit.stats.wounds,
         maxWounds: unit.stats.wounds,
         stats: unit.stats,
-        weapons: unit.weapons,
+        weapons: effectiveWeapons,
         hasAdvanced: false,
         hasCharged: false,
         hasFought: false,
@@ -753,9 +785,78 @@ export default function WarhammerGameRoom() {
   const [p1StratOpen, setP1StratOpen] = useState(false);
   const [p2StratOpen, setP2StratOpen] = useState(false);
 
+  // ── Undo history ──
+  interface GameSnapshot {
+    markers: UnitMarker[];
+    p1Cp: number;
+    p2Cp: number;
+    p1Vp: number;
+    p2Vp: number;
+  }
+  const [history, setHistory] = useState<GameSnapshot[]>([]);
+  const [undoToast, setUndoToast] = useState(false);
+
+  // ── Faction rules ──
+  const [p1FactionRules, setP1FactionRules] = useState<FactionRule[]>([]);
+  const [p2FactionRules, setP2FactionRules] = useState<FactionRule[]>([]);
+  const [p1FactionRulesOpen, setP1FactionRulesOpen] = useState(false);
+  const [p2FactionRulesOpen, setP2FactionRulesOpen] = useState(false);
+  // Oath of Moment target (Space Marines)
+  const [oathTarget, setOathTarget] = useState<string | null>(null); // marker ID
+  const [showOathPicker, setShowOathPicker] = useState(false);
+  // Synaptic Imperative choice (Tyranids)
+  const [synapticImperative, setSynapticImperative] = useState<string | null>(null);
+  const [showSynapticPicker, setShowSynapticPicker] = useState(false);
+
+  // ── Secondary objectives (Tactical Missions) ──
+  const [p1Deck, setP1Deck] = useState<TacticalMission[]>([]);
+  const [p2Deck, setP2Deck] = useState<TacticalMission[]>([]);
+  const [p1Hand, setP1Hand] = useState<TacticalMission[]>([]);
+  const [p2Hand, setP2Hand] = useState<TacticalMission[]>([]);
+  const [p1Scored, setP1Scored] = useState<TacticalMission[]>([]);
+  const [p2Scored, setP2Scored] = useState<TacticalMission[]>([]);
+  const [p1SecondaryVp, setP1SecondaryVp] = useState(0);
+  const [p2SecondaryVp, setP2SecondaryVp] = useState(0);
+  const [tacticalMissionsOpen, setTacticalMissionsOpen] = useState(false);
+  // Track which card IDs in hand have been revealed
+  const [p1Revealed, setP1Revealed] = useState<Set<string>>(new Set());
+  const [p2Revealed, setP2Revealed] = useState<Set<string>>(new Set());
+  // Track units destroyed this turn/phase and units advanced this turn
+  const [destroyedThisTurn, setDestroyedThisTurn] = useState<string[]>([]);
+  const [destroyedThisPhase, setDestroyedThisPhase] = useState<string[]>([]);
+  const [advancedThisTurn, setAdvancedThisTurn] = useState<string[]>([]);
+  // Objective control at turn start (for Storm Hostile Objective)
+  const [objControlAtTurnStart, setObjControlAtTurnStart] = useState<("P1" | "P2" | null)[]>([]);
+
+  // ── Battle-shock ──
+  const [battleShockPhase, setBattleShockPhase] = useState(false);
+
   function addLog(text: string, player?: "P1" | "P2" | "system") {
     setActLog((prev) => [...prev, { time: nowTime(), text, player }]);
     setTimeout(() => logRef.current?.scrollTo({ top: 9999, behavior: "smooth" }), 50);
+  }
+
+  function pushHistory() {
+    setHistory((prev) => {
+      const snap = { markers, p1Cp, p2Cp, p1Vp, p2Vp };
+      return [...prev, snap].slice(-20);
+    });
+  }
+
+  function undoAction() {
+    setHistory((prev) => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      setMarkers(last.markers);
+      setP1Cp(last.p1Cp);
+      setP2Cp(last.p2Cp);
+      setP1Vp(last.p1Vp);
+      setP2Vp(last.p2Vp);
+      setUndoToast(true);
+      setTimeout(() => setUndoToast(false), 2000);
+      addLog("↩ Action undone.", "system");
+      return prev.slice(0, -1);
+    });
   }
 
   // ── Load game from Supabase ──
@@ -829,14 +930,19 @@ export default function WarhammerGameRoom() {
           setP1ArmyName(`P1 · ${a1.faction}`);
           const p1Markers = buildMarkers(a1 as ArmyRow, "P1");
           armyMarkers.push(...p1Markers);
+          setP1FactionRules(getFactionRules(a1.faction));
           addLog(`P1 army loaded: ${a1.name} (${p1Markers.length} units)`, "system");
         }
         if (a2) {
           setP2ArmyName(`P2 · ${a2.faction}`);
           const p2Markers = buildMarkers(a2 as ArmyRow, "P2");
           armyMarkers.push(...p2Markers);
+          setP2FactionRules(getFactionRules(a2.faction));
           addLog(`P2 army loaded: ${a2.name} (${p2Markers.length} units)`, "system");
         }
+        // Initialize tactical mission decks
+        setP1Deck(shuffleDeck());
+        setP2Deck(shuffleDeck());
       }
 
       // Only overwrite markers from DB if no saved markers exist
@@ -1034,11 +1140,186 @@ export default function WarhammerGameRoom() {
     setGamePhase("command");
     persistState({ current_phase: "command", game_state: { markers, round: 1, gamePhase: "command", activePlayer: firstPlayer, p1Cp, p2Cp, p1Vp, p2Vp } });
     addLog(`Deployment complete. ${firstPlayer} goes first. Round 1 — Command Phase.`, "system");
-    // First player gains their Command Phase CP immediately
     giveCommandPhaseCP(firstPlayer, markers);
+    // Draw starting tactical mission for first player
+    drawMission(firstPlayer);
   }
 
   // ── Game phase logic ──
+
+  // ── Tactical Mission draw ──
+  function drawMission(player: "P1" | "P2") {
+    if (player === "P1") {
+      if (p1Hand.length >= 3) return;
+      setP1Deck((deck) => {
+        if (deck.length === 0) return deck;
+        const [card, ...rest] = deck;
+        setP1Hand((h) => [...h, card]);
+        addLog(`P1 draws a Tactical Mission card (hand: ${p1Hand.length + 1}).`, "P1");
+        return rest;
+      });
+    } else {
+      if (p2Hand.length >= 3) return;
+      setP2Deck((deck) => {
+        if (deck.length === 0) return deck;
+        const [card, ...rest] = deck;
+        setP2Hand((h) => [...h, card]);
+        addLog(`P2 draws a Tactical Mission card (hand: ${p2Hand.length + 1}).`, "P2");
+        return rest;
+      });
+    }
+  }
+
+  // ── Score a tactical mission card ──
+  function scoreMission(player: "P1" | "P2", card: TacticalMission) {
+    const captureRadius = 3;
+    const active = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
+    const objectiveControl = mapPreset.objectives.map((obj) => {
+      const p1Near = active.filter(
+        (m) =>
+          m.player === "P1" &&
+          !m.battleShocked &&
+          Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
+      );
+      const p2Near = active.filter(
+        (m) =>
+          m.player === "P2" &&
+          !m.battleShocked &&
+          Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
+      );
+      if (p1Near.length > 0 && p2Near.length === 0) return "P1" as const;
+      if (p2Near.length > 0 && p1Near.length === 0) return "P2" as const;
+      if (p1Near.length > p2Near.length) return "P1" as const;
+      if (p2Near.length > p1Near.length) return "P2" as const;
+      return null;
+    });
+
+    const canScore = card.check({
+      markers,
+      player,
+      opponent: player === "P1" ? "P2" : "P1",
+      objectiveControl,
+      mapWidth: 60,
+      mapHeight: 44,
+      unitsDestroyedThisTurn: destroyedThisTurn,
+      unitsDestroyedThisPhase: destroyedThisPhase,
+      objectiveControlAtTurnStart: objControlAtTurnStart,
+      unitsAdvancedThisTurn: advancedThisTurn,
+    });
+
+    if (!canScore) {
+      addLog(`Cannot score "${card.name}" — conditions not met.`, "system");
+      return;
+    }
+
+    pushHistory();
+    if (player === "P1") {
+      setP1Hand((h) => h.filter((c) => c.id !== card.id));
+      setP1Scored((s) => [...s, card]);
+      setP1SecondaryVp((n) => n + card.vp);
+      setP1Vp((n) => n + card.vp);
+    } else {
+      setP2Hand((h) => h.filter((c) => c.id !== card.id));
+      setP2Scored((s) => [...s, card]);
+      setP2SecondaryVp((n) => n + card.vp);
+      setP2Vp((n) => n + card.vp);
+    }
+    addLog(`${player} scores "${card.name}" — +${card.vp} VP!`, player);
+  }
+
+  // ── Battle-shock resolution ──
+  function resolveBattleShock(player: "P1" | "P2", currentMarkers: UnitMarker[]): UnitMarker[] {
+    const friendlyActive = currentMarkers.filter(
+      (m) => m.player === player && !m.isDestroyed && !m.isInReserve && !m.isAttached
+    );
+
+    let updatedMarkers = [...currentMarkers];
+
+    for (const m of friendlyActive) {
+      const belowHalf = m.currentWounds < m.maxWounds / 2;
+      if (!belowHalf) {
+        // Clear shock from previous turn if no longer below half
+        updatedMarkers = updatedMarkers.map((mk) =>
+          mk.id === m.id ? { ...mk, belowHalfStrength: false, battleShocked: false } : mk
+        );
+        continue;
+      }
+
+      // Check if within engagement range (1") of an enemy
+      const engaged = currentMarkers.some(
+        (em) =>
+          em.player !== player &&
+          !em.isDestroyed &&
+          !em.isInReserve &&
+          Math.sqrt((em.x - m.x) ** 2 + (em.y - m.y) ** 2) <= 1
+      );
+      if (engaged) {
+        updatedMarkers = updatedMarkers.map((mk) =>
+          mk.id === m.id ? { ...mk, belowHalfStrength: true } : mk
+        );
+        continue;
+      }
+
+      // Check Grim Resolve (Dark Angels): never battle-shock within 6" of another DA unit
+      const isDA = m.faction?.toLowerCase().includes("dark angels");
+      if (isDA) {
+        const nearbyDA = currentMarkers.some(
+          (ally) =>
+            ally.id !== m.id &&
+            ally.player === player &&
+            !ally.isDestroyed &&
+            !ally.isInReserve &&
+            ally.faction?.toLowerCase().includes("dark angels") &&
+            Math.sqrt((ally.x - m.x) ** 2 + (ally.y - m.y) ** 2) <= 6
+        );
+        if (nearbyDA) {
+          addLog(`Grim Resolve: ${m.unitName} ignores Battle-shock (near Dark Angels ally).`, player);
+          updatedMarkers = updatedMarkers.map((mk) =>
+            mk.id === m.id ? { ...mk, belowHalfStrength: true, battleShocked: false } : mk
+          );
+          continue;
+        }
+      }
+
+      // Check Shadow in the Warp (Tyranids): -1 Ld if within 12" of SYNAPSE
+      const opponentFaction = player === "P1" ? "P2" : "P1";
+      const synapseNearby = currentMarkers.some(
+        (em) =>
+          em.player === opponentFaction &&
+          !em.isDestroyed &&
+          !em.isInReserve &&
+          em.faction?.toLowerCase().includes("tyranid") &&
+          (em.unitId?.toLowerCase().includes("synapse") ||
+            findUnit(em.faction, em.unitId)?.keywords?.some((k) => k.toLowerCase() === "synapse") ||
+            ["tyr-swarmlord", "tyr-hive-tyrant", "tyr-neurotyrant", "tyr-broodlord", "tyr-tyranid-prime", "tyr-tyranid-warriors"].includes(em.unitId)) &&
+          Math.sqrt((em.x - m.x) ** 2 + (em.y - m.y) ** 2) <= 12
+      );
+
+      const ldStr = m.stats.leadership;
+      let ldNum = parseInt(ldStr) || 7;
+      if (synapseNearby) {
+        ldNum = Math.max(1, ldNum + 1); // -1 Ld penalty = raise the target by 1
+        addLog(`Shadow in the Warp: ${m.unitName} takes -1 Ld penalty (within 12" of Synapse).`, "system");
+      }
+
+      const r1 = d6();
+      const r2 = d6();
+      const total = r1 + r2;
+      // Shocked if 2D6 < Leadership value (rolling below LD = fail)
+      const shocked = total < ldNum;
+
+      addLog(
+        `Battle-shock: ${m.unitName} below half-strength (${m.currentWounds}/${m.maxWounds}W) — 2D6 (${r1}+${r2}=${total}) vs Ld${ldNum}+ → ${shocked ? "SHOCKED!" : "holds."}`,
+        player
+      );
+
+      updatedMarkers = updatedMarkers.map((mk) =>
+        mk.id === m.id ? { ...mk, belowHalfStrength: true, battleShocked: shocked } : mk
+      );
+    }
+
+    return updatedMarkers;
+  }
 
   // 10th ed CP: +1 CP per Command Phase; +1 extra if Azrael leads a unit on the battlefield.
   function giveCommandPhaseCP(player: "P1" | "P2", currentMarkers: UnitMarker[]) {
@@ -1057,7 +1338,6 @@ export default function WarhammerGameRoom() {
   // 10th ed primary objectives: 5VP per objective controlled at end of scoring player's turn.
   // Capture radius = 3". If both players contest, more units wins; tie = no control.
   function scoreObjectivesForPlayer(player: "P1" | "P2", currentMarkers: UnitMarker[]) {
-    // TODO: Secondary objectives (Tactical missions) — hidden objectives drawn from a deck each round.
     const captureRadius = 3;
     const active = currentMarkers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
     const controlledNums: number[] = [];
@@ -1066,10 +1346,12 @@ export default function WarhammerGameRoom() {
     mapPreset.objectives.forEach((obj, idx) => {
       const p1Near = active.filter(
         (m) => m.player === "P1" &&
+               !m.battleShocked &&
                Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
       );
       const p2Near = active.filter(
         (m) => m.player === "P2" &&
+               !m.battleShocked &&
                Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureRadius
       );
 
@@ -1106,15 +1388,26 @@ export default function WarhammerGameRoom() {
     setMoveUnit(null);
 
     if (gamePhase === "fight") {
-      // Score objectives for the player who just finished their turn
-      scoreObjectivesForPlayer(activePlayer, markers);
+      // Run Battle-shock at end of fight phase
+      const afterShock = resolveBattleShock(activePlayer, markers);
+      setMarkers(afterShock);
+
+      // Score objectives for the player who just finished their turn (using post-shock markers for OC)
+      scoreObjectivesForPlayer(activePlayer, afterShock);
+
+      // Reanimation Protocols for Necrons
+      const activeRules = activePlayer === "P1" ? p1FactionRules : p2FactionRules;
+      if (activeRules.some((r) => r.id === "nec-reanimation-protocols")) {
+        resolveReanimation(activePlayer, afterShock);
+      }
 
       if (activePlayer === "P1") {
-        // P1 done → start P2's turn
         const newPlayer: "P1" | "P2" = "P2";
         setActivePlayer(newPlayer);
         setGamePhase("command");
-        // Reset P2's unit action flags for their fresh turn
+        setDestroyedThisTurn([]);
+        setDestroyedThisPhase([]);
+        setAdvancedThisTurn([]);
         setMarkers((prev) =>
           prev.map((m) =>
             m.player === "P2"
@@ -1122,20 +1415,38 @@ export default function WarhammerGameRoom() {
               : m
           )
         );
-        // Solo mode: auto-switch to P2
         if (gameMode === "solo") setSoloSide("P2");
         addLog(`P1's turn complete. Round ${round} — Player 2's Turn: Command Phase.`, "system");
         giveCommandPhaseCP("P2", markers);
+        // Draw tactical mission for P2 if hand < 3
+        if (p2Hand.length < 3) drawMission("P2");
       } else {
-        // P2 done → end of battle round (scoring phase shows "End Round" button)
         setGamePhase("scoring");
+        setDestroyedThisTurn([]);
+        setDestroyedThisPhase([]);
+        setAdvancedThisTurn([]);
         addLog(`P2's turn complete. End of Round ${round} — click "End Round" to continue.`, "system");
       }
       return;
     }
 
+    // Reset phase tracking
+    setDestroyedThisPhase([]);
+
     if (gamePhase === "command") {
-      // CP was already granted when we entered command phase; just advance
+      // Snapshot objective control at turn start (for Storm Hostile Objective mission)
+      const captureR = 3;
+      const activeMkrs = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
+      const snap = mapPreset.objectives.map((obj) => {
+        const p1n = activeMkrs.filter((m) => m.player === "P1" && !m.battleShocked && Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureR);
+        const p2n = activeMkrs.filter((m) => m.player === "P2" && !m.battleShocked && Math.sqrt((m.x + 0.5 - obj.x) ** 2 + (m.y + 0.5 - obj.y) ** 2) <= captureR);
+        if (p1n.length > 0 && p2n.length === 0) return "P1" as const;
+        if (p2n.length > 0 && p1n.length === 0) return "P2" as const;
+        if (p1n.length > p2n.length) return "P1" as const;
+        if (p2n.length > p1n.length) return "P2" as const;
+        return null;
+      });
+      setObjControlAtTurnStart(snap);
     }
 
     const idx = PLAYER_PHASES.indexOf(gamePhase);
@@ -1146,12 +1457,50 @@ export default function WarhammerGameRoom() {
     }
   }
 
+  // ── Reanimation Protocols (Necrons) ──
+  function resolveReanimation(player: "P1" | "P2", currentMarkers: UnitMarker[]) {
+    let updatedMarkers = [...currentMarkers];
+    let anyHealed = false;
+
+    const necronMarkers = currentMarkers.filter(
+      (m) =>
+        m.player === player &&
+        !m.isDestroyed &&
+        !m.isInReserve &&
+        m.faction?.toLowerCase().includes("necron") &&
+        m.currentWounds < m.maxWounds
+    );
+
+    for (const m of necronMarkers) {
+      const woundsLost = m.maxWounds - m.currentWounds;
+      const rolls = Array.from({ length: woundsLost }, () => d6());
+      const healed = rolls.filter((r) => r >= 5).length;
+      if (healed > 0) {
+        const newWounds = Math.min(m.maxWounds, m.currentWounds + healed);
+        updatedMarkers = updatedMarkers.map((mk) =>
+          mk.id === m.id ? { ...mk, currentWounds: newWounds } : mk
+        );
+        addLog(
+          `Reanimation Protocols: ${m.unitName} rolls ${rolls.join(",")} — ${healed} wound(s) restored!`,
+          player
+        );
+        anyHealed = true;
+      }
+    }
+
+    if (!anyHealed && necronMarkers.length > 0) {
+      addLog(`Reanimation Protocols: no wounds restored this phase.`, "system");
+    }
+
+    setMarkers(updatedMarkers);
+  }
+
   function endRound() {
     if (round >= 5) {
       const winner = p1Vp > p2Vp ? "P1" : p2Vp > p1Vp ? "P2" : "Draw";
       setRoomPhase("finished");
       addLog(
-        `Battle ends! Final score — P1: ${p1Vp}VP, P2: ${p2Vp}VP. ${winner === "Draw" ? "It's a draw!" : `${winner} wins!`}`,
+        `Battle ends! Final score — P1: ${p1Vp}VP (${p1SecondaryVp} secondary), P2: ${p2Vp}VP (${p2SecondaryVp} secondary). ${winner === "Draw" ? "It's a draw!" : `${winner} wins!`}`,
         "system"
       );
       persistState({ current_phase: "finished" });
@@ -1161,7 +1510,10 @@ export default function WarhammerGameRoom() {
     setRound(nextRound);
     setActivePlayer("P1");
     setGamePhase("command");
-    // Reset all unit action flags for the new round
+    setDestroyedThisTurn([]);
+    setDestroyedThisPhase([]);
+    setAdvancedThisTurn([]);
+    // Reset all unit action flags and battle-shock for the new round
     setMarkers((prev) =>
       prev.map((m) => ({
         ...m,
@@ -1169,15 +1521,17 @@ export default function WarhammerGameRoom() {
         hasCharged: false,
         hasFought: false,
         hasShotThisTurn: false,
+        battleShocked: false,
       }))
     );
     setSelectedMarkerId(null);
     setCombat(INIT_COMBAT);
     setMoveUnit(null);
-    // Solo mode: back to P1's perspective
     if (gameMode === "solo") setSoloSide("P1");
     addLog(`Round ${nextRound} begins. Player 1's Turn — Command Phase.`, "system");
     giveCommandPhaseCP("P1", markers);
+    // Draw tactical mission for P1 if hand < 3
+    if (p1Hand.length < 3) drawMission("P1");
   }
 
   // ── Cell click handler (context-sensitive) ──
@@ -1200,18 +1554,16 @@ export default function WarhammerGameRoom() {
       }
       const occupied = markers.some((m) => m.id !== moveUnit && m.x === x && m.y === y && !m.isDestroyed && !m.isInReserve);
       if (occupied) { addLog("Cell occupied.", "system"); return; }
-      // Units cannot end movement inside terrain (10th ed — treat all terrain as solid ruins).
-      // TODO: Infantry keyword can move through area terrain freely but still cannot end inside.
       const inTerrain = mapPreset.terrain.some(
         (t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h
       );
       if (inTerrain) { addLog("Cannot move into solid terrain.", "system"); return; }
+      pushHistory();
       const oldX = marker.x;
       const oldY = marker.y;
       setMarkers((prev) =>
         prev.map((m) => {
           if (m.id === moveUnit) return { ...m, x, y, hasAdvanced: moveAdvance };
-          // Move attached character at the same offset
           if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
             const dx = x - oldX;
             const dy = y - oldY;
@@ -1220,6 +1572,9 @@ export default function WarhammerGameRoom() {
           return m;
         })
       );
+      if (moveAdvance) {
+        setAdvancedThisTurn((prev) => [...prev, moveUnit]);
+      }
       addLog(`${marker.player} moved ${marker.unitName} to (${x}, ${y})${moveAdvance ? " (Advanced)" : ""}.`, marker.player);
       setMoveUnit(null);
       setMoveAdvance(false);
@@ -1345,6 +1700,7 @@ export default function WarhammerGameRoom() {
     addLog(`Shooting: ${numAttacks} attack(s) → ${rolls.join(", ")} → ${hits} hit(s) (needing ${skillTarget}+).`, attacker.player);
     showRoll({ rolls, type: "hit", threshold: skillTarget, label: `Hit Rolls (${skillTarget}+)` });
     setCombat((prev) => ({ ...prev, hitRolls: rolls, hits, step: "woundRolls" }));
+    pushHistory();
   }
 
   function resolveWoundRolls() {
@@ -1394,7 +1750,11 @@ export default function WarhammerGameRoom() {
         if (m.id !== combat.targetId) return m;
         const newWounds = Math.max(0, m.currentWounds - totalDmg);
         const destroyed = newWounds <= 0;
-        if (destroyed) addLog(`${m.unitName} destroyed!`, "system");
+        if (destroyed) {
+          addLog(`${m.unitName} destroyed!`, "system");
+          setDestroyedThisTurn((p) => [...p, m.id]);
+          setDestroyedThisPhase((p) => [...p, m.id]);
+        }
         return { ...m, currentWounds: newWounds, isDestroyed: destroyed };
       })
     );
@@ -1414,6 +1774,7 @@ export default function WarhammerGameRoom() {
     const target = markers.find((m) => m.id === targetId);
     if (!attacker || !target) return;
 
+    pushHistory();
     const dist = Math.sqrt((attacker.x - target.x) ** 2 + (attacker.y - target.y) ** 2);
     const roll1 = d6();
     const roll2 = d6();
@@ -1458,6 +1819,8 @@ export default function WarhammerGameRoom() {
     const target = markers.find((m) => m.id === targetId);
     if (!attacker || !target) return;
 
+    pushHistory();
+
     const meleeWeapon = attacker.weapons.find((w) => w.type === "Melee") ?? attacker.weapons[0];
     if (!meleeWeapon) { addLog("No weapons available.", "system"); return; }
 
@@ -1486,13 +1849,16 @@ export default function WarhammerGameRoom() {
       attacker.player
     );
 
+    const newW = Math.max(0, target.currentWounds - totalDmg);
+    if (newW <= 0) {
+      addLog(`${target.unitName} destroyed!`, "system");
+      setDestroyedThisPhase((p) => [...p, target.id]);
+      setDestroyedThisTurn((p) => [...p, target.id]);
+    }
+
     setMarkers((prev) =>
       prev.map((m) => {
-        if (m.id === targetId) {
-          const newW = Math.max(0, m.currentWounds - totalDmg);
-          if (newW <= 0) addLog(`${m.unitName} destroyed!`, "system");
-          return { ...m, currentWounds: newW, isDestroyed: newW <= 0 };
-        }
+        if (m.id === targetId) return { ...m, currentWounds: newW, isDestroyed: newW <= 0 };
         if (m.id === attackerId) return { ...m, hasFought: true };
         return m;
       })
@@ -1541,9 +1907,11 @@ export default function WarhammerGameRoom() {
   function useStratagem(player: "P1" | "P2", cost: number, name: string) {
     if (player === "P1") {
       if (p1Cp < cost) { addLog(`P1 — not enough CP for ${name}.`, "system"); return; }
+      pushHistory();
       setP1Cp((n) => n - cost);
     } else {
       if (p2Cp < cost) { addLog(`P2 — not enough CP for ${name}.`, "system"); return; }
+      pushHistory();
       setP2Cp((n) => n - cost);
     }
     addLog(`${player} used "${name}" (${cost} CP).`, player);
@@ -1996,7 +2364,25 @@ export default function WarhammerGameRoom() {
           </>
         )}
 
-        <div className="ml-auto flex gap-2 flex-shrink-0">
+        <div className="ml-auto flex gap-2 flex-shrink-0 items-center">
+          {/* Undo button */}
+          {roomPhase === "game" && (
+            <button
+              onClick={undoAction}
+              disabled={history.length === 0}
+              title="Undo last action"
+              className="p-1.5 rounded flex items-center gap-1 text-xs transition-opacity"
+              style={{
+                opacity: history.length === 0 ? 0.3 : 1,
+                color: "var(--text-muted)",
+                backgroundColor: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <RotateCcw size={12} />
+              <span>Undo</span>
+            </button>
+          )}
           {/* Solo side toggle */}
           {gameMode === "solo" && (
             <div className="flex items-center gap-2">
@@ -2117,6 +2503,80 @@ export default function WarhammerGameRoom() {
                   ))}
                 </div>
               )}
+
+              {/* P1 Faction Rules */}
+              {p1FactionRules.length > 0 && (
+                <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <button
+                    onClick={() => setP1FactionRulesOpen((x) => !x)}
+                    className="flex items-center justify-between w-full text-xs"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    <span className="flex items-center gap-1"><BookOpen size={10} />Faction Rules</span>
+                    {p1FactionRulesOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                  </button>
+                  {p1FactionRulesOpen && (
+                    <div className="mt-1.5 space-y-2">
+                      {p1FactionRules.map((rule) => (
+                        <div key={rule.id} className="px-2 py-1.5 rounded text-[10px]"
+                          style={{ backgroundColor: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.12)" }}>
+                          <div className="flex justify-between items-start mb-0.5">
+                            <span className="font-medium" style={{ color: "#93c5fd" }}>{rule.name}</span>
+                            <span className="text-[9px] px-1 rounded" style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)" }}>
+                              {rule.trigger.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <p className="leading-relaxed mb-1" style={{ color: "var(--text-muted)" }}>{rule.description}</p>
+                          {rule.id === "sm-oath-of-moment" && gamePhase === "command" && activePlayer === "P1" && (
+                            <div className="pt-1 mt-0.5" style={{ borderTop: "1px solid rgba(59,130,246,0.15)" }}>
+                              <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>
+                                Target: {oathTarget ? (markers.find((m) => m.id === oathTarget)?.unitName ?? "—") : "None set"}
+                              </p>
+                              {showOathPicker ? (
+                                <div className="space-y-0.5">
+                                  {markers.filter((m) => m.player === "P2" && !m.isDestroyed && !m.isInReserve && !m.isAttached).map((m) => (
+                                    <button key={m.id} onClick={() => { setOathTarget(m.id); setShowOathPicker(false); addLog(`P1 Oath of Moment: targeting ${m.unitName}.`, "P1"); }}
+                                      className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                                      style={{ backgroundColor: "rgba(59,130,246,0.1)", color: "#93c5fd" }}>{m.unitName}</button>
+                                  ))}
+                                  <button onClick={() => setShowOathPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setShowOathPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                                  style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                                  {oathTarget ? "Change Target" : "Set Target"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {rule.id === "tyr-synaptic-imperative" && gamePhase === "command" && activePlayer === "P1" &&
+                            markers.some((m) => m.player === "P1" && !m.isDestroyed && !m.isInReserve &&
+                              findUnit(m.faction, m.unitId)?.keywords?.some((k) => k.toLowerCase() === "synapse")) && (
+                            <div className="pt-1 mt-0.5" style={{ borderTop: "1px solid rgba(59,130,246,0.15)" }}>
+                              <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>Active: {synapticImperative ?? "None"}</p>
+                              {showSynapticPicker ? (
+                                <div className="space-y-0.5">
+                                  {["Instinctive Rampage", "Synaptic Channelling", "Perfect Synchrony"].map((opt) => (
+                                    <button key={opt} onClick={() => { setSynapticImperative(opt); setShowSynapticPicker(false); addLog(`P1 Synaptic Imperative: "${opt}".`, "P1"); }}
+                                      className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                                      style={{ backgroundColor: opt === synapticImperative ? "rgba(59,130,246,0.2)" : "rgba(59,130,246,0.06)", color: "#93c5fd" }}>{opt}</button>
+                                  ))}
+                                  <button onClick={() => setShowSynapticPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setShowSynapticPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                                  style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                                  {synapticImperative ? "Change Imperative" : "Choose Imperative"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* P2 panel */}
@@ -2190,6 +2650,80 @@ export default function WarhammerGameRoom() {
                   ))}
                 </div>
               )}
+
+              {/* P2 Faction Rules */}
+              {p2FactionRules.length > 0 && (
+                <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <button
+                    onClick={() => setP2FactionRulesOpen((x) => !x)}
+                    className="flex items-center justify-between w-full text-xs"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    <span className="flex items-center gap-1"><BookOpen size={10} />Faction Rules</span>
+                    {p2FactionRulesOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                  </button>
+                  {p2FactionRulesOpen && (
+                    <div className="mt-1.5 space-y-2">
+                      {p2FactionRules.map((rule) => (
+                        <div key={rule.id} className="px-2 py-1.5 rounded text-[10px]"
+                          style={{ backgroundColor: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.12)" }}>
+                          <div className="flex justify-between items-start mb-0.5">
+                            <span className="font-medium" style={{ color: "#fca5a5" }}>{rule.name}</span>
+                            <span className="text-[9px] px-1 rounded" style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)" }}>
+                              {rule.trigger.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <p className="leading-relaxed mb-1" style={{ color: "var(--text-muted)" }}>{rule.description}</p>
+                          {rule.id === "sm-oath-of-moment" && gamePhase === "command" && activePlayer === "P2" && (
+                            <div className="pt-1 mt-0.5" style={{ borderTop: "1px solid rgba(239,68,68,0.15)" }}>
+                              <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>
+                                Target: {oathTarget ? (markers.find((m) => m.id === oathTarget)?.unitName ?? "—") : "None set"}
+                              </p>
+                              {showOathPicker ? (
+                                <div className="space-y-0.5">
+                                  {markers.filter((m) => m.player === "P1" && !m.isDestroyed && !m.isInReserve && !m.isAttached).map((m) => (
+                                    <button key={m.id} onClick={() => { setOathTarget(m.id); setShowOathPicker(false); addLog(`P2 Oath of Moment: targeting ${m.unitName}.`, "P2"); }}
+                                      className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                                      style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#fca5a5" }}>{m.unitName}</button>
+                                  ))}
+                                  <button onClick={() => setShowOathPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setShowOathPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                                  style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" }}>
+                                  {oathTarget ? "Change Target" : "Set Target"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {rule.id === "tyr-synaptic-imperative" && gamePhase === "command" && activePlayer === "P2" &&
+                            markers.some((m) => m.player === "P2" && !m.isDestroyed && !m.isInReserve &&
+                              findUnit(m.faction, m.unitId)?.keywords?.some((k) => k.toLowerCase() === "synapse")) && (
+                            <div className="pt-1 mt-0.5" style={{ borderTop: "1px solid rgba(239,68,68,0.15)" }}>
+                              <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>Active: {synapticImperative ?? "None"}</p>
+                              {showSynapticPicker ? (
+                                <div className="space-y-0.5">
+                                  {["Instinctive Rampage", "Synaptic Channelling", "Perfect Synchrony"].map((opt) => (
+                                    <button key={opt} onClick={() => { setSynapticImperative(opt); setShowSynapticPicker(false); addLog(`P2 Synaptic Imperative: "${opt}".`, "P2"); }}
+                                      className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                                      style={{ backgroundColor: opt === synapticImperative ? "rgba(239,68,68,0.2)" : "rgba(239,68,68,0.06)", color: "#fca5a5" }}>{opt}</button>
+                                  ))}
+                                  <button onClick={() => setShowSynapticPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setShowSynapticPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                                  style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" }}>
+                                  {synapticImperative ? "Change Imperative" : "Choose Imperative"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Units list (game phase) */}
@@ -2250,10 +2784,12 @@ export default function WarhammerGameRoom() {
             const objectiveControl: ('P1' | 'P2' | null)[] = mapPreset.objectives.map((obj) => {
               const p1n = activeM.filter(
                 (m) => m.player === "P1" &&
+                       !m.battleShocked &&
                        Math.sqrt((m.x+0.5-obj.x)**2 + (m.y+0.5-obj.y)**2) <= captureR
               );
               const p2n = activeM.filter(
                 (m) => m.player === "P2" &&
+                       !m.battleShocked &&
                        Math.sqrt((m.x+0.5-obj.x)**2 + (m.y+0.5-obj.y)**2) <= captureR
               );
               if (p1n.length > 0 && p2n.length === 0) return "P1";
@@ -2339,6 +2875,96 @@ export default function WarhammerGameRoom() {
             ))}
           </div>
 
+          {/* Tactical Missions */}
+          {roomPhase === "game" && (p1Hand.length > 0 || p2Hand.length > 0 || p1Scored.length > 0 || p2Scored.length > 0) && (
+            <div className="flex-shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+              <button
+                onClick={() => setTacticalMissionsOpen((x) => !x)}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Scroll size={10} />
+                  <span>Tactical Missions</span>
+                  <span className="px-1.5 rounded-full text-[9px]" style={{ backgroundColor: "rgba(217,119,6,0.2)", color: "#d97706" }}>
+                    {p1SecondaryVp + p2SecondaryVp > 0 ? `${p1SecondaryVp}/${p2SecondaryVp}` : `${p1Hand.length + p2Hand.length} cards`}
+                  </span>
+                </span>
+                {tacticalMissionsOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </button>
+              {tacticalMissionsOpen && (
+                <div className="px-3 pb-3 space-y-3">
+                  {/* P1 hand */}
+                  {(p1Hand.length > 0 || p1Scored.length > 0) && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#ef4444" }}>P1 Missions</span>
+                        <span className="text-[10px]" style={{ color: "#d97706" }}>2°VP: {p1SecondaryVp}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {p1Hand.map((card) => (
+                          <div key={card.id} className="px-2 py-1.5 rounded text-[10px]"
+                            style={{ backgroundColor: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                            <div className="flex items-start justify-between gap-1 mb-0.5">
+                              <span className="font-medium" style={{ color: "#fca5a5" }}>{card.name}</span>
+                              <span className="text-[9px] px-1 rounded flex-shrink-0" style={{ backgroundColor: "rgba(217,119,6,0.2)", color: "#d97706" }}>+{card.vp}VP</span>
+                            </div>
+                            <p className="mb-1.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>{card.scoreCondition}</p>
+                            <button
+                              onClick={() => scoreMission("P1", card)}
+                              className="w-full py-1 rounded text-[9px] font-semibold"
+                              style={{ backgroundColor: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}
+                            >Score</button>
+                          </div>
+                        ))}
+                        {p1Scored.map((card) => (
+                          <div key={card.id} className="px-2 py-1 rounded text-[10px] flex items-center justify-between"
+                            style={{ backgroundColor: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
+                            <span style={{ color: "#4ade80" }}>✓ {card.name}</span>
+                            <span style={{ color: "#4ade80" }}>+{card.vp}VP</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* P2 hand */}
+                  {(p2Hand.length > 0 || p2Scored.length > 0) && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#3b82f6" }}>P2 Missions</span>
+                        <span className="text-[10px]" style={{ color: "#d97706" }}>2°VP: {p2SecondaryVp}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {p2Hand.map((card) => (
+                          <div key={card.id} className="px-2 py-1.5 rounded text-[10px]"
+                            style={{ backgroundColor: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
+                            <div className="flex items-start justify-between gap-1 mb-0.5">
+                              <span className="font-medium" style={{ color: "#93c5fd" }}>{card.name}</span>
+                              <span className="text-[9px] px-1 rounded flex-shrink-0" style={{ backgroundColor: "rgba(217,119,6,0.2)", color: "#d97706" }}>+{card.vp}VP</span>
+                            </div>
+                            <p className="mb-1.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>{card.scoreCondition}</p>
+                            <button
+                              onClick={() => scoreMission("P2", card)}
+                              className="w-full py-1 rounded text-[9px] font-semibold"
+                              style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}
+                            >Score</button>
+                          </div>
+                        ))}
+                        {p2Scored.map((card) => (
+                          <div key={card.id} className="px-2 py-1 rounded text-[10px] flex items-center justify-between"
+                            style={{ backgroundColor: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
+                            <span style={{ color: "#4ade80" }}>✓ {card.name}</span>
+                            <span style={{ color: "#4ade80" }}>+{card.vp}VP</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Dice roller */}
           <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
             <DiceRoller />
@@ -2376,6 +3002,17 @@ export default function WarhammerGameRoom() {
           </div>
         </div>
       </div>
+
+      {/* ── Undo toast ── */}
+      {undoToast && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-sm font-medium pointer-events-none z-50 flex items-center gap-2"
+          style={{ backgroundColor: "rgba(30,30,30,0.95)", border: "1px solid rgba(255,255,255,0.15)", color: "var(--text-primary)", boxShadow: "0 4px 16px rgba(0,0,0,0.5)" }}
+        >
+          <RotateCcw size={14} />
+          Action undone
+        </div>
+      )}
     </div>
   );
 }

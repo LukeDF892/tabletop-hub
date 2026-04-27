@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navigation from "@/components/Navigation";
-import type { Unit, Faction, Detachment } from "@/lib/wh40k/types";
+import type { Unit, Faction, Detachment, WeaponProfile } from "@/lib/wh40k/types";
 import { SPACE_MARINES_FACTION } from "@/lib/wh40k/space-marines";
 import { DARK_ANGELS_FACTION } from "@/lib/wh40k/dark-angels";
 import { TYRANIDS_FACTION } from "@/lib/wh40k/tyranids";
@@ -57,6 +57,7 @@ interface ArmyEntry {
   modelCount: number;
   quantity: number;
   attachedLeaderId?: string;
+  selectedWeapons?: Record<string, WeaponProfile>; // keyed by WeaponOption.replaces
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -251,6 +252,7 @@ function ArmyBuilderInner() {
   const [stratagemExpanded, setStratagemExpanded] = useState(false);
   const [armyName, setArmyName] = useState("");
   const [attachLeaderFor, setAttachLeaderFor] = useState<string | null>(null);
+  const [loadoutFor, setLoadoutFor] = useState<string | null>(null); // unit ID for weapon loadout popover
   const [saving, setSaving] = useState(false);
   const [loadingArmy, setLoadingArmy] = useState(!!editArmyId);
 
@@ -279,12 +281,12 @@ function ArmyBuilderInner() {
       const det = fac.detachments.find((d) => d.name === data.subfaction) ?? fac.detachments[0];
       setDetachment(det);
 
-      const saved = data.units as { entries?: Array<{ unitId: string; modelCount: number; quantity: number; attachedLeaderId?: string }> };
+      const saved = data.units as { entries?: Array<{ unitId: string; modelCount: number; quantity: number; attachedLeaderId?: string; selectedWeapons?: Record<string, WeaponProfile> }> };
       if (saved?.entries) {
         const restored: ArmyEntry[] = [];
         for (const e of saved.entries) {
           const unit = fac.units.find((u) => u.id === e.unitId);
-          if (unit) restored.push({ unit, modelCount: e.modelCount, quantity: e.quantity, attachedLeaderId: e.attachedLeaderId });
+          if (unit) restored.push({ unit, modelCount: e.modelCount, quantity: e.quantity, attachedLeaderId: e.attachedLeaderId, selectedWeapons: e.selectedWeapons });
         }
         setArmy(restored);
       }
@@ -319,6 +321,7 @@ function ArmyBuilderInner() {
             modelCount: e.modelCount,
             quantity: e.quantity,
             attachedLeaderId: e.attachedLeaderId,
+            selectedWeapons: e.selectedWeapons,
           })),
         },
         updated_at: new Date().toISOString(),
@@ -392,6 +395,18 @@ function ArmyBuilderInner() {
     setArmy((prev) => prev.map((e) =>
       e.unit.id === unitId ? { ...e, attachedLeaderId: undefined } : e
     ));
+  }
+
+  function setSelectedWeapon(unitId: string, replaces: string, weapon: WeaponProfile | null) {
+    setArmy((prev) =>
+      prev.map((e) => {
+        if (e.unit.id !== unitId) return e;
+        const sw = { ...(e.selectedWeapons ?? {}) };
+        if (weapon) sw[replaces] = weapon;
+        else delete sw[replaces];
+        return { ...e, selectedWeapons: Object.keys(sw).length > 0 ? sw : undefined };
+      })
+    );
   }
 
   function changeModelCount(unitId: string, delta: number) {
@@ -1050,6 +1065,102 @@ function ArmyBuilderInner() {
                                 <X size={10} />
                               </button>
                             </div>
+                          )}
+
+                          {/* Weapon Loadout button — only for units with weapon options */}
+                          {entry.unit.weaponOptions && entry.unit.weaponOptions.length > 0 && (
+                            <>
+                              <button
+                                onClick={() => setLoadoutFor(loadoutFor === entry.unit.id ? null : entry.unit.id)}
+                                className="mt-1.5 text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-colors"
+                                style={{
+                                  backgroundColor: loadoutFor === entry.unit.id ? `${accentColor}20` : "rgba(255,255,255,0.05)",
+                                  border: `1px solid ${loadoutFor === entry.unit.id ? accentColor + "50" : "rgba(255,255,255,0.1)"}`,
+                                  color: loadoutFor === entry.unit.id ? accentColor : "var(--text-muted)",
+                                }}
+                              >
+                                ⚙ Loadout
+                                {entry.selectedWeapons && Object.keys(entry.selectedWeapons).length > 0 && (
+                                  <span className="ml-1" style={{ color: accentColor }}>•</span>
+                                )}
+                              </button>
+
+                              {/* Weapon loadout popover */}
+                              {loadoutFor === entry.unit.id && (
+                                <div
+                                  className="mt-1.5 rounded-lg p-2 space-y-2"
+                                  style={{ backgroundColor: "rgba(0,0,0,0.3)", border: `1px solid ${accentColor}25` }}
+                                >
+                                  {entry.unit.weaponOptions.map((opt) => {
+                                    const currentSelected = entry.selectedWeapons?.[opt.replaces];
+                                    const defaultWeapon = entry.unit.weapons.find((w) => w.name === opt.replaces);
+                                    const allChoices = [
+                                      ...(defaultWeapon ? [defaultWeapon] : []),
+                                      ...opt.options,
+                                    ];
+                                    return (
+                                      <div key={opt.replaces}>
+                                        <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>
+                                          Replaces: {opt.replaces}
+                                        </p>
+                                        <div className="space-y-0.5">
+                                          {allChoices.map((w) => {
+                                            const isSelected = currentSelected
+                                              ? currentSelected.name === w.name
+                                              : w.name === opt.replaces;
+                                            return (
+                                              <button
+                                                key={w.name}
+                                                onClick={() =>
+                                                  setSelectedWeapon(
+                                                    entry.unit.id,
+                                                    opt.replaces,
+                                                    w.name === opt.replaces ? null : w
+                                                  )
+                                                }
+                                                className="w-full text-left px-2 py-1 rounded text-[10px] flex items-start gap-2 transition-colors"
+                                                style={{
+                                                  backgroundColor: isSelected ? `${accentColor}18` : "rgba(255,255,255,0.03)",
+                                                  border: `1px solid ${isSelected ? accentColor + "40" : "transparent"}`,
+                                                  color: isSelected ? accentColor : "var(--text-muted)",
+                                                }}
+                                              >
+                                                <span className="mt-0.5 shrink-0">
+                                                  {isSelected ? "◉" : "○"}
+                                                </span>
+                                                <span>
+                                                  <span className="font-medium" style={{ color: isSelected ? accentColor : "var(--text-primary)" }}>
+                                                    {w.name}
+                                                  </span>
+                                                  {w.name === opt.replaces && (
+                                                    <span className="ml-1 text-[9px]" style={{ color: "var(--text-muted)" }}>(default)</span>
+                                                  )}
+                                                  <br />
+                                                  <span style={{ color: "var(--text-muted)" }}>
+                                                    {w.range ? `${w.range} ` : ""}A{w.attacks} S{w.strength} AP{w.ap} D{w.damage}
+                                                  </span>
+                                                </span>
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Show selected weapon summary */}
+                              {entry.selectedWeapons && Object.keys(entry.selectedWeapons).length > 0 && loadoutFor !== entry.unit.id && (
+                                <div className="mt-1 space-y-0.5">
+                                  {Object.entries(entry.selectedWeapons).map(([replaces, w]) => (
+                                    <p key={replaces} className="text-[10px]" style={{ color: accentColor }}>
+                                      ⚙ {w.name}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       );

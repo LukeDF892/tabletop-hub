@@ -54,6 +54,9 @@ export interface UnitMarker {
   attachedCharacterName?: string;  // display name
   isAttached?: boolean;            // true = this marker is the attached character
   attachedToMarkerId?: string;     // parent unit marker ID
+  battleShocked?: boolean;         // 10th ed Battle-shock: OC 0, -1 to rolls
+  belowHalfStrength?: boolean;     // currentWounds < maxWounds/2
+  lastPhaseWoundsTaken?: number;   // wounds taken this phase (for Reanimation)
 }
 
 export interface DeploymentState {

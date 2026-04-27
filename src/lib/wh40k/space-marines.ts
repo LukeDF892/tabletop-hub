@@ -67,6 +67,15 @@ export const SM_UNITS: Unit[] = [
       { description: "May replace Master-Crafted Power Weapon with a Thunder Hammer (+10pts) or Power Fist (+5pts)." },
       { description: "May take a Storm Shield (+15pts) for a 4++ invulnerable save." },
     ],
+    weaponOptions: [
+      {
+        replaces: "Neo-volkite Pistol",
+        options: [
+          { name: "Plasma Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS2+", strength: "7", ap: "-2", damage: "2", keywords: ["Hazardous"] },
+          { name: "Bolt Rifle", type: "Rapid Fire", range: '30"', attacks: "2", skill: "BS2+", strength: "4", ap: "-1", damage: "1", keywords: ["Master-crafted"] },
+        ],
+      },
+    ],
     canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-bladeguard", "sm-sternguard", "sm-terminators", "sm-eradicators", "sm-hellblasters"],
   },
   {
@@ -171,6 +180,47 @@ export const SM_UNITS: Unit[] = [
       { description: "All models may replace Bolt Rifle with Auto Bolt Rifle or Stalker Bolt Rifle." },
       { description: "Sergeant may take a Thunder Hammer, Power Fist, or Power Weapon." },
     ],
+    weaponOptions: [
+      {
+        replaces: "Bolt Rifle",
+        options: [
+          { name: "Auto Bolt Rifle", type: "Assault", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+          { name: "Stalker Bolt Rifle", type: "Heavy", range: '36"', attacks: "1", skill: "BS3+", strength: "4", ap: "-2", damage: "2" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "sm-assault-intercessors",
+    name: "Assault Intercessor Squad",
+    role: "Infantry",
+    category: "Battleline",
+    stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 2 },
+    models: { min: 5, max: 10 },
+    points: 85,
+    weapons: [
+      { name: "Heavy Bolt Pistol", type: "Pistol", range: '18"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
+      { name: "Astartes Chainsword", type: "Melee", attacks: "4", skill: "WS3+", strength: "4", ap: "-1", damage: "1" },
+    ],
+    abilities: [
+      { name: "Objective Secured", description: "While this unit controls an objective marker, it is treated as having double the number of models for the purpose of that marker." },
+      { name: "Shock Assault", description: "Each time this unit makes a charge move, each model in this unit makes 1 additional attack with its melee weapon during the Fight phase this turn." },
+    ],
+    keywords: ["Infantry", "Core", "Battleline", "Assault Intercessors"],
+    factionKeywords: ["Adeptus Astartes"],
+    wargearOptions: [
+      { description: "Sergeant may replace Heavy Bolt Pistol with a Plasma Pistol or Hand Flamer." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Heavy Bolt Pistol",
+        options: [
+          { name: "Plasma Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "7", ap: "-2", damage: "2", keywords: ["Hazardous"] },
+          { name: "Hand Flamer", type: "Pistol", range: '6"', attacks: "D6", skill: "BS-", strength: "3", ap: "0", damage: "1", keywords: ["Torrent", "Ignores Cover"] },
+        ],
+      },
+    ],
+    canBeLeadBy: ["sm-captain", "sm-lieutenant", "sm-chaplain", "sm-apothecary"],
   },
   {
     id: "sm-tactical-squad",
@@ -391,6 +441,7 @@ export const SM_UNITS: Unit[] = [
       { name: "Missile Launcher (Frag)", type: "Heavy", range: '48"', attacks: "D6", skill: "BS3+", strength: "5", ap: "0", damage: "1" },
       { name: "Missile Launcher (Krak)", type: "Heavy", range: '48"', attacks: "1", skill: "BS3+", strength: "9", ap: "-2", damage: "D6" },
       { name: "Lascannon", type: "Heavy", range: '48"', attacks: "1", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+1" },
+      { name: "Close Combat Weapon", type: "Melee", attacks: "2", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
     ],
     abilities: [
       { name: "Signum", description: "One model in this unit can use a Signum. If it does, add 1 to the hit rolls of that unit's Heavy weapons this phase." },
@@ -399,6 +450,16 @@ export const SM_UNITS: Unit[] = [
     factionKeywords: ["Adeptus Astartes"],
     wargearOptions: [
       { description: "Up to 4 models may replace their Boltgun with a Heavy Weapon: Heavy Bolter, Lascannon, Missile Launcher, Multi-melta, Plasma Cannon." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Missile Launcher (Frag)",
+        options: [
+          { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2" },
+          { name: "Multi-melta", type: "Heavy", range: '18"', attacks: "2", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
+          { name: "Plasma Cannon (Standard)", type: "Heavy", range: '36"', attacks: "D3", skill: "BS3+", strength: "8", ap: "-3", damage: "2", keywords: ["Blast"] },
+        ],
+      },
     ],
   },
   {
@@ -500,6 +561,16 @@ export const SM_UNITS: Unit[] = [
     wargearOptions: [
       { description: "May replace Multi-melta with Assault Cannon, Heavy Plasma Cannon, or Twin Lascannon." },
       { description: "May replace Heavy Flamer with Storm Bolter." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Multi-melta",
+        options: [
+          { name: "Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "6", ap: "-1", damage: "1" },
+          { name: "Twin Lascannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+1" },
+          { name: "Heavy Plasma Cannon (Standard)", type: "Heavy", range: '36"', attacks: "D3", skill: "BS3+", strength: "8", ap: "-3", damage: "2", keywords: ["Blast"] },
+        ],
+      },
     ],
   },
   {

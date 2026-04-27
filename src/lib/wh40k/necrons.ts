@@ -56,6 +56,7 @@ export const NECRON_UNITS: Unit[] = [
     models: { min: 1, max: 1 },
     points: 80,
     weapons: [
+      { name: "Tachyon Arrow", type: "Heavy", range: '120"', attacks: "1", skill: "BS2+", strength: "16", ap: "-5", damage: "D6+2", keywords: ["One Shot"] },
       { name: "Staff of Light (Ranged)", type: "Assault", range: '18"', attacks: "3", skill: "BS2+", strength: "5", ap: "-2", damage: "1" },
       { name: "Staff of Light (Melee)", type: "Melee", attacks: "3", skill: "WS2+", strength: "5", ap: "-2", damage: "1" },
       { name: "Voidscythe", type: "Melee", attacks: "3", skill: "WS2+", strength: "10", ap: "-3", damage: "3" },
@@ -69,6 +70,14 @@ export const NECRON_UNITS: Unit[] = [
     wargearOptions: [
       { description: "May replace Staff of Light with a Voidscythe." },
       { description: "May take a Resurrection Orb (+15pts): once per battle, at the end of any phase, a friendly Necron INFANTRY unit within 6\" immediately triggers Reanimation Protocols." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Tachyon Arrow",
+        options: [
+          { name: "Voidscythe (Swap)", type: "Melee", attacks: "3", skill: "WS2+", strength: "10", ap: "-3", damage: "3" },
+        ],
+      },
     ],
   },
   {

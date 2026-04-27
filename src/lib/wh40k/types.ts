@@ -29,6 +29,11 @@ export interface WargearOption {
   description: string;
 }
 
+export interface WeaponOption {
+  replaces: string;          // name of the weapon being replaced
+  options: WeaponProfile[];  // available alternatives
+}
+
 export interface Unit {
   id: string;
   name: string;
@@ -42,6 +47,7 @@ export interface Unit {
   keywords: string[];
   factionKeywords: string[];
   wargearOptions?: WargearOption[];
+  weaponOptions?: WeaponOption[];  // swappable weapon loadouts
   isEpicHero?: boolean;
   isTitanic?: boolean;
   canFly?: boolean;

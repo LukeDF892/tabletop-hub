@@ -48,6 +48,15 @@ export const TYRANID_UNITS: Unit[] = [
       { description: "May have wings, gaining the Fly keyword and +2\" Move." },
       { description: "May replace one pair of Monstrous Scything Talons with Heavy Venom Cannon or Bio-Plasma." },
     ],
+    weaponOptions: [
+      {
+        replaces: "Monstrous Bonesword & Lashwhip",
+        options: [
+          { name: "Two Devourers with Broodlord's Eye", type: "Assault", range: '18"', attacks: "12", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Twin-linked"] },
+          { name: "Heavy Venom Cannon (Alt)", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "10", ap: "-2", damage: "3" },
+        ],
+      },
+    ],
   },
   {
     id: "tyr-neurotyrant",
@@ -166,6 +175,15 @@ export const TYRANID_UNITS: Unit[] = [
     wargearOptions: [
       { description: "Models may replace Deathspitter with Barbed Strangler (Heavy, R24\", A D3+3, S6, AP-1, D2, Blast) or Venom Cannon (Heavy, R36\", A2, S8, AP-1, D3)." },
       { description: "Models may replace Scything Talons with Boneswords (Melee, A3, WS3+, S6, AP-2, D2) or Rending Claws (A3, WS3+, S5, AP-2, D1)." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Deathspitter",
+        options: [
+          { name: "Devourer", type: "Assault", range: '18"', attacks: "4", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+          { name: "Venom Cannon", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "6", ap: "0", damage: "2" },
+        ],
+      },
     ],
   },
   // ─── ELITES ───────────────────────────────────────────────────────
@@ -309,6 +327,15 @@ export const TYRANID_UNITS: Unit[] = [
       { description: "Each Carnifex may replace Scything Talons with Crushing Claws." },
       { description: "Each Carnifex may take Bio-Plasma (Heavy)." },
       { description: "Each Carnifex may take Stranglethorn Cannon (Heavy, R36\", A2D3, S10, AP-2, D2, Blast)." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Bio-Plasma",
+        options: [
+          { name: "Deathspitter with Slimer Maggots", type: "Assault", range: '24"', attacks: "6", skill: "BS3+", strength: "5", ap: "-1", damage: "1", keywords: ["Lethal Hits"] },
+          { name: "Stranglethorn Cannon", type: "Heavy", range: '36"', attacks: "2D3", skill: "BS3+", strength: "10", ap: "-2", damage: "2", keywords: ["Blast"] },
+        ],
+      },
     ],
   },
   {

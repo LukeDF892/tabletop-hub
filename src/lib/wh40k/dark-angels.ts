@@ -188,6 +188,14 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Core", "Terminator", "Deathwing", "Inner Circle", "Deathwing Knights"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    weaponOptions: [
+      {
+        replaces: "Mace of Absolution",
+        options: [
+          { name: "Flail of the Unforgiven", type: "Melee", attacks: "4", skill: "WS2+", strength: "10", ap: "-3", damage: "2", keywords: ["Devastating Wounds"] },
+        ],
+      },
+    ],
   },
   {
     id: "da-deathwing-terminators",
@@ -260,6 +268,14 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     ],
     keywords: ["Mounted", "Core", "Fly", "Ravenwing", "Black Knights"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    weaponOptions: [
+      {
+        replaces: "Plasma Talon (Standard)",
+        options: [
+          { name: "Corvus Hammer (Main)", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-1", damage: "1", keywords: ["Inner Circle"] },
+        ],
+      },
+    ],
   },
   {
     id: "da-ravenwing-dark-talon",
