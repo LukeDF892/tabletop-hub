@@ -283,7 +283,7 @@ export const SM_UNITS: Unit[] = [
       { name: "Deep Strike", description: "Can be set up in Strategic Reserves. Can be set up anywhere more than 9\" from enemy models." },
       { name: "Teleport Homer", description: "Friendly Terminator units arriving from Deep Strike can be set up within 6\" of this unit." },
     ],
-    keywords: ["Infantry", "Core", "Terminator", "Terminator Squad"],
+    keywords: ["Infantry", "Core", "Terminator", "Terminator Squad", "Deep Strike"],
     factionKeywords: ["Adeptus Astartes"],
     wargearOptions: [
       { description: "One model per 5 may replace Storm Bolter + Power Fist with Assault Cannon + Power Fist." },

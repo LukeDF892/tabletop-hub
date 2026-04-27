@@ -57,6 +57,7 @@ export interface UnitMarker {
   battleShocked?: boolean;         // 10th ed Battle-shock: OC 0, -1 to rolls
   belowHalfStrength?: boolean;     // currentWounds < maxWounds/2
   lastPhaseWoundsTaken?: number;   // wounds taken this phase (for Reanimation)
+  keywords?: string[];             // unit keywords (e.g. "Deep Strike")
 }
 
 export interface DeploymentState {

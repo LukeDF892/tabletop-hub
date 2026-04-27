@@ -231,7 +231,7 @@ export const NECRON_UNITS: Unit[] = [
       { name: "Reanimation Protocols", description: "At the end of any phase, roll a D6 for each destroyed model; on a 5+, it is returned." },
       { name: "Living Metal", description: "Regains 1 wound per Command Phase." },
     ],
-    keywords: ["Infantry", "Core", "Lychguard"],
+    keywords: ["Infantry", "Core", "Lychguard", "Deep Strike"],
     factionKeywords: ["Necrons"],
   },
   {
@@ -250,7 +250,7 @@ export const NECRON_UNITS: Unit[] = [
       { name: "Reanimation Protocols", description: "At the end of any phase, roll a D6 for each destroyed model; on a 5+, it is returned." },
       { name: "Living Metal", description: "Regains 1 wound per Command Phase." },
     ],
-    keywords: ["Infantry", "Core", "Lychguard"],
+    keywords: ["Infantry", "Core", "Lychguard", "Deep Strike"],
     factionKeywords: ["Necrons"],
   },
   {
@@ -270,7 +270,7 @@ export const NECRON_UNITS: Unit[] = [
       { name: "Hunter's Mark", description: "When deployed or at the start of your Shooting phase, choose one visible enemy unit. Until end of phase, this unit's attacks get +1 to wound against that unit." },
       { name: "Reanimation Protocols", description: "At the end of any phase, roll D6 for each destroyed model; on 5+, returned." },
     ],
-    keywords: ["Infantry", "Core", "Deathmarks"],
+    keywords: ["Infantry", "Core", "Deathmarks", "Deep Strike"],
     factionKeywords: ["Necrons"],
   },
   {

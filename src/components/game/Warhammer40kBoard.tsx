@@ -52,6 +52,7 @@ export default function Warhammer40kBoard({
   selectedMarkerId,
   onCellClick,
   onUnitClick,
+  phase,
   validCells,
   terrain = [],
   objectives,
@@ -68,6 +69,8 @@ export default function Warhammer40kBoard({
   const didDragRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  // Hover position in board inches for distance line
+  const [hoverBoardPos, setHoverBoardPos] = useState<{ x: number; y: number } | null>(null);
 
   const displayedObjectives: MapObjective[] = objectives ?? [
     { x: 30, y: 22 },
@@ -76,6 +79,47 @@ export default function Warhammer40kBoard({
     { x: 10, y: 33 },
     { x: 50, y: 33 },
   ];
+
+  // Compute hover range ring for the hovered unit
+  const hoveredMarker = tooltip?.marker;
+  const hoverRangeRing = (() => {
+    if (!hoveredMarker) return null;
+    const cx = (hoveredMarker.x + 0.5) * INCH_PX;
+    const cy = (hoveredMarker.y + 0.5) * INCH_PX;
+    if (phase === "movement") {
+      const m = hoveredMarker.stats.movement.replace(/"/g, "");
+      const r = (parseInt(m) || 6) * INCH_PX;
+      return { cx, cy, r, color: "#4ade80", label: `${parseInt(m) || 6}"` };
+    }
+    if (phase === "shooting") {
+      const ranged = hoveredMarker.weapons.filter((w) => w.type !== "Melee");
+      if (ranged.length === 0) return null;
+      const maxRange = Math.max(...ranged.map((w) => {
+        const s = w.range?.replace(/"/g, "") ?? "0";
+        return parseInt(s) || 0;
+      }));
+      if (maxRange === 0) return null;
+      return { cx, cy, r: maxRange * INCH_PX, color: "#ef4444", label: `${maxRange}"` };
+    }
+    if (phase === "charge") {
+      return { cx, cy, r: 12 * INCH_PX, color: "#facc15", label: `12"` };
+    }
+    return null;
+  })();
+
+  // Compute distance line from selected unit to hover position
+  const selectedMarker = selectedMarkerId ? markers.find((m) => m.id === selectedMarkerId) : null;
+  const distanceLine = (() => {
+    if (!selectedMarker || !hoverBoardPos) return null;
+    const ax = (selectedMarker.x + 0.5) * INCH_PX;
+    const ay = (selectedMarker.y + 0.5) * INCH_PX;
+    const bx = hoverBoardPos.x * INCH_PX;
+    const by = hoverBoardPos.y * INCH_PX;
+    const dx = hoverBoardPos.x - (selectedMarker.x + 0.5);
+    const dy = hoverBoardPos.y - (selectedMarker.y + 0.5);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    return { ax, ay, bx, by, dist, midX: (ax + bx) / 2, midY: (ay + by) / 2 };
+  })();
 
   useEffect(() => {
     const el = containerRef.current;
@@ -135,6 +179,21 @@ export default function Warhammer40kBoard({
   }
 
   function handleMouseMove(e: React.MouseEvent) {
+    // Update hover position for distance readout
+    const el = containerRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const boardX = (e.clientX - rect.left - pan.x) / zoom - MARGIN;
+      const boardY = (e.clientY - rect.top - pan.y) / zoom - MARGIN;
+      const inchX = boardX / INCH_PX;
+      const inchY = boardY / INCH_PX;
+      if (inchX >= 0 && inchX <= BOARD_W && inchY >= 0 && inchY <= BOARD_H) {
+        setHoverBoardPos({ x: inchX, y: inchY });
+      } else {
+        setHoverBoardPos(null);
+      }
+    }
+    // Panning
     if (!panStartRef.current) return;
     const dx = e.clientX - panStartRef.current.mx;
     const dy = e.clientY - panStartRef.current.my;
@@ -148,6 +207,12 @@ export default function Warhammer40kBoard({
   function handleMouseUp() {
     panStartRef.current = null;
     setIsDragging(false);
+  }
+
+  function handleMouseLeave() {
+    panStartRef.current = null;
+    setIsDragging(false);
+    setHoverBoardPos(null);
   }
 
   function handleSvgClick(e: React.MouseEvent<SVGSVGElement>) {
@@ -235,7 +300,7 @@ export default function Warhammer40kBoard({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
       >
         <div
           style={{
@@ -380,13 +445,73 @@ export default function Warhammer40kBoard({
                 );
               })}
 
-              {/* Deployment zone labels */}
-              <text x={(BOARD_W * INCH_PX) / 2} y={4 * INCH_PX} textAnchor="middle" fontSize={32} fill="rgba(59,130,246,0.35)" fontFamily="Georgia, serif" fontWeight="bold" letterSpacing={4}>
-                P2 DEPLOYMENT ZONE
-              </text>
-              <text x={(BOARD_W * INCH_PX) / 2} y={(BOARD_H - 4.5) * INCH_PX} textAnchor="middle" fontSize={32} fill="rgba(220,38,38,0.35)" fontFamily="Georgia, serif" fontWeight="bold" letterSpacing={4}>
-                P1 DEPLOYMENT ZONE
-              </text>
+              {/* Hover range ring (shown on unit hover) */}
+              {hoverRangeRing && (
+                <g>
+                  <circle
+                    cx={hoverRangeRing.cx} cy={hoverRangeRing.cy} r={hoverRangeRing.r}
+                    fill={hoverRangeRing.color} fillOpacity={0.06}
+                    stroke={hoverRangeRing.color} strokeWidth={1.5} strokeOpacity={0.4}
+                    strokeDasharray="8 4"
+                  />
+                  <text
+                    x={hoverRangeRing.cx} y={hoverRangeRing.cy - hoverRangeRing.r - 6}
+                    textAnchor="middle" fontSize={13} fill={hoverRangeRing.color}
+                    fillOpacity={0.7} fontFamily="monospace"
+                  >
+                    {hoverRangeRing.label}
+                  </text>
+                </g>
+              )}
+
+              {/* Distance line from selected unit to cursor */}
+              {distanceLine && (
+                <g>
+                  <line
+                    x1={distanceLine.ax} y1={distanceLine.ay}
+                    x2={distanceLine.bx} y2={distanceLine.by}
+                    stroke="rgba(255,255,255,0.55)" strokeWidth={1.5}
+                    strokeDasharray="10 5"
+                  />
+                  <rect
+                    x={distanceLine.midX - 24} y={distanceLine.midY - 10}
+                    width={48} height={18} rx={4}
+                    fill="rgba(0,0,0,0.7)"
+                  />
+                  <text
+                    x={distanceLine.midX} y={distanceLine.midY + 4}
+                    textAnchor="middle" fontSize={12} fill="white" fontFamily="monospace" fontWeight="bold"
+                  >
+                    {distanceLine.dist.toFixed(1)}&quot;
+                  </text>
+                </g>
+              )}
+
+              {/* Deployment zone labels — positioned at centre of each zone */}
+              {p2Zone ? (
+                <text
+                  x={(p2Zone.x + p2Zone.w / 2) * INCH_PX}
+                  y={(p2Zone.y + p2Zone.h / 2) * INCH_PX + 12}
+                  textAnchor="middle" fontSize={28} fill="rgba(59,130,246,0.3)"
+                  fontFamily="Georgia, serif" fontWeight="bold" letterSpacing={3}
+                >P2 DEPLOYMENT ZONE</text>
+              ) : (
+                <text x={(BOARD_W * INCH_PX) / 2} y={4 * INCH_PX} textAnchor="middle" fontSize={32} fill="rgba(59,130,246,0.35)" fontFamily="Georgia, serif" fontWeight="bold" letterSpacing={4}>
+                  P2 DEPLOYMENT ZONE
+                </text>
+              )}
+              {p1Zone ? (
+                <text
+                  x={(p1Zone.x + p1Zone.w / 2) * INCH_PX}
+                  y={(p1Zone.y + p1Zone.h / 2) * INCH_PX + 12}
+                  textAnchor="middle" fontSize={28} fill="rgba(220,38,38,0.3)"
+                  fontFamily="Georgia, serif" fontWeight="bold" letterSpacing={3}
+                >P1 DEPLOYMENT ZONE</text>
+              ) : (
+                <text x={(BOARD_W * INCH_PX) / 2} y={(BOARD_H - 4.5) * INCH_PX} textAnchor="middle" fontSize={32} fill="rgba(220,38,38,0.35)" fontFamily="Georgia, serif" fontWeight="bold" letterSpacing={4}>
+                  P1 DEPLOYMENT ZONE
+                </text>
+              )}
 
               {/* Objective markers — 40mm physical = 1.6" radius, 3" capture radius */}
               {displayedObjectives.map((obj, idx) => {

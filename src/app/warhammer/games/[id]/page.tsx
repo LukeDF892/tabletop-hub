@@ -308,6 +308,7 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         faction: army.faction,
         attachedCharacterId,
         attachedCharacterName,
+        keywords: unit.keywords ?? [],
       });
 
       if (charMarker) markers.push(charMarker);
@@ -711,6 +712,7 @@ interface CombatState {
   saveRolls: number[];
   unsavedWounds: number;
   totalDamage: number;
+  isFightback?: boolean; // true = this is the defender's fight-back sequence
 }
 
 const INIT_COMBAT: CombatState = {
@@ -830,6 +832,13 @@ export default function WarhammerGameRoom() {
 
   // ── Battle-shock ──
   const [battleShockPhase, setBattleShockPhase] = useState(false);
+
+  // ── Fight phase tracking ──
+  const [foughtThisPhase, setFoughtThisPhase] = useState<Set<string>>(new Set());
+
+  // ── Reserves deployment ──
+  const [reservesMode, setReservesMode] = useState<'idle' | 'place_normal' | 'place_deepstrike'>('idle');
+  const [reservesUnitId, setReservesUnitId] = useState<string | null>(null);
 
   function addLog(text: string, player?: "P1" | "P2" | "system") {
     setActLog((prev) => [...prev, { time: nowTime(), text, player }]);
@@ -1386,6 +1395,9 @@ export default function WarhammerGameRoom() {
     setSelectedMarkerId(null);
     setCombat(INIT_COMBAT);
     setMoveUnit(null);
+    setReservesMode('idle');
+    setReservesUnitId(null);
+    if (gamePhase === "fight") setFoughtThisPhase(new Set());
 
     if (gamePhase === "fight") {
       // Run Battle-shock at end of fight phase
@@ -1534,6 +1546,72 @@ export default function WarhammerGameRoom() {
     if (p1Hand.length < 3) drawMission("P1");
   }
 
+  // ── Reserves deployment ──
+  function handleReservesDeploy(x: number, y: number) {
+    if (!reservesUnitId) return;
+    const marker = markers.find((m) => m.id === reservesUnitId);
+    if (!marker) return;
+
+    const activeMarkers = markers.filter((m) => !m.isDestroyed && !m.isInReserve);
+    const occupied = markers.some(
+      (m) => m.x === x && m.y === y && !m.isInReserve && !m.isDestroyed
+    );
+    if (occupied) { addLog("That cell is occupied.", "system"); return; }
+
+    if (reservesMode === 'place_deepstrike') {
+      // Deep strike: must be 9"+ from all enemy units
+      const enemies = activeMarkers.filter((m) => m.player !== marker.player);
+      const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < 9);
+      if (tooClose) {
+        addLog("Deep Strike must be placed more than 9\" from all enemy models.", "system");
+        return;
+      }
+    } else {
+      // Normal reserve: must be within 6" of player's board edge
+      const { p1Zone, p2Zone } = mapPreset;
+      const zone = marker.player === "P1" ? p1Zone : p2Zone;
+      // Check within 6" of the near edge of the deployment zone (extended 6")
+      // For standard zones: P1 is at y=35-44, so edge is at y=44; within 6" means y>=38
+      // For other zone types, compute the near edge dynamically
+      let nearEdge: boolean;
+      if (mapPreset.deploymentType === 'dawn_of_war') {
+        // Deploy from left/right board edges
+        if (marker.player === "P1") {
+          nearEdge = x < zone.x + zone.w + 6;
+        } else {
+          nearEdge = x >= zone.x - 6;
+        }
+      } else {
+        // Standard/Crucible/Sweeping: near edge is the bottom (P1) or top (P2)
+        if (marker.player === "P1") {
+          nearEdge = y >= zone.y - 6;
+        } else {
+          nearEdge = y < zone.y + zone.h + 6;
+        }
+      }
+      if (!nearEdge) {
+        addLog(`Reserves must arrive within 6" of your board edge.`, "system");
+        return;
+      }
+    }
+
+    pushHistory();
+    setMarkers((prev) =>
+      prev.map((m) => {
+        if (m.id === reservesUnitId) return { ...m, x, y, isInReserve: false };
+        if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
+          const dy2 = marker.player === "P1" ? -1 : 1;
+          return { ...m, x, y: Math.max(0, Math.min(43, y + dy2)), isInReserve: false };
+        }
+        return m;
+      })
+    );
+    addLog(`${marker.player} deployed ${marker.unitName} from reserves at (${x}, ${y})${reservesMode === 'place_deepstrike' ? ' (Deep Strike)' : ''}.`, marker.player);
+    setReservesMode('idle');
+    setReservesUnitId(null);
+    setSelectedMarkerId(null);
+  }
+
   // ── Cell click handler (context-sensitive) ──
   function handleCellClick(x: number, y: number) {
     if (roomPhase === "deployment") {
@@ -1541,6 +1619,11 @@ export default function WarhammerGameRoom() {
       return;
     }
     if (roomPhase !== "game") return;
+
+    if (gamePhase === "movement" && (reservesMode === 'place_normal' || reservesMode === 'place_deepstrike')) {
+      handleReservesDeploy(x, y);
+      return;
+    }
 
     if (gamePhase === "movement" && moveUnit) {
       const marker = markers.find((m) => m.id === moveUnit);
@@ -1672,15 +1755,25 @@ export default function WarhammerGameRoom() {
       }
       if (gamePhase === "fight") {
         const activeSide = gameMode === "solo" ? soloSide : activePlayer;
-        if (combat.step === "idle" && m.player === activeSide) {
-          setCombat({ ...INIT_COMBAT, step: "selectTarget", attackerId: markerId });
+        // Start attacker selection (non-fightback — defender selects in PhasePanel)
+        if (combat.step === "idle" && m.player === activeSide && !foughtThisPhase.has(markerId)) {
+          const hasMelee = m.weapons.some((w) => w.type === "Melee");
+          if (!hasMelee) { addLog(`${m.unitName} has no melee weapons.`, "system"); return; }
+          setCombat({ ...INIT_COMBAT, step: "selectWeapon", attackerId: markerId });
           setSelectedMarkerId(markerId);
           return;
         }
-        if (combat.step === "selectTarget") {
+        // Target selection for fight (engagement range check)
+        if (combat.step === "selectTarget" && !combat.isFightback) {
           const attacker = markers.find((mk) => mk.id === combat.attackerId);
           if (!attacker || m.player === attacker.player) return;
-          resolveFight(combat.attackerId!, markerId);
+          const dist = Math.sqrt((attacker.x - m.x) ** 2 + (attacker.y - m.y) ** 2);
+          if (dist > 2) {
+            addLog(`${m.unitName} not in engagement range (within 1").`, "system");
+            return;
+          }
+          setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
+          setSelectedMarkerId(markerId);
           return;
         }
       }
@@ -1744,25 +1837,55 @@ export default function WarhammerGameRoom() {
     addLog(`Saves: ${coverSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
     showRoll({ rolls, type: "save", threshold: coverSave, label: `Save Rolls (${coverSave}+)` });
 
-    // Apply damage
+    // Compute new wound total before applying (needed to decide fight-back)
+    const currentTarget = markers.find((m) => m.id === combat.targetId);
+    const newTargetWounds = Math.max(0, (currentTarget?.currentWounds ?? 0) - totalDmg);
+    const targetDestroyed = newTargetWounds <= 0;
+
+    // Apply damage and mark attacker
+    const attackerId = combat.attackerId;
+    const targetId = combat.targetId;
+    const isFightPhase = gamePhase === "fight";
+    const isFightback = combat.isFightback ?? false;
+
     setMarkers((prev) =>
       prev.map((m) => {
-        if (m.id !== combat.targetId) return m;
-        const newWounds = Math.max(0, m.currentWounds - totalDmg);
-        const destroyed = newWounds <= 0;
-        if (destroyed) {
-          addLog(`${m.unitName} destroyed!`, "system");
-          setDestroyedThisTurn((p) => [...p, m.id]);
-          setDestroyedThisPhase((p) => [...p, m.id]);
+        if (m.id === targetId) {
+          if (targetDestroyed) {
+            addLog(`${m.unitName} destroyed!`, "system");
+            setDestroyedThisTurn((p) => [...p, m.id]);
+            setDestroyedThisPhase((p) => [...p, m.id]);
+          }
+          return { ...m, currentWounds: newTargetWounds, isDestroyed: targetDestroyed };
         }
-        return { ...m, currentWounds: newWounds, isDestroyed: destroyed };
+        if (m.id === attackerId) {
+          return isFightPhase
+            ? { ...m, hasFought: true }
+            : { ...m, hasShotThisTurn: true };
+        }
+        return m;
       })
     );
 
-    // Mark attacker as having shot
-    setMarkers((prev) =>
-      prev.map((m) => m.id === combat.attackerId ? { ...m, hasShotThisTurn: true } : m)
-    );
+    if (isFightPhase && attackerId) {
+      setFoughtThisPhase((prev) => new Set([...prev, attackerId]));
+    }
+
+    // Fight-back: after attacker resolves, if target survived and this isn't already a fight-back
+    if (isFightPhase && !isFightback && !targetDestroyed && targetId && attackerId) {
+      const defender = markers.find((m) => m.id === targetId);
+      if (defender) {
+        addLog(`${defender.unitName} fights back!`, defender.player);
+        setCombat({
+          ...INIT_COMBAT,
+          step: "selectWeapon",
+          attackerId: targetId,
+          targetId: attackerId,
+          isFightback: true,
+        });
+        return;
+      }
+    }
 
     setCombat({ ...INIT_COMBAT, step: "done" });
     setTimeout(() => setCombat(INIT_COMBAT), 2000);
@@ -1785,11 +1908,10 @@ export default function WarhammerGameRoom() {
       attacker.player
     );
 
-    if (total >= dist) {
-      // Move adjacent
+    if (total >= Math.ceil(dist)) {
+      // Successful charge: move attacker to within 1" of target
       const dx = target.x - attacker.x;
       const dy = target.y - attacker.y;
-      const len = Math.max(Math.abs(dx), Math.abs(dy));
       const newX = target.x - Math.sign(dx);
       const newY = target.y - Math.sign(dy);
       setMarkers((prev) =>
@@ -1797,16 +1919,17 @@ export default function WarhammerGameRoom() {
       );
       addLog(`Charge succeeds! ${attacker.unitName} moves adjacent to ${target.unitName}.`, attacker.player);
 
-      // Overwatch: target rolls d6 for each model; 6s hit
+      // Overwatch: target fires on 6s (no damage dealt — just logging per 10th ed simplified)
       const owRolls = rollDice(1);
       const owHits = owRolls.filter((r) => r === 6).length;
       if (owHits > 0) {
-        addLog(`Overwatch: ${target.unitName} hits on 6s — ${owRolls.join(",")} — ${owHits} hit(s)!`, target.player);
+        addLog(`Overwatch: ${target.unitName} — ${owRolls.join(",")} — ${owHits} hit(s)! (no damage in Overwatch unless ability allows)`, target.player);
       } else {
         addLog(`Overwatch: ${owRolls.join(",")} — no hits.`, target.player);
       }
     } else {
-      addLog(`Charge fails (rolled ${total}, needed ${Math.ceil(dist)}).`, attacker.player);
+      // Failed charge: unit stays put, no movement
+      addLog(`Charge fails! ${attacker.unitName} stays in place (rolled ${total}, needed ${Math.ceil(dist)}).`, attacker.player);
     }
 
     setCombat(INIT_COMBAT);
@@ -2008,38 +2131,114 @@ export default function WarhammerGameRoom() {
     }
 
     if (gamePhase === "movement") {
+      const reservedForActive = markers.filter(
+        (m) => m.isInReserve && !m.isDestroyed && m.player === activeSide && !m.isAttached
+      );
+      const canBringReserves = round >= 2 && reservedForActive.length > 0;
+
       return (
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
             Movement Phase
           </p>
-          {moveUnit ? (
-            <>
-              <p className="text-xs" style={{ color: "#d97706" }}>
-                Click a cell to move {markers.find((m) => m.id === moveUnit)?.unitName}
+
+          {/* Reserves deployment mode */}
+          {(reservesMode === 'place_normal' || reservesMode === 'place_deepstrike') && (
+            <div>
+              <p className="text-xs font-semibold mb-1" style={{ color: "#a855f7" }}>
+                {reservesMode === 'place_deepstrike' ? '🎯 Deep Strike:' : '📦 Deploy from Reserve:'}
               </p>
-              <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-muted)" }}>
-                <input
-                  type="checkbox"
-                  checked={moveAdvance}
-                  onChange={(e) => setMoveAdvance(e.target.checked)}
-                  className="rounded"
-                />
-                Advance (+D6" but can&apos;t shoot)
-              </label>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {reservesMode === 'place_deepstrike'
+                  ? 'Click anywhere 9"+ from all enemies.'
+                  : 'Click within 6" of your board edge.'}
+              </p>
               <button
-                onClick={() => { setMoveUnit(null); setMoveAdvance(false); setSelectedMarkerId(null); }}
-                className="w-full py-1.5 rounded-lg text-xs"
+                onClick={() => { setReservesMode('idle'); setReservesUnitId(null); }}
+                className="w-full py-1.5 rounded-lg text-xs mt-1"
                 style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
               >
                 Cancel
               </button>
+            </div>
+          )}
+
+          {/* Normal movement UI */}
+          {reservesMode === 'idle' && (
+            <>
+              {moveUnit ? (
+                <>
+                  <p className="text-xs" style={{ color: "#d97706" }}>
+                    Click a cell to move {markers.find((m) => m.id === moveUnit)?.unitName}
+                  </p>
+                  <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-muted)" }}>
+                    <input
+                      type="checkbox"
+                      checked={moveAdvance}
+                      onChange={(e) => setMoveAdvance(e.target.checked)}
+                      className="rounded"
+                    />
+                    Advance (+D6" but can&apos;t shoot)
+                  </label>
+                  <button
+                    onClick={() => { setMoveUnit(null); setMoveAdvance(false); setSelectedMarkerId(null); }}
+                    className="w-full py-1.5 rounded-lg text-xs"
+                    style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Click a friendly unit to select it, then click a destination cell.
+                </p>
+              )}
             </>
-          ) : (
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Click a friendly unit to select it, then click a destination cell.
+          )}
+
+          {/* Reserves panel — available from Round 2 */}
+          {canBringReserves && reservesMode === 'idle' && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest mt-2 mb-1" style={{ color: "#a855f7" }}>
+                Reserves
+              </p>
+              <div className="space-y-1">
+                {reservedForActive.map((m) => {
+                  const isDeepStrike = (m.keywords ?? []).some((k) => k.toLowerCase() === "deep strike");
+                  return (
+                    <div key={m.id} className="flex flex-col gap-0.5">
+                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{m.unitName}</span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => { setReservesUnitId(m.id); setReservesMode('place_normal'); }}
+                          className="flex-1 py-1 rounded text-[10px] font-semibold"
+                          style={{ backgroundColor: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.3)" }}
+                        >
+                          Deploy
+                        </button>
+                        {isDeepStrike && (
+                          <button
+                            onClick={() => { setReservesUnitId(m.id); setReservesMode('place_deepstrike'); }}
+                            className="flex-1 py-1 rounded text-[10px] font-semibold"
+                            style={{ backgroundColor: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}
+                          >
+                            Deep Strike
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {canBringReserves === false && reservedForActive.length > 0 && (
+            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+              Reserves available from Round 2.
             </p>
           )}
+
           <button
             onClick={advancePhase}
             className="w-full py-2 rounded-lg text-xs font-semibold mt-2"
@@ -2068,10 +2267,13 @@ export default function WarhammerGameRoom() {
                 {combatAttacker.unitName} — Select weapon:
               </p>
               <div className="space-y-1">
-                {combatAttacker.weapons.filter((w) => w.type !== "Melee").map((w, i) => (
+                {combatAttacker.weapons
+                  .map((w, origIdx) => ({ w, origIdx }))
+                  .filter(({ w }) => w.type !== "Melee")
+                  .map(({ w, origIdx }) => (
                   <button
-                    key={i}
-                    onClick={() => setCombat((prev) => ({ ...prev, weaponIdx: i, step: "selectTarget" }))}
+                    key={origIdx}
+                    onClick={() => setCombat((prev) => ({ ...prev, weaponIdx: origIdx, step: "selectTarget" }))}
                     className="w-full text-left px-2 py-1.5 rounded text-xs"
                     style={{ backgroundColor: "rgba(217,119,6,0.1)", color: "var(--text-primary)", border: "1px solid rgba(217,119,6,0.2)" }}
                   >
@@ -2167,21 +2369,105 @@ export default function WarhammerGameRoom() {
     }
 
     if (gamePhase === "fight") {
+      const isFightback = combat.isFightback ?? false;
+      const fightAttacker = markers.find((m) => m.id === combat.attackerId);
+      const fightTarget = markers.find((m) => m.id === combat.targetId);
       return (
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
             Fight Phase
           </p>
+
           {combat.step === "idle" && (
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Click a unit to fight with it, then click the target. Charged units fight first.
+              Click a friendly unit (with melee weapons) to fight. Charged units fight first.
             </p>
           )}
-          {combat.step === "selectTarget" && combatAttacker && (
+
+          {combat.step === "selectWeapon" && fightAttacker && (
+            <div>
+              <p className="text-xs mb-1 font-semibold" style={{ color: isFightback ? "#3b82f6" : "#ef4444" }}>
+                {isFightback ? `⚔ ${fightAttacker.unitName} fights back!` : `${fightAttacker.unitName} — Select melee weapon:`}
+              </p>
+              {isFightback && fightTarget && (
+                <p className="text-[10px] mb-1" style={{ color: "var(--text-muted)" }}>
+                  Striking back at {fightTarget.unitName}
+                </p>
+              )}
+              <div className="space-y-1">
+                {fightAttacker.weapons
+                  .map((w, origIdx) => ({ w, origIdx }))
+                  .filter(({ w }) => w.type === "Melee")
+                  .map(({ w, origIdx }) => (
+                    <button
+                      key={origIdx}
+                      onClick={() => setCombat((prev) => ({
+                        ...prev,
+                        weaponIdx: origIdx,
+                        step: isFightback ? "hitRolls" : "selectTarget",
+                      }))}
+                      className="w-full text-left px-2 py-1.5 rounded text-xs"
+                      style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "var(--text-primary)", border: "1px solid rgba(220,38,38,0.2)" }}
+                    >
+                      <span className="font-medium">{w.name}</span>
+                      <span className="ml-2" style={{ color: "var(--text-muted)" }}>
+                        A{w.attacks} WS{w.skill} S{w.strength} AP{w.ap} D{w.damage}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+              <button
+                onClick={() => { setCombat(INIT_COMBAT); setSelectedMarkerId(null); }}
+                className="w-full py-1.5 rounded-lg text-xs mt-2"
+                style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {combat.step === "selectTarget" && !isFightback && fightAttacker && (
             <p className="text-xs" style={{ color: "#d97706" }}>
-              {combatAttacker.unitName} fighting — click enemy target.
+              {fightAttacker.unitName} — click an enemy within 1" to fight.
             </p>
           )}
+
+          {combat.step === "hitRolls" && (
+            <button
+              onClick={resolveHitRolls}
+              className="w-full py-2 rounded-lg text-xs font-semibold"
+              style={{ backgroundColor: "rgba(220,38,38,0.15)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.3)" }}
+            >
+              <Dice6 size={12} className="inline mr-1" /> Roll to Hit {isFightback ? "(Fight Back)" : ""}
+            </button>
+          )}
+
+          {combat.step === "woundRolls" && (
+            <button
+              onClick={resolveWoundRolls}
+              className="w-full py-2 rounded-lg text-xs font-semibold"
+              style={{ backgroundColor: "rgba(220,38,38,0.15)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.3)" }}
+            >
+              <Dice6 size={12} className="inline mr-1" /> Roll to Wound ({combat.hits} dice)
+            </button>
+          )}
+
+          {combat.step === "saveRolls" && (
+            <button
+              onClick={resolveSaveRolls}
+              className="w-full py-2 rounded-lg text-xs font-semibold"
+              style={{ backgroundColor: "rgba(220,38,38,0.15)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.3)" }}
+            >
+              <Shield size={12} className="inline mr-1" /> Roll Saves ({combat.wounds} dice)
+            </button>
+          )}
+
+          {combat.step === "done" && (
+            <div className="py-2 text-xs text-center" style={{ color: "#22c55e" }}>
+              ✓ Combat resolved.
+            </div>
+          )}
+
           <button
             onClick={advancePhase}
             className="w-full py-2 rounded-lg text-xs font-semibold mt-2"

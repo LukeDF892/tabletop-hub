@@ -222,7 +222,7 @@ export const TYRANID_UNITS: Unit[] = [
       { name: "Infiltrators", description: "This unit can be set up anywhere on the battlefield that is more than 9\" from the enemy deployment zone and any enemy models." },
       { name: "Pheromone Trail", description: "Friendly Tyranids units arriving from Strategic Reserves can be set up within 6\" of this model instead of following normal deployment rules." },
     ],
-    keywords: ["Infantry", "Core", "Infiltrators", "Lone Operative", "Lictor"],
+    keywords: ["Infantry", "Core", "Infiltrators", "Lone Operative", "Lictor", "Deep Strike"],
     factionKeywords: ["Tyranids"],
   },
   {
@@ -242,7 +242,7 @@ export const TYRANID_UNITS: Unit[] = [
     abilities: [
       { name: "Burrowers", description: "This unit can arrive from Strategic Reserves, tunneling up from underground anywhere more than 9\" from enemy models." },
     ],
-    keywords: ["Beast", "Core", "Raveners"],
+    keywords: ["Beast", "Core", "Raveners", "Deep Strike"],
     factionKeywords: ["Tyranids"],
   },
   {

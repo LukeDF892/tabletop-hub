@@ -186,7 +186,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
       { name: "Knights of the Inner Circle", description: "This unit can never Fall Back from combat." },
       { name: "Deep Strike", description: "Can be set up in Strategic Reserves arriving anywhere 9\"+ from enemy models." },
     ],
-    keywords: ["Infantry", "Core", "Terminator", "Deathwing", "Inner Circle", "Deathwing Knights"],
+    keywords: ["Infantry", "Core", "Terminator", "Deathwing", "Inner Circle", "Deathwing Knights", "Deep Strike"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
     weaponOptions: [
       {
@@ -215,7 +215,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
       { name: "Deep Strike", description: "Can be set up in Strategic Reserves arriving anywhere 9\"+ from enemy models." },
       { name: "Inner Circle", description: "This unit has the Fights First ability." },
     ],
-    keywords: ["Infantry", "Core", "Terminator", "Deathwing", "Inner Circle", "Deathwing Terminators"],
+    keywords: ["Infantry", "Core", "Terminator", "Deathwing", "Inner Circle", "Deathwing Terminators", "Deep Strike"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
     wargearOptions: [
       { description: "One model per 5 may replace Storm Bolter + Power Fist with Assault Cannon + Power Fist." },
