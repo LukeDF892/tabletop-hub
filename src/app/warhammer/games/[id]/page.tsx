@@ -38,6 +38,7 @@ import {
   Archive,
   Loader2,
   RotateCcw,
+  RotateCw,
   BookOpen,
   Scroll,
 } from "lucide-react";
@@ -835,6 +836,13 @@ export default function WarhammerGameRoom() {
 
   // ── Fight phase tracking ──
   const [foughtThisPhase, setFoughtThisPhase] = useState<Set<string>>(new Set());
+  const [fightBackMode, setFightBackMode] = useState(false);
+
+  // ── Redo history ──
+  const [future, setFuture] = useState<{ markers: UnitMarker[]; p1Cp: number; p2Cp: number; p1Vp: number; p2Vp: number }[]>([]);
+
+  // ── Measurement line toggle ──
+  const [showMeasurementLine, setShowMeasurementLine] = useState(false);
 
   // ── Reserves deployment ──
   const [reservesMode, setReservesMode] = useState<'idle' | 'place_normal' | 'place_deepstrike'>('idle');
@@ -846,6 +854,7 @@ export default function WarhammerGameRoom() {
   }
 
   function pushHistory() {
+    setFuture([]);
     setHistory((prev) => {
       const snap = { markers, p1Cp, p2Cp, p1Vp, p2Vp };
       return [...prev, snap].slice(-20);
@@ -853,19 +862,37 @@ export default function WarhammerGameRoom() {
   }
 
   function undoAction() {
-    setHistory((prev) => {
-      if (prev.length === 0) return prev;
-      const last = prev[prev.length - 1];
-      setMarkers(last.markers);
-      setP1Cp(last.p1Cp);
-      setP2Cp(last.p2Cp);
-      setP1Vp(last.p1Vp);
-      setP2Vp(last.p2Vp);
-      setUndoToast(true);
-      setTimeout(() => setUndoToast(false), 2000);
-      addLog("↩ Action undone.", "system");
-      return prev.slice(0, -1);
-    });
+    if (history.length === 0) return;
+    const last = history[history.length - 1];
+    setFuture((f) => [...f, { markers, p1Cp, p2Cp, p1Vp, p2Vp }]);
+    setHistory((prev) => prev.slice(0, -1));
+    setMarkers(last.markers);
+    setP1Cp(last.p1Cp);
+    setP2Cp(last.p2Cp);
+    setP1Vp(last.p1Vp);
+    setP2Vp(last.p2Vp);
+    setUndoToast(true);
+    setTimeout(() => setUndoToast(false), 2000);
+    addLog("↩ Action undone.", "system");
+  }
+
+  function redoAction() {
+    if (future.length === 0) return;
+    const next = future[future.length - 1];
+    setHistory((h) => [...h, { markers, p1Cp, p2Cp, p1Vp, p2Vp }].slice(-20));
+    setFuture((f) => f.slice(0, -1));
+    setMarkers(next.markers);
+    setP1Cp(next.p1Cp);
+    setP2Cp(next.p2Cp);
+    setP1Vp(next.p1Vp);
+    setP2Vp(next.p2Vp);
+    addLog("↪ Action redone.", "system");
+  }
+
+  function endFightBack() {
+    setFightBackMode(false);
+    setCombat(INIT_COMBAT);
+    setSelectedMarkerId(null);
   }
 
   // ── Load game from Supabase ──
@@ -1397,7 +1424,10 @@ export default function WarhammerGameRoom() {
     setMoveUnit(null);
     setReservesMode('idle');
     setReservesUnitId(null);
-    if (gamePhase === "fight") setFoughtThisPhase(new Set());
+    if (gamePhase === "fight") {
+      setFoughtThisPhase(new Set());
+      setFightBackMode(false);
+    }
 
     if (gamePhase === "fight") {
       // Run Battle-shock at end of fight phase
@@ -1539,6 +1569,7 @@ export default function WarhammerGameRoom() {
     setSelectedMarkerId(null);
     setCombat(INIT_COMBAT);
     setMoveUnit(null);
+    setFightBackMode(false);
     if (gameMode === "solo") setSoloSide("P1");
     addLog(`Round ${nextRound} begins. Player 1's Turn — Command Phase.`, "system");
     giveCommandPhaseCP("P1", markers);
@@ -1637,10 +1668,6 @@ export default function WarhammerGameRoom() {
       }
       const occupied = markers.some((m) => m.id !== moveUnit && m.x === x && m.y === y && !m.isDestroyed && !m.isInReserve);
       if (occupied) { addLog("Cell occupied.", "system"); return; }
-      const inTerrain = mapPreset.terrain.some(
-        (t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h
-      );
-      if (inTerrain) { addLog("Cannot move into solid terrain.", "system"); return; }
       pushHistory();
       const oldX = marker.x;
       const oldY = marker.y;
@@ -1755,16 +1782,20 @@ export default function WarhammerGameRoom() {
       }
       if (gamePhase === "fight") {
         const activeSide = gameMode === "solo" ? soloSide : activePlayer;
-        // Start attacker selection (non-fightback — defender selects in PhasePanel)
-        if (combat.step === "idle" && m.player === activeSide && !foughtThisPhase.has(markerId)) {
+        // Start attacker selection — in fight-back mode the DEFENDING player can select
+        if (combat.step === "idle" && !foughtThisPhase.has(markerId)) {
+          const fightingPlayer = fightBackMode
+            ? (activeSide === "P1" ? "P2" : "P1")
+            : activeSide;
+          if (m.player !== fightingPlayer) return;
           const hasMelee = m.weapons.some((w) => w.type === "Melee");
           if (!hasMelee) { addLog(`${m.unitName} has no melee weapons.`, "system"); return; }
-          setCombat({ ...INIT_COMBAT, step: "selectWeapon", attackerId: markerId });
+          setCombat({ ...INIT_COMBAT, step: "selectWeapon", attackerId: markerId, isFightback: fightBackMode });
           setSelectedMarkerId(markerId);
           return;
         }
-        // Target selection for fight (engagement range check)
-        if (combat.step === "selectTarget" && !combat.isFightback) {
+        // Target selection for fight (engagement range check) — works for both normal and fight-back
+        if (combat.step === "selectTarget") {
           const attacker = markers.find((mk) => mk.id === combat.attackerId);
           if (!attacker || m.player === attacker.player) return;
           const dist = Math.sqrt((attacker.x - m.x) ** 2 + (attacker.y - m.y) ** 2);
@@ -1876,6 +1907,7 @@ export default function WarhammerGameRoom() {
       const defender = markers.find((m) => m.id === targetId);
       if (defender) {
         addLog(`${defender.unitName} fights back!`, defender.player);
+        setFightBackMode(true);
         setCombat({
           ...INIT_COMBAT,
           step: "selectWeapon",
@@ -1885,6 +1917,10 @@ export default function WarhammerGameRoom() {
         });
         return;
       }
+    }
+
+    if (isFightPhase && isFightback) {
+      setFightBackMode(false);
     }
 
     setCombat({ ...INIT_COMBAT, step: "done" });
@@ -2078,7 +2114,7 @@ export default function WarhammerGameRoom() {
       }
     }
 
-    if (gamePhase === "shooting" && combat.step === "selectWeapon" && combatAttacker && combat.weaponIdx !== null) {
+    if (gamePhase === "shooting" && combat.step === "selectTarget" && combatAttacker && combat.weaponIdx !== null) {
       const weapon = combatAttacker.weapons[combat.weaponIdx];
       if (weapon?.range) {
         const rangeIn = parseStat(weapon.range);
@@ -2289,14 +2325,23 @@ export default function WarhammerGameRoom() {
                 className="w-full py-1.5 rounded-lg text-xs mt-2"
                 style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
               >
-                Cancel
+                ← Back
               </button>
             </div>
           )}
           {combat.step === "selectTarget" && (
-            <p className="text-xs" style={{ color: "#d97706" }}>
-              Click an enemy unit to target.
-            </p>
+            <div>
+              <p className="text-xs mb-2" style={{ color: "#d97706" }}>
+                Click an enemy unit to target.
+              </p>
+              <button
+                onClick={() => setCombat((prev) => ({ ...prev, weaponIdx: null, step: "selectWeapon" }))}
+                className="w-full py-1.5 rounded-lg text-xs"
+                style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                ← Back
+              </button>
+            </div>
           )}
           {combat.step === "hitRolls" && (
             <button
@@ -2374,14 +2419,35 @@ export default function WarhammerGameRoom() {
       const fightTarget = markers.find((m) => m.id === combat.targetId);
       return (
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-            Fight Phase
-          </p>
+          {fightBackMode ? (
+            <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: "#3b82f6" }}>
+              ⚔️ FIGHT-BACK
+            </p>
+          ) : (
+            <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+              Fight Phase
+            </p>
+          )}
 
-          {combat.step === "idle" && (
+          {combat.step === "idle" && !fightBackMode && (
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               Click a friendly unit (with melee weapons) to fight. Charged units fight first.
             </p>
+          )}
+
+          {combat.step === "idle" && fightBackMode && (
+            <div className="space-y-1">
+              <p className="text-xs" style={{ color: "#3b82f6" }}>
+                Defending player: click a unit in engagement range to fight back.
+              </p>
+              <button
+                onClick={endFightBack}
+                className="w-full py-1.5 rounded-lg text-xs font-semibold"
+                style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" }}
+              >
+                End Fight-Back
+              </button>
+            </div>
           )}
 
           {combat.step === "selectWeapon" && fightAttacker && (
@@ -2417,19 +2483,28 @@ export default function WarhammerGameRoom() {
                   ))}
               </div>
               <button
-                onClick={() => { setCombat(INIT_COMBAT); setSelectedMarkerId(null); }}
+                onClick={() => { setCombat(INIT_COMBAT); setSelectedMarkerId(null); if (isFightback) setFightBackMode(false); }}
                 className="w-full py-1.5 rounded-lg text-xs mt-2"
                 style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
               >
-                Cancel
+                ← Back
               </button>
             </div>
           )}
 
-          {combat.step === "selectTarget" && !isFightback && fightAttacker && (
-            <p className="text-xs" style={{ color: "#d97706" }}>
-              {fightAttacker.unitName} — click an enemy within 1" to fight.
-            </p>
+          {combat.step === "selectTarget" && fightAttacker && (
+            <div>
+              <p className="text-xs mb-2" style={{ color: "#d97706" }}>
+                {fightAttacker.unitName} — click an enemy within 1&quot; to fight.
+              </p>
+              <button
+                onClick={() => setCombat((prev) => ({ ...prev, weaponIdx: null, step: "selectWeapon" }))}
+                className="w-full py-1.5 rounded-lg text-xs"
+                style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                ← Back
+              </button>
+            </div>
           )}
 
           {combat.step === "hitRolls" && (
@@ -2651,23 +2726,52 @@ export default function WarhammerGameRoom() {
         )}
 
         <div className="ml-auto flex gap-2 flex-shrink-0 items-center">
-          {/* Undo button */}
+          {/* Undo / Redo buttons */}
           {roomPhase === "game" && (
-            <button
-              onClick={undoAction}
-              disabled={history.length === 0}
-              title="Undo last action"
-              className="p-1.5 rounded flex items-center gap-1 text-xs transition-opacity"
-              style={{
-                opacity: history.length === 0 ? 0.3 : 1,
-                color: "var(--text-muted)",
-                backgroundColor: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <RotateCcw size={12} />
-              <span>Undo</span>
-            </button>
+            <>
+              <button
+                onClick={undoAction}
+                disabled={history.length === 0}
+                title="Undo last action"
+                className="p-1.5 rounded flex items-center gap-1 text-xs transition-opacity"
+                style={{
+                  opacity: history.length === 0 ? 0.3 : 1,
+                  color: "var(--text-muted)",
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <RotateCcw size={12} />
+                <span>Undo</span>
+              </button>
+              <button
+                onClick={redoAction}
+                disabled={future.length === 0}
+                title="Redo last undone action"
+                className="p-1.5 rounded flex items-center gap-1 text-xs transition-opacity"
+                style={{
+                  opacity: future.length === 0 ? 0.3 : 1,
+                  color: "var(--text-muted)",
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <RotateCw size={12} />
+                <span>Redo</span>
+              </button>
+              <button
+                onClick={() => setShowMeasurementLine((v) => !v)}
+                title="Toggle measurement line"
+                className="p-1.5 rounded flex items-center gap-1 text-xs"
+                style={{
+                  color: showMeasurementLine ? "#d97706" : "var(--text-muted)",
+                  backgroundColor: showMeasurementLine ? "rgba(217,119,6,0.12)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${showMeasurementLine ? "rgba(217,119,6,0.4)" : "rgba(255,255,255,0.08)"}`,
+                }}
+              >
+                <span>📏</span>
+              </button>
+            </>
           )}
           {/* Solo side toggle */}
           {gameMode === "solo" && (
@@ -3099,6 +3203,7 @@ export default function WarhammerGameRoom() {
                 p1Zone={mapPreset.p1Zone}
                 p2Zone={mapPreset.p2Zone}
                 objectiveControl={objectiveControl}
+                showMeasurementLine={showMeasurementLine}
               />
             );
           })()}
