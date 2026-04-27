@@ -45,6 +45,7 @@ export interface Warhammer40kBoardProps {
   p1Zone?: DeploymentZone;
   p2Zone?: DeploymentZone;
   objectiveControl?: ('P1' | 'P2' | null)[];
+  showMeasurementLine?: boolean;
 }
 
 export default function Warhammer40kBoard({
@@ -61,6 +62,7 @@ export default function Warhammer40kBoard({
   p1Zone,
   p2Zone,
   objectiveControl,
+  showMeasurementLine = false,
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -445,8 +447,8 @@ export default function Warhammer40kBoard({
                 );
               })}
 
-              {/* Hover range ring (shown on unit hover) */}
-              {hoverRangeRing && (
+              {/* Hover range ring (shown on unit hover, only when measurement line enabled) */}
+              {showMeasurementLine && hoverRangeRing && (
                 <g>
                   <circle
                     cx={hoverRangeRing.cx} cy={hoverRangeRing.cy} r={hoverRangeRing.r}
@@ -464,8 +466,8 @@ export default function Warhammer40kBoard({
                 </g>
               )}
 
-              {/* Distance line from selected unit to cursor */}
-              {distanceLine && (
+              {/* Distance line from selected unit to cursor (only when measurement line enabled) */}
+              {showMeasurementLine && distanceLine && (
                 <g>
                   <line
                     x1={distanceLine.ax} y1={distanceLine.ay}
@@ -546,6 +548,32 @@ export default function Warhammer40kBoard({
                       fill={ctrlColor ? `${ctrlColor}80` : "rgba(234,179,8,0.5)"}
                     />
                   </g>
+                );
+              })}
+
+              {/* Engagement range rings — red dashed circle for units within 1" of an enemy */}
+              {activeMarkers.map((m) => {
+                const isEngaged = activeMarkers.some(
+                  (e) =>
+                    e.player !== m.player &&
+                    Math.sqrt((e.x - m.x) ** 2 + (e.y - m.y) ** 2) <= 1
+                );
+                if (!isEngaged) return null;
+                const baseSize = m.baseSize ?? "infantry";
+                const r = BASE_RADIUS_INCHES[baseSize] * INCH_PX;
+                const cx = (m.x + 0.5) * INCH_PX;
+                const cy = (m.y + 0.5) * INCH_PX;
+                return (
+                  <circle
+                    key={`engage-${m.id}`}
+                    cx={cx} cy={cy}
+                    r={r + INCH_PX * 0.18}
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth={1.5}
+                    strokeOpacity={0.7}
+                    strokeDasharray="6 4"
+                  />
                 );
               })}
 
