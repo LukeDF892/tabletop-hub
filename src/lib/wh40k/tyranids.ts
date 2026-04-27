@@ -193,7 +193,7 @@ export const TYRANID_UNITS: Unit[] = [
     role: "Infantry",
     category: "Elites",
     stats: { movement: '8"', toughness: 4, save: "5+/4++", wounds: 2, leadership: "7+", oc: 1 },
-    models: { min: 5, max: 10 },
+    models: { min: 10, max: 10 },
     points: 95,
     weapons: [
       { name: "Rending Claws", type: "Melee", attacks: "4", skill: "WS2+", strength: "4", ap: "-2", damage: "1", keywords: ["Sustained Hits 2"] },

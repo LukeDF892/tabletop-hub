@@ -129,7 +129,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     role: "Infantry",
     category: "Elites",
     stats: { movement: '6"', toughness: 4, save: "2+", wounds: 3, leadership: "5+", oc: 1 },
-    models: { min: 5, max: 5 },
+    models: { min: 6, max: 6 },
     points: 180,
     weapons: [
       { name: "Calibanite War Blade", type: "Melee", attacks: "4", skill: "WS2+", strength: "5", ap: "-3", damage: "2" },
