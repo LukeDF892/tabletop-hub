@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx plugins *)",
+      "Bash(export PATH=\"/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$PATH\")",
+      "Read(//usr/local/bin/**)",
+      "Read(//Users/lukeflewwelling/.nvm/versions/node/**)"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__execute_sql",
+      "Bash(npx next *)",
+      "Bash(npm install *)",
+      "Bash(git add *)",
+      "Bash(git -C /Users/lukeflewwelling/tabletop-hub merge claude/hungry-galileo-071f2f)"
+    ]
+  }
+}

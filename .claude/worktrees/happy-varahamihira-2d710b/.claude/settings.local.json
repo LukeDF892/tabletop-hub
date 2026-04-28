@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__apply_migration",
+      "Bash(npx next *)",
+      "Bash(npx --prefix /Users/lukeflewwelling/tabletop-hub next build)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Read(//Users/lukeflewwelling/tabletop-hub/**)",
+      "Bash(/Users/lukeflewwelling/tabletop-hub/node_modules/.bin/tsc --project /Users/lukeflewwelling/tabletop-hub/.claude/worktrees/happy-varahamihira-2d710b/tsconfig.json --noEmit)",
+      "Bash(npm install *)",
+      "Bash(~/tabletop-hub/node_modules/.bin/tsc --project /Users/lukeflewwelling/tabletop-hub/.claude/worktrees/happy-varahamihira-2d710b/tsconfig.json --noEmit)",
+      "Bash(echo \"Exit code: $?\")"
+    ]
+  }
+}

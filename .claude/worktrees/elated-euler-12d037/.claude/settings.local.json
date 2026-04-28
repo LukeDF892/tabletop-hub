@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__list_tables",
+      "mcp__supabase__execute_sql",
+      "Read(//Users/lukeflewwelling/tabletop-hub/node_modules/next/dist/**)",
+      "Read(//Users/lukeflewwelling/tabletop-hub/node_modules/**)",
+      "Read(//Users/lukeflewwelling/tabletop-hub/**)",
+      "Bash(npm ls *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('dependencies',{}\\).get\\('next'\\), d.get\\('devDependencies',{}\\).get\\('next'\\)\\)\")"
+    ]
+  }
+}

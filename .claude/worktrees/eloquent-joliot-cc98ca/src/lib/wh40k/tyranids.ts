@@ -1,0 +1,522 @@
+import type { Unit, Faction, Detachment } from "./types";
+
+export const TYRANID_UNITS: Unit[] = [
+  // ─── CHARACTERS ───────────────────────────────────────────────────
+  {
+    id: "tyr-swarmlord",
+    name: "The Swarmlord",
+    role: "Monster",
+    category: "HQ",
+    isEpicHero: true,
+    stats: { movement: '10"', toughness: 10, save: "2+/4++", wounds: 12, leadership: "7+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 330,
+    weapons: [
+      { name: "Bone Sabres", type: "Melee", attacks: "8", skill: "WS2+", strength: "8", ap: "-3", damage: "3", keywords: ["Precision", "Devastating Wounds"] },
+    ],
+    abilities: [
+      { name: "Hive Commander", description: "Once per battle, at the start of your Movement Phase, a friendly unit in Strategic Reserves can be placed anywhere on the battlefield more than 6\" from enemy models." },
+      { name: "Synaptic Nexus", description: "Friendly Tyranid SYNAPSE units within 12\" can re-roll Advance rolls and Charge rolls." },
+      { name: "Alien Cunning", description: "At the start of each battle round, this model can issue 2 Synaptic Imperatives instead of 1." },
+    ],
+    keywords: ["Monster", "Character", "Epic Hero", "Synapse", "Psyker", "The Swarmlord"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-hive-tyrant",
+    name: "Hive Tyrant",
+    role: "Monster",
+    category: "HQ",
+    stats: { movement: '10"', toughness: 9, save: "2+/4++", wounds: 10, leadership: "7+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 230,
+    canFly: true,
+    weapons: [
+      { name: "Monstrous Bonesword & Lashwhip", type: "Melee", attacks: "5", skill: "WS2+", strength: "8", ap: "-2", damage: "3" },
+      { name: "Monstrous Scything Talons", type: "Melee", attacks: "6", skill: "WS2+", strength: "9", ap: "-2", damage: "3" },
+      { name: "Bio-Plasma (Heavy)", type: "Heavy", range: '18"', attacks: "D3+3", skill: "BS3+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
+      { name: "Heavy Venom Cannon", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "10", ap: "-2", damage: "3" },
+    ],
+    abilities: [
+      { name: "Shadow in the Warp", description: "While this model is on the battlefield, subtract 1 from Battleshock tests taken by enemy units within 12\"." },
+      { name: "Synaptic Imperatives", description: "At the start of your Command Phase, issue one Synaptic Imperative to a friendly Tyranids unit." },
+      { name: "Psyker", description: "Can attempt to manifest 1 psychic power per turn." },
+    ],
+    keywords: ["Monster", "Character", "Fly", "Synapse", "Psyker", "Hive Tyrant"],
+    factionKeywords: ["Tyranids"],
+    wargearOptions: [
+      { description: "May have wings, gaining the Fly keyword and +2\" Move." },
+      { description: "May replace one pair of Monstrous Scything Talons with Heavy Venom Cannon or Bio-Plasma." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Monstrous Bonesword & Lashwhip",
+        options: [
+          { name: "Two Devourers with Broodlord's Eye", type: "Assault", range: '18"', attacks: "12", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Twin-linked"] },
+          { name: "Heavy Venom Cannon (Alt)", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "10", ap: "-2", damage: "3" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "tyr-neurotyrant",
+    name: "Neurotyrant",
+    role: "Monster",
+    category: "HQ",
+    stats: { movement: '8"', toughness: 7, save: "4+/4++", wounds: 7, leadership: "7+", oc: 1 },
+    models: { min: 1, max: 1 },
+    points: 105,
+    weapons: [
+      { name: "Psychic Lash", type: "Melee", attacks: "4", skill: "WS3+", strength: "6", ap: "-1", damage: "2", keywords: ["Devastating Wounds"] },
+      { name: "Neural Ganglion", type: "Heavy", range: '18"', attacks: "6", skill: "BS3+", strength: "5", ap: "-1", damage: "1", keywords: ["Lethal Hits"] },
+    ],
+    abilities: [
+      { name: "Synaptic Nexus", description: "Friendly Tyranid CORE units within 12\" of this model gain the Sustained Hits 1 keyword." },
+      { name: "Psychic Scream", description: "Once per phase, when an enemy unit fails a Battleshock test within 12\" of this model, that unit suffers D3 mortal wounds." },
+      { name: "Psyker", description: "Can attempt to manifest 1 psychic power per turn." },
+    ],
+    keywords: ["Monster", "Character", "Synapse", "Psyker", "Neurotyrant"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-broodlord",
+    name: "Broodlord",
+    role: "Infantry",
+    category: "HQ",
+    stats: { movement: '8"', toughness: 5, save: "4+/5++", wounds: 6, leadership: "7+", oc: 1 },
+    models: { min: 1, max: 1 },
+    points: 115,
+    weapons: [
+      { name: "Broodlord Claws and Talons", type: "Melee", attacks: "6", skill: "WS2+", strength: "6", ap: "-2", damage: "2", keywords: ["Sustained Hits 2"] },
+    ],
+    abilities: [
+      { name: "Lightning Reflexes", description: "This model has a 5++ invulnerable save." },
+      { name: "Pheromone Trail", description: "Friendly Genestealer units can use this model's Leadership value instead of their own." },
+      { name: "Psyker", description: "Can attempt to manifest 1 psychic power per turn." },
+    ],
+    keywords: ["Infantry", "Character", "Synapse", "Psyker", "Genestealer", "Broodlord"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-tyranid-prime",
+    name: "Tyranid Prime",
+    role: "Infantry",
+    category: "HQ",
+    stats: { movement: '6"', toughness: 5, save: "3+", wounds: 5, leadership: "7+", oc: 1 },
+    models: { min: 1, max: 1 },
+    points: 75,
+    weapons: [
+      { name: "Deathspitter", type: "Assault", range: '24"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "1" },
+      { name: "Boneswords", type: "Melee", attacks: "5", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
+    ],
+    abilities: [
+      { name: "Alpha Warrior", description: "Friendly Tyranid WARRIOR units within 6\" have the Objective Secured ability." },
+    ],
+    keywords: ["Infantry", "Character", "Synapse", "Tyranid Warriors", "Tyranid Prime"],
+    factionKeywords: ["Tyranids"],
+  },
+  // ─── BATTLELINE ───────────────────────────────────────────────────
+  {
+    id: "tyr-termagants",
+    name: "Termagant Brood",
+    role: "Infantry",
+    category: "Battleline",
+    stats: { movement: '6"', toughness: 3, save: "5+", wounds: 1, leadership: "8+", oc: 2 },
+    models: { min: 10, max: 20 },
+    points: 60,
+    weapons: [
+      { name: "Fleshborer", type: "Assault", range: '18"', attacks: "1", skill: "BS4+", strength: "5", ap: "0", damage: "1" },
+      { name: "Claws and Teeth", type: "Melee", attacks: "1", skill: "WS4+", strength: "3", ap: "0", damage: "1" },
+    ],
+    abilities: [
+      { name: "Chitinous Horde", description: "Each model in this unit that is within 6\" of another model in the same unit counts as 2 models for Objective Control purposes." },
+    ],
+    keywords: ["Infantry", "Core", "Battleline", "Termagants"],
+    factionKeywords: ["Tyranids"],
+    wargearOptions: [
+      { description: "Any number of models may replace their Fleshborer with a Devourer (Assault 2, S4, AP0, D1) or Spike Rifle (Heavy, R30\", S4, AP-1, D2)." },
+    ],
+  },
+  {
+    id: "tyr-hormagaunts",
+    name: "Hormagaunt Brood",
+    role: "Infantry",
+    category: "Battleline",
+    stats: { movement: '8"', toughness: 3, save: "5+", wounds: 1, leadership: "8+", oc: 2 },
+    models: { min: 10, max: 20 },
+    points: 60,
+    weapons: [
+      { name: "Scything Talons", type: "Melee", attacks: "2", skill: "WS4+", strength: "3", ap: "0", damage: "1", keywords: ["Sustained Hits 1"] },
+    ],
+    abilities: [
+      { name: "Bounding Leap", description: "When this unit makes a Charge move, it may move an additional 2\"." },
+      { name: "Chitinous Horde", description: "Each model in this unit within 6\" of another counts as 2 for Objective Control." },
+    ],
+    keywords: ["Infantry", "Core", "Battleline", "Hormagaunts"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-tyranid-warriors",
+    name: "Tyranid Warrior Brood",
+    role: "Infantry",
+    category: "Battleline",
+    stats: { movement: '6"', toughness: 5, save: "4+", wounds: 3, leadership: "7+", oc: 1 },
+    models: { min: 3, max: 6 },
+    points: 90,
+    weapons: [
+      { name: "Deathspitter", type: "Assault", range: '24"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "1" },
+      { name: "Scything Talons", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "0", damage: "1", keywords: ["Sustained Hits 1"] },
+    ],
+    abilities: [
+      { name: "Synapse", description: "While a friendly unit is within 6\" of this unit, they can use this unit's Leadership when taking Battleshock tests." },
+    ],
+    keywords: ["Infantry", "Core", "Battleline", "Synapse", "Tyranid Warriors"],
+    factionKeywords: ["Tyranids"],
+    wargearOptions: [
+      { description: "Models may replace Deathspitter with Barbed Strangler (Heavy, R24\", A D3+3, S6, AP-1, D2, Blast) or Venom Cannon (Heavy, R36\", A2, S8, AP-1, D3)." },
+      { description: "Models may replace Scything Talons with Boneswords (Melee, A3, WS3+, S6, AP-2, D2) or Rending Claws (A3, WS3+, S5, AP-2, D1)." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Deathspitter",
+        options: [
+          { name: "Devourer", type: "Assault", range: '18"', attacks: "4", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+          { name: "Venom Cannon", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "6", ap: "0", damage: "2" },
+        ],
+      },
+    ],
+  },
+  // ─── ELITES ───────────────────────────────────────────────────────
+  {
+    id: "tyr-genestealers",
+    name: "Genestealer Brood",
+    role: "Infantry",
+    category: "Elites",
+    stats: { movement: '8"', toughness: 4, save: "5+/4++", wounds: 2, leadership: "7+", oc: 1 },
+    models: { min: 5, max: 10 },
+    points: 95,
+    weapons: [
+      { name: "Rending Claws", type: "Melee", attacks: "4", skill: "WS2+", strength: "4", ap: "-2", damage: "1", keywords: ["Sustained Hits 2"] },
+    ],
+    abilities: [
+      { name: "Lightning Reflexes", description: "This unit has a 4++ invulnerable save." },
+      { name: "Prehensile Tail", description: "Enemy units cannot Fall Back from combat with this unit unless they pass a Strength check." },
+    ],
+    keywords: ["Infantry", "Core", "Genestealer"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-lictor",
+    name: "Lictor",
+    role: "Infantry",
+    category: "Elites",
+    stats: { movement: '9"', toughness: 5, save: "3+", wounds: 5, leadership: "7+", oc: 1 },
+    models: { min: 1, max: 3 },
+    points: 65,
+    canDeepStrike: true,
+    weapons: [
+      { name: "Flesh Hooks", type: "Heavy", range: '12"', attacks: "4", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
+      { name: "Rending Claws & Scything Talons", type: "Melee", attacks: "5", skill: "WS2+", strength: "6", ap: "-1", damage: "2" },
+    ],
+    abilities: [
+      { name: "Infiltrators", description: "This unit can be set up anywhere on the battlefield that is more than 9\" from the enemy deployment zone and any enemy models." },
+      { name: "Pheromone Trail", description: "Friendly Tyranids units arriving from Strategic Reserves can be set up within 6\" of this model instead of following normal deployment rules." },
+    ],
+    keywords: ["Infantry", "Core", "Infiltrators", "Lone Operative", "Lictor", "Deep Strike"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-raveners",
+    name: "Ravener Brood",
+    role: "Beast",
+    category: "Elites",
+    stats: { movement: '10"', toughness: 5, save: "4+", wounds: 3, leadership: "8+", oc: 1 },
+    models: { min: 3, max: 6 },
+    points: 75,
+    canDeepStrike: true,
+    weapons: [
+      { name: "Rending Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "-1", damage: "1" },
+      { name: "Scything Talons", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "0", damage: "1" },
+      { name: "Deathspitter", type: "Assault", range: '24"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "1" },
+    ],
+    abilities: [
+      { name: "Burrowers", description: "This unit can arrive from Strategic Reserves, tunneling up from underground anywhere more than 9\" from enemy models." },
+    ],
+    keywords: ["Beast", "Core", "Raveners", "Deep Strike"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-zoanthropes",
+    name: "Zoanthrope Brood",
+    role: "Infantry",
+    category: "Elites",
+    stats: { movement: '5"', toughness: 4, save: "3+/5++", wounds: 3, leadership: "7+", oc: 0 },
+    models: { min: 3, max: 6 },
+    points: 95,
+    weapons: [
+      { name: "Warp Blast", type: "Assault", range: '18"', attacks: "1", skill: "BS-", strength: "10", ap: "-3", damage: "D3+3", keywords: ["Devastating Wounds", "Psychic"] },
+      { name: "Claws and Teeth", type: "Melee", attacks: "2", skill: "WS4+", strength: "3", ap: "0", damage: "1" },
+    ],
+    abilities: [
+      { name: "Synapse", description: "Friendly units within 6\" may use this unit's Leadership for Battleshock tests." },
+      { name: "Warp Field", description: "This unit has a 5++ invulnerable save. In addition, the controlling player can spend 1 CP to increase this to a 4++ for one Shooting or Fight phase." },
+      { name: "Psyker", description: "This unit can attempt to manifest 1 psychic power per turn (Warp Blast is cast automatically)." },
+    ],
+    keywords: ["Infantry", "Core", "Synapse", "Psyker", "Zoanthropes"],
+    factionKeywords: ["Tyranids"],
+  },
+  // ─── FAST ATTACK ──────────────────────────────────────────────────
+  {
+    id: "tyr-gargoyles",
+    name: "Gargoyle Brood",
+    role: "Infantry",
+    category: "Fast Attack",
+    canFly: true,
+    stats: { movement: '12"', toughness: 3, save: "5+", wounds: 1, leadership: "8+", oc: 1 },
+    models: { min: 10, max: 20 },
+    points: 70,
+    weapons: [
+      { name: "Fleshborer", type: "Assault", range: '18"', attacks: "1", skill: "BS4+", strength: "5", ap: "0", damage: "1" },
+      { name: "Blinding Venom", type: "Melee", attacks: "1", skill: "WS4+", strength: "3", ap: "0", damage: "1", keywords: ["Anti-Infantry 4+"] },
+    ],
+    abilities: [
+      { name: "Fly", description: "This unit can move over models and terrain." },
+      { name: "Blinding Venom", description: "Enemy units that lose 1 or more models to this unit's Blinding Venom attacks are -1 to hit until the end of the next phase." },
+    ],
+    keywords: ["Infantry", "Core", "Fly", "Gargoyles"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-spore-mines",
+    name: "Spore Mine Cluster",
+    role: "Beast",
+    category: "Fast Attack",
+    stats: { movement: '6"', toughness: 2, save: "6+", wounds: 1, leadership: "8+", oc: 0 },
+    models: { min: 3, max: 9 },
+    points: 40,
+    weapons: [
+      { name: "Spore Mine Detonation", type: "Melee", attacks: "1", skill: "WS-", strength: "6", ap: "-2", damage: "2", keywords: ["Blast", "Devastating Wounds"] },
+    ],
+    abilities: [
+      { name: "Floating Death", description: "Each time this unit ends a move within 3\" of an enemy unit, roll a D6 for each model; on a 4+, the nearest enemy unit takes 1 mortal wound." },
+      { name: "Disbursement", description: "When this unit is destroyed, it can explode: all units within 6\" take D3 mortal wounds." },
+    ],
+    keywords: ["Beast", "Spore Mine"],
+    factionKeywords: ["Tyranids"],
+  },
+  // ─── HEAVY SUPPORT ────────────────────────────────────────────────
+  {
+    id: "tyr-carnifex",
+    name: "Carnifex Brood",
+    role: "Monster",
+    category: "Heavy Support",
+    stats: { movement: '8"', toughness: 9, save: "3+", wounds: 8, leadership: "8+", oc: 3 },
+    models: { min: 1, max: 3 },
+    points: 115,
+    weapons: [
+      { name: "Bio-Plasma", type: "Heavy", range: '18"', attacks: "D3+3", skill: "BS3+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
+      { name: "Scything Talons", type: "Melee", attacks: "6", skill: "WS3+", strength: "10", ap: "-2", damage: "3" },
+      { name: "Crushing Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "13", ap: "-3", damage: "D6+1" },
+    ],
+    abilities: [
+      { name: "Berserk Rampage", description: "After this unit consolidates, if it is within engagement range of an enemy unit, it can make 1 additional attack with one of its melee weapons." },
+    ],
+    keywords: ["Monster", "Core", "Carnifex"],
+    factionKeywords: ["Tyranids"],
+    wargearOptions: [
+      { description: "Each Carnifex may replace Scything Talons with Crushing Claws." },
+      { description: "Each Carnifex may take Bio-Plasma (Heavy)." },
+      { description: "Each Carnifex may take Stranglethorn Cannon (Heavy, R36\", A2D3, S10, AP-2, D2, Blast)." },
+    ],
+    weaponOptions: [
+      {
+        replaces: "Bio-Plasma",
+        options: [
+          { name: "Deathspitter with Slimer Maggots", type: "Assault", range: '24"', attacks: "6", skill: "BS3+", strength: "5", ap: "-1", damage: "1", keywords: ["Lethal Hits"] },
+          { name: "Stranglethorn Cannon", type: "Heavy", range: '36"', attacks: "2D3", skill: "BS3+", strength: "10", ap: "-2", damage: "2", keywords: ["Blast"] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "tyr-exocrine",
+    name: "Exocrine",
+    role: "Monster",
+    category: "Heavy Support",
+    stats: { movement: '6"', toughness: 10, save: "3+", wounds: 12, leadership: "8+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 185,
+    weapons: [
+      { name: "Bio-Plasmic Cannon", type: "Heavy", range: '36"', attacks: "6", skill: "BS3+", strength: "9", ap: "-3", damage: "2", keywords: ["Blast", "Hazardous"] },
+      { name: "Powerful Limbs", type: "Melee", attacks: "4", skill: "WS4+", strength: "8", ap: "-1", damage: "2" },
+    ],
+    abilities: [
+      { name: "Symbiostatic", description: "If this model does not move in the Movement phase, add 1 to all hit rolls it makes and it gains the Sustained Hits 1 keyword." },
+    ],
+    keywords: ["Monster", "Core", "Exocrine"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-tyrannofex",
+    name: "Tyrannofex",
+    role: "Monster",
+    category: "Heavy Support",
+    stats: { movement: '8"', toughness: 12, save: "2+", wounds: 14, leadership: "8+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 220,
+    weapons: [
+      { name: "Rupture Cannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "16", ap: "-4", damage: "D6+4" },
+      { name: "Fleshborer Hive", type: "Heavy", range: '18"', attacks: "2D6", skill: "BS4+", strength: "5", ap: "0", damage: "1" },
+      { name: "Acid Spray", type: "Heavy", range: '18"', attacks: "2D6", skill: "BS-", strength: "6", ap: "-2", damage: "1", keywords: ["Torrent", "Ignores Cover"] },
+      { name: "Powerful Limbs", type: "Melee", attacks: "5", skill: "WS4+", strength: "12", ap: "-2", damage: "3" },
+    ],
+    abilities: [
+      { name: "Acid Blood", description: "Each time a model in an enemy unit makes an attack against this model and scores a wound, if the model making the attack is within 1\", roll a D6; on a 5+ that model's unit takes 1 mortal wound." },
+    ],
+    keywords: ["Monster", "Core", "Tyrannofex"],
+    factionKeywords: ["Tyranids"],
+    wargearOptions: [
+      { description: "The Tyrannofex can be equipped with either a Rupture Cannon OR Fleshborer Hive + Acid Spray." },
+    ],
+  },
+  {
+    id: "tyr-haruspex",
+    name: "Haruspex",
+    role: "Monster",
+    category: "Heavy Support",
+    stats: { movement: '8"', toughness: 11, save: "3+", wounds: 12, leadership: "8+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 175,
+    weapons: [
+      { name: "Shovelling Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "8", ap: "-1", damage: "2" },
+      { name: "Grasping Tongue", type: "Melee", attacks: "1", skill: "WS3+", strength: "10", ap: "-3", damage: "D6+2" },
+    ],
+    abilities: [
+      { name: "Insatiable Hunger", description: "Each time this model destroys an enemy model, it heals 1 wound." },
+    ],
+    keywords: ["Monster", "Core", "Haruspex"],
+    factionKeywords: ["Tyranids"],
+  },
+  // ─── LORD OF WAR ─────────────────────────────────────────────────
+  {
+    id: "tyr-screamer-killer",
+    name: "Screamer-Killer",
+    role: "Monster",
+    category: "Elites",
+    stats: { movement: '8"', toughness: 10, save: "3+", wounds: 9, leadership: "8+", oc: 3 },
+    models: { min: 1, max: 1 },
+    points: 135,
+    weapons: [
+      { name: "Bio-Plasma (Shrieking)", type: "Heavy", range: '18"', attacks: "D6+1", skill: "BS3+", strength: "8", ap: "-3", damage: "2", keywords: ["Hazardous"] },
+      { name: "Massive Crushing Claws", type: "Melee", attacks: "6", skill: "WS2+", strength: "12", ap: "-3", damage: "D6+1" },
+    ],
+    abilities: [
+      { name: "Terrifying Scream", description: "When this model uses Bio-Plasma, enemy units that suffer 1+ wounds must take a Battleshock test with -1." },
+    ],
+    keywords: ["Monster", "Core", "Carnifex", "Screamer-Killer"],
+    factionKeywords: ["Tyranids"],
+  },
+  {
+    id: "tyr-hierodule",
+    name: "Bio-Titan Hierodule",
+    role: "Monster",
+    category: "Lord of War",
+    isTitanic: true,
+    stats: { movement: '10"', toughness: 14, save: "2+/5++", wounds: 20, leadership: "7+", oc: 5 },
+    models: { min: 1, max: 1 },
+    points: 430,
+    weapons: [
+      { name: "Scything Talons", type: "Melee", attacks: "8", skill: "WS2+", strength: "14", ap: "-3", damage: "D6+2" },
+      { name: "Bio-Acid Spray", type: "Heavy", range: '24"', attacks: "D6+4", skill: "BS-", strength: "6", ap: "-2", damage: "2", keywords: ["Torrent"] },
+      { name: "Massive Bio-Cannon", type: "Heavy", range: '48"', attacks: "6", skill: "BS3+", strength: "14", ap: "-4", damage: "D6+2" },
+    ],
+    abilities: [
+      { name: "Bio-Titan", description: "This model ignores the effects of any terrain feature or model on its movement. It cannot enter buildings." },
+      { name: "Void Shield", description: "Attacks targeting this model ignore cover bonuses. This model has a 5++ invulnerable save." },
+    ],
+    keywords: ["Monster", "Titanic", "Fly", "Hierodule"],
+    factionKeywords: ["Tyranids"],
+  },
+];
+
+const INVASION_FLEET: Detachment = {
+  name: "Invasion Fleet",
+  rule: {
+    name: "Onslaught",
+    description: "Each time a Tyranids unit from this detachment makes a charge move, that unit's melee weapons have the Sustained Hits 1 keyword for the remainder of that Fight phase. Tyranid MONSTER and BEAST units that charge this turn also get +1 Attack until end of Fight phase.",
+  },
+  stratagems: [
+    {
+      name: "Synaptic Channelling",
+      cost: 1,
+      phase: "Command",
+      description: "Use at the start of your Command Phase. Pick one friendly Tyranids SYNAPSE unit. Until the start of your next Command Phase, the range of that unit's Synapse ability is increased by 6\".",
+    },
+    {
+      name: "Rapid Digestion",
+      cost: 1,
+      phase: "Command",
+      description: "Use at the start of your Command Phase. Pick one friendly Tyranids MONSTER or BEAST unit. That unit immediately heals up to D3 lost wounds.",
+    },
+    {
+      name: "Bounding Agility",
+      cost: 1,
+      phase: "Charge",
+      description: "Use before a Tyranids INFANTRY or BEAST unit declares a charge. That unit may add 3\" to its charge move this phase.",
+    },
+    {
+      name: "Digestion Pool",
+      cost: 2,
+      phase: "Any",
+      description: "Use when a friendly CORE Tyranids unit is destroyed. Before removing it, add D3+3 Termagant models to another friendly Termagant unit within 6\".",
+    },
+    {
+      name: "Instinctive Evasion",
+      cost: 1,
+      phase: "Any",
+      description: "Use when a friendly Tyranids INFANTRY or BEAST unit is selected as the target of an attack. Until the end of that phase, that unit has the benefit of Light Cover (+1 to saves vs ranged attacks).",
+    },
+    {
+      name: "Carnage",
+      cost: 1,
+      phase: "Fight",
+      description: "Use at the start of the Fight phase. Pick a friendly Tyranids MONSTER unit. Until the end of the phase, that unit makes 1 additional attack with each of its melee weapons.",
+    },
+  ],
+  enhancements: [
+    {
+      name: "Perfectly Adapted",
+      points: 20,
+      description: "The bearer and any unit it leads have Feel No Pain 5+. Additionally, enemy attacks targeting this unit lose 1 AP (minimum 0).",
+      restriction: "Tyranids CHARACTER",
+    },
+    {
+      name: "Synaptic Augmentation",
+      points: 15,
+      description: "Increase the range of the bearer's Synapse ability by 6\". Friendly Tyranids CORE units within the bearer's Synapse range re-roll Advance rolls.",
+      restriction: "Tyranids SYNAPSE CHARACTER",
+    },
+    {
+      name: "Bio-Artefact: Resonance Barb",
+      points: 10,
+      description: "The bearer gains the following attack: Resonance Barb (Assault, R18\", A4, BS2+, S7, AP-2, D2, Devastating Wounds).",
+      restriction: "Tyranids CHARACTER",
+    },
+    {
+      name: "Adaptive Physiology: Voracious Ambition",
+      points: 25,
+      description: "The bearer and any unit it leads can make a free Advance move at the start of any Movement Phase without counting as having Advanced for the purposes of shooting.",
+      restriction: "Tyranids CHARACTER",
+    },
+  ],
+};
+
+export const TYRANIDS_FACTION: Faction = {
+  id: "tyranids",
+  name: "Tyranids",
+  shortName: "Nids",
+  description: "A xenos race whose sole purpose is the consumption of all biological matter. The Great Devourer descends upon world after world, leaving nothing but stripped husks.",
+  accentColor: "#7c3aed",
+  units: TYRANID_UNITS,
+  detachments: [INVASION_FLEET],
+};

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/lukeflewwelling/tabletop-hub/.claude/worktrees/happy-varahamihira-2d710b add -A)",
+      "Bash(git -C /Users/lukeflewwelling/tabletop-hub/.claude/worktrees/happy-varahamihira-2d710b commit -m \"feat: board polish - base sizes, silhouettes, dice popup, range indicators, terrain, 5 objectives, map presets\")",
+      "Bash(git -C /Users/lukeflewwelling/tabletop-hub remote -v)",
+      "Bash(git -C /Users/lukeflewwelling/tabletop-hub merge claude/happy-varahamihira-2d710b)"
+    ]
+  }
+}

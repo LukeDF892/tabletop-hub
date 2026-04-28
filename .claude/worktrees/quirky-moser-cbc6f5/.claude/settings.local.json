@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/lukeflewwelling/tabletop-hub remote get-url origin)",
+      "Read(//Users/lukeflewwelling/tabletop-hub/**)"
+    ]
+  }
+}

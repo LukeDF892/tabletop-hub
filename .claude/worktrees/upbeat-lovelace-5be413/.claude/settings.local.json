@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const {version} = require\\('next/package.json'\\); console.log\\(version\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('version','?'\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/lukeflewwelling/tabletop-hub/node_modules/next/package.json'\\)\\); print\\(d.get\\('version','?'\\)\\)\")",
+      "Bash(npx next *)",
+      "Bash(npm install *)",
+      "Bash(git add *)"
+    ]
+  }
+}

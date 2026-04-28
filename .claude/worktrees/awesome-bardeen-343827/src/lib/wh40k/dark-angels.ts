@@ -1,0 +1,412 @@
+import type { Unit, Faction, Detachment } from "./types";
+import { SM_UNITS } from "./space-marines";
+
+// Dark Angels exclusive units — inherited SM_UNITS are appended below
+const DA_EXCLUSIVE_UNITS: Unit[] = [
+  // ─── DA CHARACTERS ────────────────────────────────────────────────
+  {
+    id: "da-lion-eljonson",
+    name: "Lion El'Jonson",
+    role: "Character",
+    category: "HQ",
+    isEpicHero: true,
+    stats: { movement: '8"', toughness: 6, save: "2+/4++", wounds: 8, leadership: "6+", oc: 1 },
+    models: { min: 1, max: 1 },
+    points: 300,
+    weapons: [
+      { name: "The Lion Sword", type: "Melee", attacks: "6", skill: "WS2+", strength: "8", ap: "-3", damage: "3" },
+      { name: "Fealty", type: "Melee", attacks: "3", skill: "WS2+", strength: "10", ap: "-4", damage: "D3+3" },
+    ],
+    abilities: [
+      { name: "Primarch of the First", description: "Re-roll all hit and wound rolls for friendly Dark Angels CORE units within 12\"." },
+      { name: "Lord of the Rock", description: "Friendly Dark Angels units within 6\" automatically pass Battleshock tests. Once per battle round, can issue a free order to any Dark Angels unit on the battlefield." },
+      { name: "Watched Over", description: "Friendly Dark Angels units within 6\" have a 6+++ Feel No Pain save." },
+      { name: "Intractable Will", description: "Each time a wound is allocated to this model, roll a D6; on a 4+, that wound is ignored." },
+    ],
+    keywords: ["Infantry", "Character", "Epic Hero", "Primarch", "Lion El'Jonson"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["da-inner-circle-companions", "sm-bladeguard", "da-deathwing-knights"],
+  },
+  {
+    id: "da-azrael",
+    name: "Azrael",
+    role: "Character",
+    category: "HQ",
+    isEpicHero: true,
+    stats: { movement: '6"', toughness: 4, save: "2+/4++", wounds: 6, leadership: "5+", oc: 1 },
+    models: { min: 1, max: 1 },
+    points: 130,
+    weapons: [
+      { name: "Sword of Secrets", type: "Melee", attacks: "5", skill: "WS2+", strength: "6", ap: "-3", damage: "2" },
+      { name: "Lion's Wrath", type: "Pistol", range: '12"', attacks: "3", skill: "BS2+", strength: "4", ap: "-1", damage: "1" },
+    ],
+    abilities: [
+      { name: "Supreme Grand Master", description: "Re-roll all hit rolls for friendly Dark Angels units within 6\"." },
+      { name: "The Aegis", description: "The unit Azrael leads has a 4++ invulnerable save." },
+      { name: "Holder of the Keys", description: "Once per battle, at the start of any phase, Azrael can reveal a Dark Angels secret. Gain 1 CP." },
+    ],
+    keywords: ["Infantry", "Character", "Epic Hero", "Chapter Master", "Azrael"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-bladeguard", "sm-hellblasters", "da-inner-circle-companions"],
+  },
+  {
+    id: "da-belial",
+    name: "Belial",
+    role: "Character",
+    category: "HQ",
+    isEpicHero: true,
+    canDeepStrike: true,
+    stats: { movement: '5"', toughness: 4, save: "2+/4++", wounds: 5, leadership: "5+", oc: 1 },
+    models: { min: 1, max: 1 },
+    points: 95,
+    weapons: [
+      { name: "Thunder Hammer", type: "Melee", attacks: "4", skill: "WS2+", strength: "10", ap: "-2", damage: "3", keywords: ["Devastating Wounds"] },
+      { name: "Storm Shield", type: "Melee", attacks: "2", skill: "WS2+", strength: "5", ap: "-1", damage: "1" },
+      { name: "Sword of Silence", type: "Melee", attacks: "6", skill: "WS2+", strength: "7", ap: "-3", damage: "2" },
+      { name: "Storm Bolter", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
+    ],
+    abilities: [
+      { name: "Master of the Deathwing", description: "Deathwing units can be held in reserves and arrive anywhere on the battlefield in the Reinforcements step of your Movement Phase from turn 1." },
+      { name: "Rites of Battle", description: "Re-roll hit rolls of 1 for friendly Deathwing units within 6\"." },
+      { name: "Deep Strike", description: "Can be set up in Strategic Reserves anywhere 9\"+ from enemy models." },
+    ],
+    keywords: ["Infantry", "Character", "Epic Hero", "Terminator", "Deathwing", "Belial"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    wargearOptions: [
+      { description: "Belial may be equipped with Thunder Hammer + Storm Shield, Twin Lightning Claws, or Sword of Silence + Storm Bolter." },
+    ],
+    canLeadUnits: ["da-deathwing-knights", "da-deathwing-terminators"],
+  },
+  {
+    id: "da-sammael",
+    name: "Sammael",
+    role: "Character",
+    category: "HQ",
+    isEpicHero: true,
+    canFly: true,
+    stats: { movement: '14"', toughness: 5, save: "3+/4++", wounds: 5, leadership: "5+", oc: 2 },
+    models: { min: 1, max: 1 },
+    points: 130,
+    weapons: [
+      { name: "Corvex", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
+      { name: "Plasma Cannon (Standard)", type: "Heavy", range: '36"', attacks: "2", skill: "BS2+", strength: "7", ap: "-2", damage: "2" },
+      { name: "Plasma Cannon (Supercharge)", type: "Heavy", range: '36"', attacks: "2", skill: "BS2+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
+    ],
+    abilities: [
+      { name: "Lord of the Ravenwing", description: "Friendly Ravenwing units within 6\" gain the Scout 6\" ability." },
+      { name: "Master of the Hunt", description: "Once per turn, when a friendly Ravenwing unit within 12\" destroys an enemy unit, Sammael generates 1 CP." },
+      { name: "Fly", description: "This model can move over models and terrain." },
+    ],
+    keywords: ["Mounted", "Character", "Epic Hero", "Fly", "Ravenwing", "Sammael"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["da-ravenwing-black-knights"],
+  },
+  {
+    id: "da-ezekiel",
+    name: "Ezekiel",
+    role: "Character",
+    category: "HQ",
+    isEpicHero: true,
+    stats: { movement: '6"', toughness: 4, save: "3+/5++", wounds: 4, leadership: "5+", oc: 1 },
+    models: { min: 1, max: 1 },
+    points: 90,
+    weapons: [
+      { name: "Psychic Staff", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-1", damage: "D3" },
+      { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
+    ],
+    abilities: [
+      { name: "Psyker", description: "Can attempt to manifest 2 psychic powers per turn from the Librarius discipline, plus Smite." },
+      { name: "Book of Salvation", description: "Friendly Dark Angels units within 6\" gain either Scouts 6\" OR ignore cover bonuses when targeting them (choose at start of game)." },
+      { name: "Psychic Hood", description: "+1 to Deny attempts against Psykers within 18\"." },
+    ],
+    keywords: ["Infantry", "Character", "Epic Hero", "Psyker", "Librarian", "Ezekiel"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-hellblasters"],
+  },
+  {
+    id: "da-inner-circle-companions",
+    name: "Inner Circle Companions",
+    role: "Infantry",
+    category: "Elites",
+    stats: { movement: '6"', toughness: 4, save: "2+", wounds: 3, leadership: "5+", oc: 1 },
+    models: { min: 5, max: 5 },
+    points: 180,
+    weapons: [
+      { name: "Calibanite War Blade", type: "Melee", attacks: "4", skill: "WS2+", strength: "5", ap: "-3", damage: "2" },
+      { name: "Mace of Absolution", type: "Melee", attacks: "3", skill: "WS2+", strength: "8", ap: "-2", damage: "2" },
+    ],
+    abilities: [
+      { name: "Inner Circle", description: "This unit has the Fights First ability — it always fights before units without Fights First in the Fight phase." },
+      { name: "Bladeguard of the First", description: "While this unit is within 3\" of a friendly Dark Angels CHARACTER, improve its Save characteristic by 1." },
+    ],
+    keywords: ["Infantry", "Core", "Inner Circle", "Inner Circle Companions"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    wargearOptions: [
+      { description: "Any model may replace Calibanite War Blades with Maces of Absolution." },
+    ],
+  },
+  {
+    id: "da-ravenwing-talonmaster",
+    name: "Ravenwing Talonmaster",
+    role: "Character",
+    category: "HQ",
+    canFly: true,
+    stats: { movement: '14"', toughness: 6, save: "3+/4++", wounds: 6, leadership: "4+", oc: 2 },
+    models: { min: 1, max: 1 },
+    points: 150,
+    weapons: [
+      { name: "Twin Auto Boltstorm Gauntlets", type: "Pistol", range: '12"', attacks: "6", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+      { name: "Power Sword", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "-2", damage: "1" },
+    ],
+    abilities: [
+      { name: "Speed of the Raven", description: "Friendly Ravenwing units within 6\" add 2\" to their Move characteristic." },
+      { name: "Jinking", description: "Each time this model is targeted by a ranged attack, it counts as being in cover." },
+      { name: "Fly", description: "This model can move over models and terrain." },
+    ],
+    keywords: ["Mounted", "Character", "Fly", "Ravenwing", "Talonmaster"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    canLeadUnits: ["da-ravenwing-black-knights"],
+  },
+  // ─── DEATHWING UNITS ──────────────────────────────────────────────
+  {
+    id: "da-deathwing-knights",
+    name: "Deathwing Knights",
+    role: "Infantry",
+    category: "Elites",
+    canDeepStrike: true,
+    stats: { movement: '5"', toughness: 5, save: "2+/4++", wounds: 3, leadership: "5+", oc: 1 },
+    models: { min: 5, max: 10 },
+    points: 200,
+    weapons: [
+      { name: "Mace of Absolution", type: "Melee", attacks: "4", skill: "WS2+", strength: "8", ap: "-2", damage: "2" },
+      { name: "Flail of the Unforgiven (Champion)", type: "Melee", attacks: "5", skill: "WS2+", strength: "9", ap: "-3", damage: "3" },
+    ],
+    abilities: [
+      { name: "Inner Circle", description: "This unit has the Fights First ability — it always fights before units without Fights First in the Fight phase." },
+      { name: "Knights of the Inner Circle", description: "This unit can never Fall Back from combat." },
+      { name: "Deep Strike", description: "Can be set up in Strategic Reserves arriving anywhere 9\"+ from enemy models." },
+    ],
+    keywords: ["Infantry", "Core", "Terminator", "Deathwing", "Inner Circle", "Deathwing Knights"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    weaponOptions: [
+      {
+        replaces: "Mace of Absolution",
+        options: [
+          { name: "Flail of the Unforgiven", type: "Melee", attacks: "4", skill: "WS2+", strength: "10", ap: "-3", damage: "2", keywords: ["Devastating Wounds"] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "da-deathwing-terminators",
+    name: "Deathwing Terminators",
+    role: "Infantry",
+    category: "Elites",
+    canDeepStrike: true,
+    stats: { movement: '5"', toughness: 5, save: "2+", wounds: 3, leadership: "5+", oc: 1 },
+    models: { min: 5, max: 10 },
+    points: 175,
+    weapons: [
+      { name: "Storm Bolter", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+      { name: "Power Fist", type: "Melee", attacks: "3", skill: "WS3+", strength: "8", ap: "-2", damage: "2" },
+      { name: "Thunder Hammer", type: "Melee", attacks: "3", skill: "WS3+", strength: "10", ap: "-2", damage: "3", keywords: ["Devastating Wounds"] },
+    ],
+    abilities: [
+      { name: "Deep Strike", description: "Can be set up in Strategic Reserves arriving anywhere 9\"+ from enemy models." },
+      { name: "Inner Circle", description: "This unit has the Fights First ability." },
+    ],
+    keywords: ["Infantry", "Core", "Terminator", "Deathwing", "Inner Circle", "Deathwing Terminators"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    wargearOptions: [
+      { description: "One model per 5 may replace Storm Bolter + Power Fist with Assault Cannon + Power Fist." },
+      { description: "One model per 5 may take Cyclone Missile Launcher (+30pts)." },
+      { description: "Any model may replace Power Fist with Thunder Hammer." },
+      { description: "Sergeant may take Sword of Silence (as Belial's, same profile)." },
+    ],
+  },
+  {
+    id: "da-deathwing-command-squad",
+    name: "Deathwing Command Squad",
+    role: "Infantry",
+    category: "Elites",
+    canDeepStrike: true,
+    stats: { movement: '5"', toughness: 5, save: "2+", wounds: 3, leadership: "5+", oc: 1 },
+    models: { min: 5, max: 5 },
+    points: 175,
+    weapons: [
+      { name: "Storm Bolter", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+      { name: "Power Fist", type: "Melee", attacks: "3", skill: "WS3+", strength: "8", ap: "-2", damage: "2" },
+    ],
+    abilities: [
+      { name: "Deep Strike", description: "Can be set up in Strategic Reserves." },
+      { name: "Inner Circle", description: "This unit has the Fights First ability." },
+      { name: "Deathwing Apothecary", description: "At end of your Movement Phase, one model in this unit regains up to D3 lost wounds, OR one slain model is returned (6+++ FNP to unit)." },
+      { name: "Deathwing Ancient", description: "Re-roll wound rolls of 1 for this unit." },
+    ],
+    keywords: ["Infantry", "Core", "Terminator", "Deathwing", "Inner Circle", "Deathwing Command Squad"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+  },
+  // ─── RAVENWING UNITS ──────────────────────────────────────────────
+  {
+    id: "da-ravenwing-black-knights",
+    name: "Ravenwing Black Knights",
+    role: "Mounted",
+    category: "Elites",
+    canFly: true,
+    stats: { movement: '14"', toughness: 5, save: "3+", wounds: 3, leadership: "5+", oc: 2 },
+    models: { min: 3, max: 6 },
+    points: 135,
+    weapons: [
+      { name: "Corvus Hammer", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "-1", damage: "1" },
+      { name: "Plasma Talon (Standard)", type: "Pistol", range: '18"', attacks: "2", skill: "BS3+", strength: "7", ap: "-2", damage: "2" },
+      { name: "Plasma Talon (Supercharge)", type: "Pistol", range: '18"', attacks: "2", skill: "BS3+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
+    ],
+    abilities: [
+      { name: "Skilled Riders", description: "This unit always benefits from cover when it moves in the Movement phase, even in the open." },
+      { name: "Scouts 6\"", description: "Before the first battle round, this unit can make a 6\" Normal Move." },
+      { name: "Fly", description: "This model can move over models and terrain." },
+    ],
+    keywords: ["Mounted", "Core", "Fly", "Ravenwing", "Black Knights"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+    weaponOptions: [
+      {
+        replaces: "Plasma Talon (Standard)",
+        options: [
+          { name: "Corvus Hammer (Main)", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-1", damage: "1", keywords: ["Inner Circle"] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "da-ravenwing-dark-talon",
+    name: "Ravenwing Dark Talon",
+    role: "Aircraft",
+    category: "Heavy Support",
+    canFly: true,
+    stats: { movement: '20-60"', toughness: 9, save: "3+", wounds: 12, leadership: "6+", oc: 0 },
+    models: { min: 1, max: 1 },
+    points: 180,
+    weapons: [
+      { name: "Rift Cannon", type: "Heavy", range: '24"', attacks: "3", skill: "BS3+", strength: "12", ap: "-4", damage: "6", keywords: ["Devastating Wounds (auto-wound 4+)"] },
+      { name: "Hurricane Bolter", type: "Assault", range: '24"', attacks: "8", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
+      { name: "Stasis Bomb (one use)", type: "Heavy", range: '24"', attacks: "1", skill: "BS3+", strength: "9", ap: "-4", damage: "6" },
+    ],
+    abilities: [
+      { name: "Stasis Anomaly", description: "Units hit by the Rift Cannon are -1 to hit on all attacks until the start of your next Shooting phase." },
+      { name: "Airborne", description: "Cannot charge or be charged. Only Fly and Airborne units can target it." },
+    ],
+    keywords: ["Vehicle", "Aircraft", "Fly", "Ravenwing", "Dark Talon"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+  },
+  {
+    id: "da-nephilim-jetfighter",
+    name: "Ravenwing Nephilim Jetfighter",
+    role: "Aircraft",
+    category: "Fast Attack",
+    canFly: true,
+    stats: { movement: '20-60"', toughness: 9, save: "3+", wounds: 12, leadership: "6+", oc: 0 },
+    models: { min: 1, max: 1 },
+    points: 165,
+    weapons: [
+      { name: "Avenger Mega Bolter", type: "Heavy", range: '36"', attacks: "10", skill: "BS3+", strength: "7", ap: "-2", damage: "2" },
+      { name: "Black Sword Missiles", type: "Heavy", range: '60"', attacks: "2", skill: "BS3+", strength: "10", ap: "-3", damage: "6" },
+    ],
+    abilities: [
+      { name: "Strafing Run", description: "Re-roll all hit rolls for this model's attacks targeting VEHICLE or MONSTER units." },
+      { name: "Airborne", description: "Cannot charge or be charged. Only Fly and Airborne units can target it." },
+    ],
+    keywords: ["Vehicle", "Aircraft", "Fly", "Ravenwing", "Nephilim Jetfighter"],
+    factionKeywords: ["Adeptus Astartes", "Dark Angels"],
+  },
+];
+
+// Merge inherited SM units with DA exclusives; DA-specific units are tagged
+const DA_SM_INHERITED = SM_UNITS.map((u) => ({
+  ...u,
+  factionKeywords: [...u.factionKeywords, "Dark Angels"],
+}));
+
+export const DA_UNITS: Unit[] = [...DA_EXCLUSIVE_UNITS, ...DA_SM_INHERITED];
+
+const UNFORGIVEN_TASK_FORCE: Detachment = {
+  name: "Unforgiven Task Force",
+  rule: {
+    name: "Inner Circle",
+    description:
+      "Dark Angels units with the Inner Circle keyword have the Fights First ability — they always fight before units without Fights First. All Dark Angels units also have the Stubborn ability and never have to take Battleshock tests.",
+  },
+  stratagems: [
+    {
+      name: "Deathwing Assault",
+      cost: 1,
+      phase: "Charge",
+      description: "Use in your opponent's Charge phase. A Deathwing unit that arrived from reserves this turn can immediately Heroically Intervene even if it is not a CHARACTER, moving up to 6\" toward the nearest enemy unit.",
+    },
+    {
+      name: "Hatred of the Fallen",
+      cost: 1,
+      phase: "Fight",
+      description: "Use at the start of the Fight phase. A friendly Dark Angels unit re-rolls all hit rolls against Heretic Astartes or Chaos units until end of phase.",
+    },
+    {
+      name: "Armour of Contempt",
+      cost: 1,
+      phase: "Any",
+      description: "Use when a Dark Angels CORE unit takes a wound. Roll a D6; on a 5+ that wound is ignored.",
+    },
+    {
+      name: "Grim Interrogation",
+      cost: 2,
+      phase: "Fight",
+      description: "Use after winning a Fight phase combat. Choose an enemy CHARACTER within 1\". Guess one Stratagem they will use next turn. If correct, refund 1 CP at the start of next battle round.",
+    },
+    {
+      name: "Speed of the Ravenwing",
+      cost: 1,
+      phase: "Movement",
+      description: "Use in the Movement phase. A Ravenwing unit can re-roll its Advance roll and counts as not having Advanced for the purpose of making ranged attacks this turn.",
+    },
+    {
+      name: "Vergence of Shadows",
+      cost: 2,
+      phase: "Shooting",
+      description: "Use at the start of the enemy Shooting phase. Until end of phase, all attacks targeting friendly Dark Angels units suffer -1 to hit (attackers hit on 1 worse, i.e. +1 to saving rolls vs ranged attacks).",
+    },
+  ],
+  enhancements: [
+    {
+      name: "The Heavenfall Blade",
+      points: 30,
+      description: "The bearer's melee weapon gains +1 Attack, +2 Strength, AP-4, and Damage D3+3.",
+      restriction: "Dark Angels CHARACTER",
+    },
+    {
+      name: "Angels of Absolution",
+      points: -15,
+      description: "All friendly Dark Angels units within 6\" of the bearer have a 5+++ Feel No Pain save.",
+      restriction: "Dark Angels CHARACTER",
+    },
+    {
+      name: "Shroud of Heroes",
+      points: 20,
+      description: "The bearer has a 4++ invulnerable save. Enemy units cannot use Stratagems to specifically target this model's unit.",
+      restriction: "Dark Angels CHARACTER",
+    },
+    {
+      name: "Inner Circle Companion",
+      points: 25,
+      description: "The bearer gains the Inner Circle keyword and Fights First. Once per battle, before this model fights, all of its attacks gain +1 Damage.",
+      restriction: "Dark Angels CHARACTER",
+    },
+  ],
+};
+
+export const DARK_ANGELS_FACTION: Faction = {
+  id: "dark-angels",
+  name: "Dark Angels",
+  shortName: "DA",
+  description: "The First Legion. Wielders of dark secrets, the Dark Angels are divided into three specialised wings: the bone-armoured Deathwing Terminators, the fast-striking Ravenwing, and the standard Battle Companies.",
+  accentColor: "#166534",
+  units: DA_UNITS,
+  detachments: [UNFORGIVEN_TASK_FORCE],
+};
