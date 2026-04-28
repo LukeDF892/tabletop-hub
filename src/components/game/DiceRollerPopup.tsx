@@ -93,9 +93,11 @@ function DieFace({ value, colour, bg, spinning }: { value: number; colour: strin
 interface DiceRollerPopupProps {
   request: DiceRollRequest | null;
   onDismiss: () => void;
+  onReroll?: () => void;       // spends 1 CP and re-rolls; undefined = no CP available
+  rerollCp?: number;           // how much CP the active player has (to decide whether to show button)
 }
 
-export function DiceRollerPopup({ request, onDismiss }: DiceRollerPopupProps) {
+export function DiceRollerPopup({ request, onDismiss, onReroll, rerollCp }: DiceRollerPopupProps) {
   const [spinning, setSpinning] = useState(false);
   const [progress, setProgress] = useState(100);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -190,8 +192,37 @@ export function DiceRollerPopup({ request, onDismiss }: DiceRollerPopupProps) {
         {/* Outcome */}
         {!spinning && (
           <div style={{ fontSize: 13, fontWeight: 700, color: colour, marginBottom: 8 }}>
-            {request.hits}/{request.total} {request.label.toLowerCase().includes("wound") ? "wounds" : request.label.toLowerCase().includes("save") ? "failed saves" : "successes"}
+            {request.type === "save"
+              // For saves: hits = passed saves, so failures = total - hits
+              ? `${request.total - request.hits}/${request.total} failed saves`
+              : request.type === "charge"
+              // For charge: show sum vs needed, not per-die count
+              ? `Total: ${request.rolls.reduce((a, b) => a + b, 0)} (need ${request.threshold}+)`
+              : `${request.hits}/${request.total} ${request.label.toLowerCase().includes("wound") ? "wounds" : "successes"}`
+            }
           </div>
+        )}
+
+        {/* Command re-roll button */}
+        {!spinning && onReroll && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onReroll(); }}
+            disabled={(rerollCp ?? 0) < 1}
+            style={{
+              width: "100%",
+              marginBottom: 8,
+              padding: "6px 0",
+              borderRadius: 8,
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: (rerollCp ?? 0) < 1 ? "not-allowed" : "pointer",
+              backgroundColor: (rerollCp ?? 0) < 1 ? "rgba(255,255,255,0.04)" : "rgba(250,204,21,0.12)",
+              color: (rerollCp ?? 0) < 1 ? "rgba(255,255,255,0.25)" : "#facc15",
+              border: `1px solid ${(rerollCp ?? 0) < 1 ? "rgba(255,255,255,0.08)" : "rgba(250,204,21,0.35)"}`,
+            }}
+          >
+            {(rerollCp ?? 0) < 1 ? "Re-roll (no CP)" : `Re-roll (1 CP) — ${rerollCp} CP`}
+          </button>
         )}
 
         {/* Progress bar */}
@@ -213,6 +244,8 @@ export function DiceRollerPopup({ request, onDismiss }: DiceRollerPopupProps) {
 
 export function useDiceRoller() {
   const [request, setRequest] = useState<DiceRollRequest | null>(null);
+  // Stores the last roll params so re-roll can regenerate with same dice count/threshold
+  const lastParamsRef = useRef<{ count: number; sides: number; threshold: number; type: DiceRollType; label: string } | null>(null);
 
   const showRoll = useCallback((params: {
     rolls: number[];
@@ -220,11 +253,26 @@ export function useDiceRoller() {
     threshold: number;
     label: string;
   }) => {
+    lastParamsRef.current = {
+      count: params.rolls.length,
+      sides: 6,
+      threshold: params.threshold,
+      type: params.type,
+      label: params.label,
+    };
     const hits = params.rolls.filter((r) => r >= params.threshold).length;
     setRequest({ ...params, hits, total: params.rolls.length });
   }, []);
 
+  const reroll = useCallback(() => {
+    const p = lastParamsRef.current;
+    if (!p) return;
+    const rolls = Array.from({ length: p.count }, () => Math.floor(Math.random() * p.sides) + 1);
+    const hits = rolls.filter((r) => r >= p.threshold).length;
+    setRequest({ rolls, type: p.type, threshold: p.threshold, label: p.label + " (re-roll)", hits, total: rolls.length });
+  }, []);
+
   const dismiss = useCallback(() => setRequest(null), []);
 
-  return { request, showRoll, dismiss };
+  return { request, showRoll, reroll, dismiss };
 }
