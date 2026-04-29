@@ -332,6 +332,7 @@ function DiceRoller() {
   const [count, setCount] = useState(1);
   const [sides, setSides] = useState(6);
   const [results, setResults] = useState<number[]>([]);
+  const [rollId, setRollId] = useState(0); // increments on every roll to force re-render/animation
 
   return (
     <div className="rounded-xl p-3" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-card)" }}>
@@ -378,22 +379,54 @@ function DiceRoller() {
         </div>
       </div>
       <button
-        onClick={() => setResults(Array.from({ length: count }, () => Math.floor(Math.random() * sides) + 1))}
+        onClick={() => {
+          setRollId((n) => n + 1);
+          setResults(Array.from({ length: count }, () => Math.floor(Math.random() * sides) + 1));
+        }}
         className="w-full py-1.5 rounded-lg text-xs font-semibold mb-2"
         style={{ backgroundColor: "rgba(217,119,6,0.12)", border: "1px solid rgba(217,119,6,0.3)", color: "#d97706" }}
       >
         Roll {count}d{sides}
       </button>
+      {/* Animation keyframes for dice flash */}
+      <style>{`@keyframes diceFlash{0%{transform:scale(0.7);opacity:0.3}60%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:1}}`}</style>
       {results.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {results.map((r, i) => (
             <span
-              key={i}
+              key={`${rollId}-${i}`}
               className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold"
               style={{
                 backgroundColor: r === sides ? "rgba(234,179,8,0.2)" : "rgba(255,255,255,0.06)",
-                color: r === sides ? "#eab308" : "var(--text-primary)",
+              color: r === sides ? "#eab308" : "var(--text-muted)",
                 border: `1px solid ${r === sides ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.08)"}`,
+                animation: `rollId > 0 ? diceFlash 0.4s ease-out` : "undefined",
+              }}
+            >
+              {r}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Game state ──────────────────────────────────────────────────────────────
+
+interface GameSnapshot {
+  markers: UnitMarker[];
+  p1Cp: number;
+  p2Cp: number;
+  p1Vp: number;
+  p2Vp: number;
+  movedThisTurn: string[];
+  shotThisTurn: string[];
+  chargedThisTurn: string[];
+  foughtThisTurn: string[];
+}  color: r === sides ? "#eab308" : "var(--text-primary)",
+                border: `1px solid ${r === sides ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.08)"}`,
+                animation: "diceFlash 0.35s ease-out",
               }}
             >
               {r}
@@ -475,28 +508,11 @@ function RolloffPhase({ gameName, onComplete }: RolloffPhaseProps) {
       <h2 className="font-cinzel text-2xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>
         {gameName}
       </h2>
-
       {/* Step progress */}
       <div className="flex gap-2 mb-8">
         {ROLLOFF_LABELS.map((label, i) => (
           <div key={i} className="flex items-center gap-2">
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
-              style={
-                i < step
-                  ? { backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }
-                  : i === step
-                  ? { backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.4)" }
-                  : { backgroundColor: "rgba(255,255,255,0.04)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }
-              }
-            >
-              {i < step && "✓ "}
-              {label}
-              {i < step && stepResults[i] && (
-                <span className="font-bold ml-1">{stepResults[i]}</span>
-              )}
-            </div>
-            {i < 2 && <span style={{ color: "var(--text-muted)" }}>→</span>}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium" style={i < step ? { backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" } : i === step ? { backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.4)" } : { backgroundColor: "rgba(255,255,255,0.04)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}>{i < step && "✓ "}{label}{i < step && stepResults[i] && (<span className="font-bold ml-1">{stepResults[i]}</span>)}</div>{i < 2 && <span style={{ color: "var(--text-muted)" }}>→</span>}</div>))}</div><div className="w56 flex-shrink-0 max-w-md rounded-2xl p-8" style={{ backgroundColor: "var(--bg-card)", border: "1px solid rgba(217,119,6,0.3)" }}><h3 className="font-cinzel text-lg font-bold text-center mb-6" style={{ color: "#d97706" }}>Roll for: {ROLLOFF_LABELS[step]}</h3>: "var(--text-muted)" }}>→</span>}
           </div>
         ))}
       </div>
@@ -516,78 +532,9 @@ function RolloffPhase({ gameName, onComplete }: RolloffPhaseProps) {
             { label: "Player 2", color: "#3b82f6", roll: p2Roll },
           ].map(({ label, color, roll }) => (
             <div key={label} className="flex flex-col items-center gap-3">
-              <span className="text-xs font-medium uppercase tracking-widest" style={{ color }}>
-                {label}
-              </span>
-              <div
-                className="w-20 h-20 rounded-2xl flex items-center justify-center font-cinzel text-4xl font-bold"
-                style={{
-                  backgroundColor: `${color}15`,
-                  border: `2px solid ${roll !== null ? `${color}60` : "rgba(255,255,255,0.1)"}`,
-                  color: roll !== null ? color : "rgba(255,255,255,0.2)",
-                  transition: "all 0.3s",
-                }}
-              >
-                {rolling ? "?" : roll !== null ? roll : "—"}
-              </div>
-            </div>
-          ))}
-        </div>
+              <span className="text-xs font-medium uppercase tracking-widest" style={{ color }}>{label}</span><div className="w-20 h-20 rounded-2xl flex items-center justify-center font-cinzel text-4xl font-bold" style={{ backgroundColor: `${color}15`, border: `2px solid ${roll !== null ? `${color}60` : "rgba(255,255,255,0.1)"}`, color: roll !== null ? color : "rgba(255,255,255,0.2)", transition: "all 0.3s" }}>{rolling ? "?" : roll !== null ? roll : "‒"}</div></div>))}</div>{isTie && (<div className="text-center text-sm py-2 px-4 rounded-lg mb-4" style={{ backgroundColor: "rgba(234,179,8,0.1)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)" }}>Tie! Roll again.</div>)}{p1Roll === null ? (<button onClick={rollForStep} disabled={rolling} className="w-full py-4 rounded-xl font-cinzel font-bold text-base transition-all flex items-center justify-center gap-2 disabled:opacity-50" style={{ backgroundColor: "rgba(217,119,6,0.18)", border: "1px solid rgba(217,119,6,0.5)", color: "#d97706" }}>{rolling ? <Loader2 size={18} className="animate-spin" /> : <Dice6 size={18} />}{rolling ? "Rolling…" : "Roll Dice"}</button>) : !isTie ? (<button onClick={confirmStep} className="w-full py-3 rounded-xl font-cinzel font-semibold text-sm transition-all" style={{ backgroundColor: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.4)", color: "#22c55e" }}>{proll > (p2Roll ?? 0) ? "P1" : "P2"} wins — {step < 2 ? "Next Roll →" : "Begin Deployment →"}</button>) : (<button onClick={rollForStep} className="w-full py-3 rounded-xl font-cinzel font-semibold text-sm transition-all" style={{ backgroundColor: "rgba(234,179,8,0.15)", border: "1px solid rgba(234,179,8,0.4)", color: "#eab308" }}>Re-roll →</button>)}</div></div>);}
 
-        {isTie && (
-          <div
-            className="text-center text-sm py-2 px-4 rounded-lg mb-4"
-            style={{ backgroundColor: "rgba(234,179,8,0.1)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)" }}
-          >
-            Tie! Roll again.
-          </div>
-        )}
-
-        {p1Roll === null ? (
-          <button
-            onClick={rollForStep}
-            disabled={rolling}
-            className="w-full py-4 rounded-xl font-cinzel font-bold text-base transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{
-              backgroundColor: "rgba(217,119,6,0.18)",
-              border: "1px solid rgba(217,119,6,0.5)",
-              color: "#d97706",
-            }}
-          >
-            {rolling ? <Loader2 size={18} className="animate-spin" /> : <Dice6 size={18} />}
-            {rolling ? "Rolling…" : "Roll Dice"}
-          </button>
-        ) : !isTie ? (
-          <button
-            onClick={confirmStep}
-            className="w-full py-3 rounded-xl font-cinzel font-semibold text-sm transition-all"
-            style={{
-              backgroundColor: "rgba(34,197,94,0.15)",
-              border: "1px solid rgba(34,197,94,0.4)",
-              color: "#22c55e",
-            }}
-          >
-            {p1Roll > (p2Roll ?? 0) ? "P1" : "P2"} wins — {step < 2 ? "Next Roll →" : "Begin Deployment →"}
-          </button>
-        ) : (
-          <button
-            onClick={rollForStep}
-            className="w-full py-3 rounded-xl font-cinzel font-semibold text-sm transition-all"
-            style={{
-              backgroundColor: "rgba(234,179,8,0.15)",
-              border: "1px solid rgba(234,179,8,0.4)",
-              color: "#eab308",
-            }}
-          >
-            Re-roll →
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Deployment side panel ────────────────────────────────────────────────────
+// ─── Deployment side panel ───────────────────────────────────────────────────
 
 interface DeploymentPanelProps {
   undeployedMarkers: UnitMarker[];
@@ -619,84 +566,7 @@ function DeploymentPanel({
       style={{ borderRight: "1px solid var(--border-subtle)" }}
     >
       <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-        <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>
-          Deployment
-        </p>
-        <p
-          className="text-sm font-semibold"
-          style={{ color: currentDeployer === "P1" ? "#ef4444" : "#3b82f6" }}
-        >
-          {currentDeployer} deploys
-        </p>
-        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-          Click unit → click deployment zone
-        </p>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {currentUnits.length === 0 && (
-          <p className="text-xs text-center py-4" style={{ color: "var(--text-muted)" }}>
-            All units deployed
-          </p>
-        )}
-        {currentUnits.map((m) => (
-          <div
-            key={m.id}
-            className="rounded-lg overflow-hidden"
-            style={{
-              border: selectedId === m.id
-                ? `1px solid ${currentDeployer === "P1" ? "#ef4444" : "#3b82f6"}`
-                : "1px solid var(--border-card)",
-              backgroundColor: selectedId === m.id
-                ? currentDeployer === "P1" ? "rgba(220,38,38,0.12)" : "rgba(37,99,235,0.12)"
-                : "var(--bg-card)",
-            }}
-          >
-            <button
-              className="w-full text-left px-2.5 py-2 text-xs font-medium"
-              style={{ color: "var(--text-primary)" }}
-              onClick={() => onSelect(m.id)}
-            >
-              <span className="flex items-center gap-1">
-                {m.attachedCharacterName && (
-                  <span title="Has attached character" style={{ color: "#eab308", fontSize: 9 }}>⚔</span>
-                )}
-                {m.attachedCharacterName
-                  ? `${m.unitName} + ${m.attachedCharacterName}`
-                  : m.unitName}
-              </span>
-              <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-                T{m.stats.toughness} · W{m.maxWounds} · Sv{m.stats.save}
-              </span>
-            </button>
-            <button
-              className="w-full text-left px-2.5 py-1 text-[10px] border-t flex items-center gap-1"
-              style={{ borderColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)" }}
-              onClick={() => onReserve(m.id)}
-            >
-              <Archive size={9} />
-              Reserve
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {allDone && (
-        <div className="p-3 flex-shrink-0">
-          <button
-            onClick={onEndDeployment}
-            className="w-full py-2 rounded-lg text-xs font-semibold"
-            style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}
-          >
-            Begin Battle →
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Combat helper ────────────────────────────────────────────────────────────
+        <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Deployment</p><p className="text-sm font-semibold" style={{ color: currentDeployer === "P1" ? "#ef4444" : "#3b82f6" }}>{currentDeployer} deploys</p><p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Click unit → click deployment zone</p></div><div className="flex-1 overflow-y-auto p-2 space-y-1">{currentUnits.length === 0 && (<p className="text-xs text-center py-4" style={{ color: "var(--text-muted)" }}>All units deployed</p>)}{currentUnits.map((m) => (<div key={m.id} className="rounded-lg overflow-hidden" style={{ border: selectedId === m.id ? `1px solid ${currentDeployer === "P1" ? "#ef4444" : "#3b82f6"}` : "1px solid var(--border-card)", backgroundColor: selectedId === m.id ? currentDeployer === "P1" ? "rgba(220,38,38,0.12)" : "rgba(37,99,235,0.12)" : "var(--bg-card)" }}><button className="w56 flex-shrink-0 w-full text-left px-2.5 py-2 text-xs font-medium" style={{ color: "var(--text-primary)" }} onClick={() => onSelect(m.id)}><span className="flex items-center gap-1">{m.attachedCharacterName && (<span title="Has attached character" style={{ color: "#eab308", fontSize: 9 }}>⚔</span>)}{m.attachedCharacterName ? `${m.unitName} + ${m.attachedCharacterName}` : m.unitName}</span><span className="block text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>T{m.stats.toughness} · W{m.maxWounds} · Sv{m.stats.save}</span></button><button className="w-full text-left px-2.5 py-1 text-[10px] border-t flex items-center gap-1" style={{ borderColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)" }} onClick={() => onReserve(m.id)}><Archive size={9} />Reserve</button></div>))}</div>{allDone && (<div className="p-3 flex-shrink-0"><button onClick={onEndDeployment} className="w-full py-2 rounded-lg text-xs font-semibold" style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}>Begin Battle →</button></div>)}</div>);}
 
 type CombatStep =
   | "idle"
@@ -783,32 +653,7 @@ export default function WarhammerGameRoom() {
   const [actLog, setActLog] = useState<LogEntry[]>([
     { time: nowTime(), text: "Game room initialised. Waiting for armies…", player: "system" },
   ]);
-  const logRef = useRef<HTMLDivElement>(null);
-
-  // ── Map preset ──
-  const [mapPreset, setMapPreset] = useState<MapPreset>(DEFAULT_PRESET);
-
-  // ── Dice roller popup ──
-  const { request: diceRequest, showRoll, dismiss: dismissDice } = useDiceRoller();
-
-  // ── Stratagem panels ──
-  const [p1StratOpen, setP1StratOpen] = useState(false);
-  const [p2StratOpen, setP2StratOpen] = useState(false);
-
-  // ── Undo history ──
-  interface GameSnapshot {
-    markers: UnitMarker[];
-    p1Cp: number;
-    p2Cp: number;
-    p1Vp: number;
-    p2Vp: number;
-  }
-  const [history, setHistory] = useState<GameSnapshot[]>([]);
-  const [undoToast, setUndoToast] = useState(false);
-
-  // ── Faction rules ──
-  const [p1FactionRules, setP1FactionRules] = useState<FactionRule[]>([]);
-  const [p2FactionRules, setP2FactionRules] = useState<FactionRule[]>([]);
+  const logRef = useRef<HTMLDivElement>(null);t [p2FactionRules, setP2FactionRules] = useState<FactionRule[]>([]);
   const [p1FactionRulesOpen, setP1FactionRulesOpen] = useState(false);
   const [p2FactionRulesOpen, setP2FactionRulesOpen] = useState(false);
   // Oath of Moment target (Space Marines)
@@ -828,45 +673,26 @@ export default function WarhammerGameRoom() {
   const [p1SecondaryVp, setP1SecondaryVp] = useState(0);
   const [p2SecondaryVp, setP2SecondaryVp] = useState(0);
   const [tacticalMissionsOpen, setTacticalMissionsOpen] = useState(false);
-  // Track which card IDs in hand have been revealed
   const [p1Revealed, setP1Revealed] = useState<Set<string>>(new Set());
   const [p2Revealed, setP2Revealed] = useState<Set<string>>(new Set());
-  // Track units destroyed this turn/phase and units advanced this turn
   const [destroyedThisTurn, setDestroyedThisTurn] = useState<string[]>([]);
   const [destroyedThisPhase, setDestroyedThisPhase] = useState<string[]>([]);
   const [advancedThisTurn, setAdvancedThisTurn] = useState<string[]>([]);
-  // Objective control at turn start (for Storm Hostile Objective)
   const [objControlAtTurnStart, setObjControlAtTurnStart] = useState<("P1" | "P2" | null)[]>([]);
-
-  // ── Battle-shock ──
   const [battleShockPhase, setBattleShockPhase] = useState(false);
-
-  // ── Fight phase tracking ──
   const [foughtThisPhase, setFoughtThisPhase] = useState<Set<string>>(new Set());
   const [fightBackMode, setFightBackMode] = useState(false);
   const [fightPhaseStep, setFightPhaseStep] = useState<'active' | 'fightback'>('active');
-
-  // ── Per-phase action tracking (one action per unit per phase) ──
   const [movedThisTurn, setMovedThisTurn] = useState<string[]>([]);
   const [shotThisTurn, setShotThisTurn] = useState<string[]>([]);
   const [chargedThisTurn, setChargedThisTurn] = useState<string[]>([]);
   const [foughtThisTurn, setFoughtThisTurn] = useState<string[]>([]);
-
-  // ── Overwatch prompt ──
-  const [overwatchPrompt, setOverwatchPrompt] = useState<{
-    attackerId: string;
-    targetId: string;
-    chargeRoll: number;
-    needed: number;
-  } | null>(null);
-
-  // ── Redo history ──
-  const [future, setFuture] = useState<{ markers: UnitMarker[]; p1Cp: number; p2Cp: number; p1Vp: number; p2Vp: number }[]>([]);
-
-  // ── Measurement line toggle ──
+  const [overwatchPrompt, setOverwatchPrompt] = useState<{ attackerId: string; targetId: string; } | null>(null);
+  const [chargeMove, setChargeMove] = useState<{ unitId: string; targetId: string; maxDist: number; } | null>(null);
+  const [advanceRollResult, setAdvanceRollResult] = useState<number | null>(null);
+  const [stackedPicker, setStackedPicker] = useState<{ unitIds: string[] } | null>(null);
+  const [future, setFuture] = useState<GameSnapshot[]>([]);
   const [showMeasurementLine, setShowMeasurementLine] = useState(false);
-
-  // ── Reserves deployment ──
   const [reservesMode, setReservesMode] = useState<'idle' | 'place_normal' | 'place_deepstrike'>('idle');
   const [reservesUnitId, setReservesUnitId] = useState<string | null>(null);
 
@@ -878,7 +704,7 @@ export default function WarhammerGameRoom() {
   function pushHistory() {
     setFuture([]);
     setHistory((prev) => {
-      const snap = { markers, p1Cp, p2Cp, p1Vp, p2Vp };
+      const snap = { markers, p1Cp, p2Cp, p1Vp, p2Vp, movedThisTurn, shotThisTurn, chargedThisTurn, foughtThisTurn };
       return [...prev, snap].slice(-20);
     });
   }
@@ -886,13 +712,20 @@ export default function WarhammerGameRoom() {
   function undoAction() {
     if (history.length === 0) return;
     const last = history[history.length - 1];
-    setFuture((f) => [...f, { markers, p1Cp, p2Cp, p1Vp, p2Vp }]);
+    setFuture((f) => [...f, { markers, p1Cp, p2Cp, p1Vp, p2Vp, movedThisTurn, shotThisTurn, chargedThisTurn, foughtThisTurn }]);
     setHistory((prev) => prev.slice(0, -1));
     setMarkers(last.markers);
     setP1Cp(last.p1Cp);
     setP2Cp(last.p2Cp);
     setP1Vp(last.p1Vp);
     setP2Vp(last.p2Vp);
+    setMovedThisTurn(last.movedThisTurn);
+    setShotThisTurn(last.shotThisTurn);
+    setChargedThisTurn(last.chargedThisTurn);
+    setFoughtThisTurn(last.foughtThisTurn);
+    setCombat(INIT_COMBAT);
+    setMoveUnit(null);
+    setChargeMove(null);
     setUndoToast(true);
     setTimeout(() => setUndoToast(false), 2000);
     addLog("↩ Action undone.", "system");
@@ -901,13 +734,17 @@ export default function WarhammerGameRoom() {
   function redoAction() {
     if (future.length === 0) return;
     const next = future[future.length - 1];
-    setHistory((h) => [...h, { markers, p1Cp, p2Cp, p1Vp, p2Vp }].slice(-20));
+    setHistory((h) => [...h, { markers, p1Cp, p2Cp, p1Vp, p2Vp, movedThisTurn, shotThisTurn, chargedThisTurn, foughtThisTurn }].slice(-20));
     setFuture((f) => f.slice(0, -1));
     setMarkers(next.markers);
     setP1Cp(next.p1Cp);
     setP2Cp(next.p2Cp);
     setP1Vp(next.p1Vp);
     setP2Vp(next.p2Vp);
+    setMovedThisTurn(next.movedThisTurn);
+    setShotThisTurn next.shotThisTurn);
+    setChargedThisTurn(next.chargedThisTurn);
+    setFoughtThisTurn(next.foughtThisTurn);
     addLog("↪ Action redone.", "system");
   }
 
@@ -915,43 +752,7 @@ export default function WarhammerGameRoom() {
     setFightBackMode(false);
     setCombat(INIT_COMBAT);
     setSelectedMarkerId(null);
-  }
-
-  // ── Load game from Supabase ──
-  useEffect(() => {
-    if (!id) return;
-    const supabase = createClient();
-
-    async function loadGame() {
-      const { data: game, error } = await supabase
-        .from("warhammer_games")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (error || !game) {
-        setGameName("Game not found");
-        setRoomPhase("loading");
-        return;
-      }
-
-      setGameName(game.name ?? "Battle");
-      const mode = game.game_mode === "solo" ? "solo" : "2player";
-      setGameMode(mode);
-
-      const savedState = game.game_state as Record<string, unknown> | null;
-      if (savedState) {
-        if (typeof savedState.round === "number") setRound(savedState.round);
-        if (typeof savedState.p1Cp === "number") setP1Cp(savedState.p1Cp);
-        if (typeof savedState.p2Cp === "number") setP2Cp(savedState.p2Cp);
-        if (typeof savedState.p1Vp === "number") setP1Vp(savedState.p1Vp);
-        if (typeof savedState.p2Vp === "number") setP2Vp(savedState.p2Vp);
-        if (savedState.rolloffResults) {
-          setRolloffResults(savedState.rolloffResults as RolloffResult);
-        }
-        if (savedState.activePlayer) setActivePlayer(savedState.activePlayer as "P1" | "P2");
-        if (savedState.gamePhase) {
-          // "morale" removed in 10th ed refactor — treat as "fight" for old saves
+  }ight" for old saves
           const saved = savedState.gamePhase as string;
           setGamePhase((saved === "morale" ? "fight" : saved) as GamePhase);
         }
@@ -985,7 +786,7 @@ export default function WarhammerGameRoom() {
         const a2 = (armies ?? []).find((a: ArmyRow) => a.id === game.player2_army_id);
 
         if (a1) {
-          setP1ArmyName(`P1 · ${a1.faction}`);
+          setP1AamyName(`P1 · ${a1.faction}`);
           const p1Markers = buildMarkers(a1 as ArmyRow, "P1");
           armyMarkers.push(...p1Markers);
           setP1FactionRules(getFactionRules(a1.faction));
@@ -1196,7 +997,7 @@ export default function WarhammerGameRoom() {
     setActivePlayer(firstPlayer);
     setRoomPhase("game");
     setGamePhase("command");
-    persistState({ current_phase: "command", game_state: { markers, round: 1, gamePhase: "command", activePlayer: firstPlayer, p1Cp, p2Cp, p1Vp, p2Vp } });
+    persistState({ current_phase: "command", game_state: { markers, round: 1, gamePhase: "command", activePlayer: firstPlayer, p1Cp: 0, p2Cp: 0, p1Vp, p2Vp } });
     addLog(`Deployment complete. ${firstPlayer} goes first. Round 1 — Command Phase.`, "system");
     giveCommandPhaseCP(firstPlayer, markers);
     // Draw starting tactical mission for first player
@@ -1367,7 +1168,7 @@ export default function WarhammerGameRoom() {
       const shocked = total < ldNum;
 
       addLog(
-        `Battle-shock: ${m.unitName} below half-strength (${m.currentWounds}/${m.maxWounds}W) — 2D6 (${r1}+${r2}=${total}) vs Ld${ldNum}+ → ${shocked ? "SHOCKED!" : "holds."}`,
+        `Battle-shock: ${m.unitName} below half-strength (${m.currentWounds}/${m.maxWounds}[) — 2D6 (${r1}+${r2}=${total}) vs Ld${ldNum}+ → ${shocked ? "SHOCKED!" : "holds."}`,
         player
       );
 
@@ -1692,7 +1493,8 @@ export default function WarhammerGameRoom() {
       const marker = markers.find((m) => m.id === moveUnit);
       if (!marker) return;
       const moveIn = parseStat(marker.stats.movement);
-      const maxRange = moveAdvance ? moveIn + d6() : moveIn;
+      // advanceRollResult is locked when "Advance" is checked; never re-roll on each cell click
+      const maxRange = moveAdvance ? moveIn + (advanceRollResult ?? 0) : moveIn;
       const dist = Math.sqrt((x - marker.x) ** 2 + (y - marker.y) ** 2);
       if (dist > maxRange) {
         addLog(`Too far (${dist.toFixed(1)}" vs max ${maxRange}").`, "system");
@@ -1721,6 +1523,44 @@ export default function WarhammerGameRoom() {
       addLog(`${marker.player} moved ${marker.unitName} to (${x}, ${y})${moveAdvance ? " (Advanced)" : ""}.`, marker.player);
       setMoveUnit(null);
       setMoveAdvance(false);
+      setAdvanceRollResult(null);
+    }
+
+    // ── Charge move placement (after successful 2D6 roll, player clicks destination) ──
+    if (gamePhase === "charge" && chargeMove) {
+      const attacker = markers.find((m) => m.id === chargeMove.unitId);
+      const target = markers.find((m) => m.id === chargeMove.targetId);
+      if (!attacker || !target) return;
+
+      const dist = Math.sqrt((x - attacker.x) ** 2 + (y - attacker.y) ** 2);
+      if (dist > chargeMove.maxDist) {
+        addLog(`Too far — ${dist.toFixed(1)}" exceeds charge roll of ${chargeMove.maxDist}".`, "system");
+        return;
+      }
+      const distToTarget = Math.sqrt((x - target.x) ** 2 + (y - target.y) ** 2);
+      if (distToTarget > 2) {
+        addLog(`Charge move must end within engagement range (1") of ${target.unitName}.`, "system");
+        return;
+      }
+      if (x === attacker.x && y === attacker.y) return; // no-op
+
+      pushHistory();
+      const charId = attacker.attachedCharacterId;
+      const dx = x - attacker.x;
+      const dy = y - attacker.y;
+      setMarkers((prev) =>
+        prev.map((m) => {
+          if (m.id === chargeMove.unitId) return { ...m, x, y, hasCharged: true };
+          if (charId && m.id === charId) return { ...m, x: Math.max(0, Math.min(59, m.x + dx)), y: Math.max(0, Math.min(43, m.y + dy)) };
+          return m;
+        })
+      );
+      addLog(`Charge succeeds! ${attacker.unitName} moves to (${x}, ${y}) — adjacent to ${target.unitName}.`, attacker.player);
+      setChargedThisTurn((prev) => [...prev, chargeMove.unitId]);
+      setChargeMove(null);
+      setCombat(INIT_COMBAT);
+      setSelectedMarkerId(null);
+      return;
     }
   }
 
@@ -1728,6 +1568,21 @@ export default function WarhammerGameRoom() {
   function handleUnitClick(markerId: string) {
     const m = markers.find((mk) => mk.id === markerId);
     if (!m) return;
+
+    // If a stacked-picker is already open and the user clicked one of its listed units, proceed normally
+    if (stackedPicker) {
+      setStackedPicker(null);
+      // Fall through to normal handling with the chosen markerId
+    } else {
+      // Detect other non-destroyed, non-reserve units sharing the same cell
+      const sameCell = markers.filter(
+        (mk) => mk.id !== markerId && !mk.isDestroyed && !mk.isInReserve && mk.x === m.x && mk.y === m.y
+      );
+      if (sameCell.length > 0) {
+        setStackedPicker({ unitIds: [markerId, ...sameCell.map((mk) => mk.id)] });
+        return; // show picker first; user will click their choice
+      }
+    }
 
     if (roomPhase === "game") {
       if (gamePhase === "movement") {
@@ -1902,7 +1757,7 @@ export default function WarhammerGameRoom() {
 
   function resolveSaveRolls() {
     const attacker = markers.find((m) => m.id === combat.attackerId);
-    const target = markers.find((m) => m.id === combat.targetId);
+    const target = markers.find((m) == m.id === combat.targetId);
     if (!attacker || !target || combat.weaponIdx === null) return;
     const weapon = attacker.weapons[combat.weaponIdx];
     const ap = parseAP(weapon.ap);
@@ -1921,9 +1776,16 @@ export default function WarhammerGameRoom() {
 
     const rolls = rollDice(combat.wounds);
     const unsaved = rolls.filter((r) => r < coverSave).length;
-    const dmgPer = parseDiceExpr(weapon.damage);
-    const totalDmg = unsaved * dmgPer;
-    addLog(`Saves: ${coverSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
+    // Roll damage separately per unsaved wound (correct for variable damage like D3/D6)
+    let totalDmg = 0;
+    const dmgRolls: number[] = [];
+    for (let i = 0; i < unsaved; i++) {
+      const dmg = parseDiceExpr(weapon.damage);
+      dmgRolls.push(dmg);
+      totalDmg += dmg;
+    }
+    const dmgNote = dmgRolls.length > 1 ? ` [${dmgRolls.join("+")}]` : "";
+    addLog(`Saves: ${coverSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage${dmgNote}.`, target.player);
     showRoll({ rolls, type: "save", threshold: coverSave, label: `Save Rolls (${coverSave}+)` });
 
     // Damage cascade: apply damage across models, killing models as wounds hit 0
@@ -1988,30 +1850,20 @@ export default function WarhammerGameRoom() {
     const target = markers.find((m) => m.id === targetId);
     if (!attacker || !target) return;
 
-    pushHistory();
     const dist = Math.sqrt((attacker.x - target.x) ** 2 + (attacker.y - target.y) ** 2);
-    const roll1 = d6();
-    const roll2 = d6();
-    const total = roll1 + roll2;
-    const needed = Math.ceil(dist);
-    showRoll({ rolls: [roll1, roll2], type: "charge", threshold: needed, label: `Charge Roll (need ${needed}+)` });
-    addLog(
-      `Charge: ${attacker.unitName} → ${target.unitName} (dist ${dist.toFixed(1)}"). Rolled ${roll1}+${roll2}=${total}.`,
-      attacker.player
-    );
 
-    if (total >= needed) {
-      // Prompt for Overwatch before completing the charge move
-      setOverwatchPrompt({ attackerId, targetId, chargeRoll: total, needed });
-      addLog(`Charge roll ${total} succeeds (needed ${needed}). Overwatch opportunity for ${target.unitName}...`, target.player);
+    // 10th ed: charge declaration requires target within 12"
+    if (dist > 12) {
+      addLog(`Cannot charge ${target.unitName} — target is ${dist.toFixed(1)}" away (charges require 12" or less).`, attacker.player);
+      setCombat(INIT_COMBAT);
+      setSelectedMarkerId(null);
       return;
     }
 
-    // Failed charge: unit stays put
-    addLog(`Charge fails! ${attacker.unitName} stays in place (rolled ${total}, needed ${needed}).`, attacker.player);
-    setChargedThisTurn((prev) => [...prev, attackerId]);
-    setCombat(INIT_COMBAT);
-    setSelectedMarkerId(null);
+    pushHistory();
+    addLog(`${attacker.unitName} declares a charge against ${target.unitName} (${dist.toFixed(1)}" away).`, attacker.player);
+    // Offer Overwatch to the defender BEFORE rolling 2D6 (10th ed rule order)
+    setOverwatchPrompt({ attackerId, targetId });
   }
 
   function confirmOverwatch(spendCp: boolean) {
@@ -2037,26 +1889,32 @@ export default function WarhammerGameRoom() {
       addLog(`${target.unitName} does not fire Overwatch.`, "system");
     }
 
-    // Complete the charge move
-    const dx = target.x - attacker.x;
-    const dy = target.y - attacker.y;
-    const newX = target.x - Math.sign(dx);
-    const newY = target.y - Math.sign(dy);
-    const charDx = newX - attacker.x;
-    const charDy = newY - attacker.y;
-    const charId = attacker.attachedCharacterId;
-    setMarkers((prev) =>
-      prev.map((m) => {
-        if (m.id === attackerId) return { ...m, x: newX, y: newY, hasCharged: true };
-        if (charId && m.id === charId) return { ...m, x: m.x + charDx, y: m.y + charDy };
-        return m;
-      })
+    // Now roll the charge (after Overwatch decision)
+    const dist = Math.sqrt((attacker.x - target.x) ** 2 + (attacker.y - target.y) ** 2);
+    const roll1 = d6();
+    const roll2 = d6();
+    const total = roll1 + roll2;
+    const needed = Math.ceil(dist);
+    showRoll({ rolls: [roll1, roll2], type: "charge", threshold: needed, label: `Charge Roll (need ${needed}+)` });
+    addLog(
+      `Charge roll: ${attacker.unitName} → ${target.unitName} (${dist.toFixed(1)}"). Rolled ${roll1}+${roll2}=${total} (need ${needed}+).`,
+      attacker.player
     );
-    addLog(`Charge succeeds! ${attacker.unitName} moves adjacent to ${target.unitName}.`, attacker.player);
-    setChargedThisTurn((prev) => [...prev, attackerId]);
+
     setOverwatchPrompt(null);
-    setCombat(INIT_COMBAT);
-    setSelectedMarkerId(null);
+
+    if (total >= needed) {
+      // Charge succeeds — player manually positions the charger (click on board)
+      addLog(`Charge roll ${total} ≥ ${needed}. Click a cell within ${total}" to place ${attacker.unitName} in base contact with ${target.unitName}.`, attacker.player);
+      setChargeMove({ unitId: attackerId, targetId, maxDist: total });
+      // Keep combat state so the charger stays highlighted
+      setCombat((prev) => ({ ...prev, step: "idle" }));
+    } else {
+      addLog(`Charge fails! ${attacker.unitName} stays in place (rolled ${total}, needed ${needed}).`, attacker.player);
+      setChargedThisTurn((prev) => [...prev, attackerId]);
+      setCombat(INIT_COMBAT);
+      setSelectedMarkerId(null);
+    }
   }
 
   // ── Fight ──
@@ -2188,14 +2046,16 @@ export default function WarhammerGameRoom() {
           label: `${moveIn}"`,
         });
         if (mu.hasAdvanced || moveAdvance) {
+          // Show the actual locked advance roll result, not a guess of +6
+          const advBonus = advanceRollResult ?? 6;
           rangeIndicators.push({
             centreX: mu.x + 0.5,
             centreY: mu.y + 0.5,
-            radiusInches: moveIn + 6,
+            radiusInches: moveIn + advBonus,
             colour: "#f97316",
             opacity: 0.05,
             strokeOpacity: 0.35,
-            label: `Adv max ${moveIn + 6}"`,
+            label: `Adv max ${moveIn + advBonus}"`,
           });
         }
       }
@@ -2229,6 +2089,22 @@ export default function WarhammerGameRoom() {
         strokeOpacity: 0.4,
         label: "12\" charge",
       });
+    }
+
+    // Range ring showing how far the charger can place after a successful roll
+    if (chargeMove) {
+      const charger = markers.find((m) => m.id === chargeMove.unitId);
+      if (charger) {
+        rangeIndicators.push({
+          centreX: charger.x + 0.5,
+          centreY: charger.y + 0.5,
+          radiusInches: chargeMove.maxDist,
+          colour: "#4ade80",
+          opacity: 0.08,
+          strokeOpacity: 0.45,
+          label: `Move ≤${chargeMove.maxDist}"`,
+        });
+      }
     }
   }
 
@@ -2298,10 +2174,25 @@ export default function WarhammerGameRoom() {
                     <input
                       type="checkbox"
                       checked={moveAdvance}
-                      onChange={(e) => setMoveAdvance(e.target.checked)}
+                      onChange={(e) => {
+                        const isAdv = e.target.checked;
+                        setMoveAdvance(isAdv);
+                        if (isAdv) {
+                          const roll = d6();
+                          setAdvanceRollResult(roll);
+                          const unit = markers.find((m) => m.id === moveUnit);
+                          const mv = unit ? parseStat(unit.stats.movement) : 0;
+                          addLog(`Advance D6 roll: ${roll} — max move ${mv + roll}".`, "system");
+                        } else {
+                          setAdvanceRollResult(null);
+                        }
+                      }}
                       className="rounded"
                     />
                     Advance (+D6" but can&apos;t shoot)
+                    {moveAdvance && advanceRollResult !== null && (
+                      <span className="font-bold ml-1" style={{ color: "#f97316" }}>+{advanceRollResult}</span>
+                    )}
                   </label>
                   <button
                     onClick={() => { setMoveUnit(null); setMoveAdvance(false); setSelectedMarkerId(null); }}
@@ -2474,28 +2365,49 @@ export default function WarhammerGameRoom() {
     }
 
     if (gamePhase === "charge") {
+      const chargeMoveAttacker = chargeMove ? markers.find((m) => m.id === chargeMove.unitId) : null;
+      const chargeMoveTarget = chargeMove ? markers.find((m) => m.id === chargeMove.targetId) : null;
       return (
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
             Charge Phase
           </p>
-          {combat.step === "idle" && (
+          {chargeMove && chargeMoveAttacker && chargeMoveTarget && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold" style={{ color: "#4ade80" }}>
+                ⚔️ Charge move — max {chargeMove.maxDist}"
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Click a cell within {chargeMove.maxDist}" to place {chargeMoveAttacker.unitName} in base contact with {chargeMoveTarget.unitName}.
+              </p>
+              <button
+                onClick={() => { setChargeMove(null); setCombat(INIT_COMBAT); setSelectedMarkerId(null); addLog("Charge move cancelled.", "system"); }}
+                className="w-full py-1.5 rounded-lg text-xs"
+                style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                Cancel Charge Move
+              </button>
+            </div>
+          )}
+          {!chargeMove && combat.step === "idle" && (
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Click a friendly unit to declare a charge. Then click the target.
+              Click a friendly unit to declare a charge. Then click the target (must be within 12").
             </p>
           )}
-          {combat.step === "selectTarget" && combatAttacker && (
+          {!chargeMove && combat.step === "selectTarget" && combatAttacker && (
             <p className="text-xs" style={{ color: "#d97706" }}>
-              {combatAttacker.unitName} charging — click enemy target.
+              {combatAttacker.unitName} charging — click enemy target within 12".
             </p>
           )}
-          <button
-            onClick={advancePhase}
-            className="w-full py-2 rounded-lg text-xs font-semibold mt-2"
-            style={{ backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.35)" }}
-          >
-            End Charge Phase →
-          </button>
+          {!chargeMove && (
+            <button
+              onClick={advancePhase}
+              className="w-full py-2 rounded-lg text-xs font-semibold mt-2"
+              style={{ backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.35)" }}
+            >
+              End Charge Phase →
+            </button>
+          )}
         </div>
       );
     }
@@ -3222,7 +3134,7 @@ export default function WarhammerGameRoom() {
                     className="w-full text-left px-2 py-1.5 rounded-lg mb-1 text-xs"
                     style={{
                       backgroundColor:
-                        selectedMarkerId === m.id
+                                 selectedMarkerId === m.id
                           ? m.player === "P1"
                             ? "rgba(220,38,38,0.15)"
                             : "rgba(37,99,235,0.15)"
@@ -3300,7 +3212,19 @@ export default function WarhammerGameRoom() {
               />
             );
           })()}
-          <DiceRollerPopup request={diceRequest} onDismiss={dismissDice} />
+          <DiceRollerPopup
+            request={diceRequest}
+            onDismiss={dismissDice}
+            onReroll={() => {
+              const activeCp = activePlayer === "P1" ? p1Cp : p2Cp;
+              if (activeCp < 1) { addLog("No CP available for Command Re-roll.", "system"); return; }
+              if (activePlayer === "P1") setP1Cp((n) => n - 1);
+              else setP2Cp((n) => n - 1);
+              addLog(`${activePlayer} spends 1 CP — Command Re-roll!`, activePlayer);
+              rerollDice();
+            }}
+            rerollCp={activePlayer === "P1" ? p1Cp : p2Cp}
+          />
         </div>
 
         {/* ── RIGHT PANEL ── */}
@@ -3494,9 +3418,9 @@ export default function WarhammerGameRoom() {
         return (
           <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: "rgba(0,0,0,0.72)" }}>
             <div className="rounded-xl p-6 space-y-4 max-w-xs w-full mx-4" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-card)" }}>
-              <p className="font-cinzel font-bold text-base" style={{ color: "var(--text-primary)" }}>Overwatch Opportunity</p>
+              <p className="font-cinzel font-bold text-base" style={{ color: "var(--text-primary)" }}>Overwatch?</p>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {defender?.unitName} can fire Overwatch (1 CP). {defender?.player} has {defCp} CP.
+                {defender?.unitName} is being charged. Spend 1 CP to fire Overwatch (hits on 6s) before the charge roll? {defender?.player} has {defCp} CP.
               </p>
               <div className="flex gap-3">
                 <button
@@ -3518,6 +3442,37 @@ export default function WarhammerGameRoom() {
           </div>
         );
       })()}
+
+      {/* ── Stacked unit picker ── */}
+      {stackedPicker && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+          onClick={() => setStackedPicker(null)}>
+          <div className="rounded-xl p-4 space-y-2 max-w-xs w-full mx-4" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-card)" }}
+            onClick={(e) => e.stopPropagation()}>
+            <p className="font-cinzel font-bold text-sm" style={{ color: "var(--text-primary)" }}>Select Unit</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Multiple units are stacked here — choose one:</p>
+            {stackedPicker.unitIds.map((uid) => {
+              const u = markers.find((m) => m.id === uid);
+              if (!u) return null;
+              return (
+                <button
+                  key={uid}
+                  onClick={() => { setStackedPicker(null); handleUnitClick(uid); }}
+                  className="w-full py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2"
+                  style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-primary)", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: u.player === "P1" ? "#3b82f6" : "#ef4444" }} />
+                  <span className="font-semibold">{u.unitName}</span>
+                  <span className="ml-auto" style={{ color: "var(--text-muted)" }}>{u.player}</span>
+                </button>
+              );
+            })}
+            <button onClick={() => setStackedPicker(null)} className="w-full py-1.5 rounded-lg text-xs" style={{ color: "var(--text-muted)" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Undo toast ── */}
       {undoToast && (
