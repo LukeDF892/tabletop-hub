@@ -71,6 +71,16 @@ export const FACTION_RULES: FactionRule[] = [
       "destroyed model. On a 5+, that model is returned (restore 1 wound to the unit's wound counter, up to max).",
     trigger: "end_of_phase",
   },
+  {
+    id: "nec-awakened-dynasty",
+    name: "Awakened Dynasty",
+    faction: "Necrons",
+    description:
+      "At the start of your Command Phase, activate one of two Dynastic Protocols for this turn: " +
+      '"Protocol of the Eternal Guardian" — friendly Necron units gain +1 to save rolls this turn; or ' +
+      '"Protocol of the Conquering Tyrant" — friendly Necron units gain +1 to hit rolls this turn.',
+    trigger: "command_phase",
+  },
 ];
 
 // Helper — get all rules for a given faction name

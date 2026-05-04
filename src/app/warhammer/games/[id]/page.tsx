@@ -47,6 +47,84 @@ import {
 
 const BOARD_H_CONST = 44; // board height in inches
 
+// ─── Stratagem definitions ─────────────────────────────────────────────────────
+
+interface StratagemDef {
+  name: string;
+  cost: number;
+  phase: string;
+  description: string;
+  effect: string;
+  requiresUnit: boolean;
+  requiresTarget: boolean;
+  reactive: boolean;
+  unitFilter?: (m: UnitMarker, ap: "P1" | "P2") => boolean;
+  factionFilter?: string[];
+}
+
+const STRATAGEMS: StratagemDef[] = [
+  {
+    name: "Counter-Offensive",
+    cost: 2,
+    phase: "Fight",
+    description: "Use after one of your units has fought. Select another eligible unit — it can fight again immediately.",
+    effect: "counter_offensive",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "Rapid Ingress",
+    cost: 1,
+    phase: "Movement",
+    description: "Select a unit in Strategic Reserves. It arrives immediately — place it more than 9\" from all enemy models.",
+    effect: "rapid_ingress",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    unitFilter: (m, ap) => m.player === ap && !!m.isInReserve && !m.isDestroyed,
+  },
+  {
+    name: "Armour of Contempt",
+    cost: 1,
+    phase: "Any",
+    description: "REACTIVE: When an ADEPTUS ASTARTES unit loses wounds, roll a D6 for each wound lost — on a 6, that wound is ignored.",
+    effect: "armour_of_contempt",
+    requiresUnit: false,
+    requiresTarget: false,
+    reactive: true,
+    factionFilter: ["Space Marines", "Dark Angels"],
+  },
+  {
+    name: "Insane Bravery",
+    cost: 2,
+    phase: "Any",
+    description: "REACTIVE: Select one of your units that is about to take a Battle-shock test — it automatically passes.",
+    effect: "insane_bravery",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: true,
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve && !!m.belowHalfStrength,
+  },
+  {
+    name: "Grenade",
+    cost: 1,
+    phase: "Shooting",
+    description: "Select one of your INFANTRY units that has not shot this turn. It throws a grenade at a visible enemy unit within 8\". Roll: D3 shots, S4, AP0, D1.",
+    effect: "grenade",
+    requiresUnit: true,
+    requiresTarget: true,
+    reactive: false,
+    unitFilter: (m, ap) =>
+      m.player === ap &&
+      !m.isDestroyed &&
+      !m.isInReserve &&
+      !m.isAttached &&
+      (m.keywords ?? []).some((k) => k.toUpperCase().includes("INFANTRY")),
+  },
+];
+
 const ALL_FACTIONS = [
   SPACE_MARINES_FACTION,
   DARK_ANGELS_FACTION,
@@ -802,6 +880,30 @@ export default function WarhammerGameRoom() {
   const [p1StratOpen, setP1StratOpen] = useState(false);
   const [p2StratOpen, setP2StratOpen] = useState(false);
 
+  // ── Interactive stratagem state ──
+  const [activeStratagem, setActiveStratagem] = useState<{
+    name: string;
+    phase: string;
+    description: string;
+    step: "select_unit" | "select_target" | "active" | null;
+    unitId: string | null;
+    targetId: string | null;
+    effect: string;
+    player: "P1" | "P2";
+  } | null>(null);
+
+  // ── Necron Awakened Dynasty protocol ──
+  const [necronProtocol, setNecronProtocol] = useState<string | null>(null);
+  const [showNecronProtocolPicker, setShowNecronProtocolPicker] = useState(false);
+
+  // ── Command ability used tracking ──
+  const [commandAbilityUsed, setCommandAbilityUsed] = useState(false);
+
+  // ── Battle-shock interactive ──
+  const [battleShockQueue, setBattleShockQueue] = useState<string[]>([]);
+  const [battleShockTested, setBattleShockTested] = useState<Set<string>>(new Set());
+  const [battleShockResults, setBattleShockResults] = useState<Record<string, boolean>>({});
+
   // ── Undo history ──
   interface GameSnapshot {
     markers: UnitMarker[];
@@ -1474,6 +1576,48 @@ export default function WarhammerGameRoom() {
     }
   }
 
+  // Called after all battle-shock tests complete — finishes what advancePhase was doing
+  function finishAfterBattleShock(afterShock: UnitMarker[]) {
+    // Score objectives for the player who just finished their turn
+    scoreObjectivesForPlayer(activePlayer, afterShock);
+
+    // Reanimation Protocols for Necrons
+    const activeRules = activePlayer === "P1" ? p1FactionRules : p2FactionRules;
+    if (activeRules.some((r) => r.id === "nec-reanimation-protocols")) {
+      resolveReanimation(activePlayer, afterShock);
+    }
+
+    if (activePlayer === "P1") {
+      const newPlayer: "P1" | "P2" = "P2";
+      setActivePlayer(newPlayer);
+      setGamePhase("command");
+      setDestroyedThisTurn([]);
+      setDestroyedThisPhase([]);
+      setAdvancedThisTurn([]);
+      setNecronProtocol(null);
+      setSynapticImperative(null);
+      setOathTarget(null);
+      setCommandAbilityUsed(false);
+      setMarkers((prev) =>
+        prev.map((m) =>
+          m.player === "P2"
+            ? { ...m, hasAdvanced: false, hasCharged: false, hasFought: false, hasShotThisTurn: false }
+            : m
+        )
+      );
+      if (gameMode === "solo") setSoloSide("P2");
+      addLog(`P1's turn complete. Round ${round} — Player 2's Turn: Command Phase.`, "system");
+      giveCommandPhaseCP("P2", afterShock);
+      if (p2Hand.length < 3) drawMission("P2");
+    } else {
+      setGamePhase("scoring");
+      setDestroyedThisTurn([]);
+      setDestroyedThisPhase([]);
+      setAdvancedThisTurn([]);
+      addLog(`P2's turn complete. End of Round ${round} — click "End Round" to continue.`, "system");
+    }
+  }
+
   // 10th ed phase sequence per player: command → movement → shooting → charge → fight
   // After P1's fight: score P1's objectives → P2's command phase
   // After P2's fight: score P2's objectives → end-of-round scoring phase
@@ -1494,45 +1638,41 @@ export default function WarhammerGameRoom() {
     if (gamePhase === "charge") setChargedThisTurn([]);
 
     if (gamePhase === "fight") {
-      // Run Battle-shock at end of fight phase
+      // Check which units need battle-shock tests
+      const friendlyActive = markers.filter(
+        (m) => m.player === activePlayer && !m.isDestroyed && !m.isInReserve && !m.isAttached
+          && m.currentWounds < m.maxWounds / 2
+      );
+      const needsTest = friendlyActive.filter((m) => {
+        const isDA = m.faction?.toLowerCase().includes("dark angels");
+        if (isDA) {
+          const nearDA = markers.some((ally) =>
+            ally.id !== m.id && ally.player === activePlayer && !ally.isDestroyed && !ally.isInReserve
+            && ally.faction?.toLowerCase().includes("dark angels")
+            && Math.sqrt((ally.x - m.x) ** 2 + (ally.y - m.y) ** 2) <= 6
+          );
+          if (nearDA) return false;
+        }
+        const engaged = markers.some(
+          (em) => em.player !== activePlayer && !em.isDestroyed && !em.isInReserve
+            && Math.sqrt((em.x - m.x) ** 2 + (em.y - m.y) ** 2) <= 1
+        );
+        return !engaged;
+      });
+
+      if (needsTest.length > 0) {
+        // Interactive battle-shock — show modal
+        setBattleShockPhase(true);
+        setBattleShockQueue(needsTest.map((m) => m.id));
+        setBattleShockTested(new Set());
+        setBattleShockResults({});
+        return; // finishAfterBattleShock called when all tests done
+      }
+
+      // No tests needed — run silently
       const afterShock = resolveBattleShock(activePlayer, markers);
       setMarkers(afterShock);
-
-      // Score objectives for the player who just finished their turn (using post-shock markers for OC)
-      scoreObjectivesForPlayer(activePlayer, afterShock);
-
-      // Reanimation Protocols for Necrons
-      const activeRules = activePlayer === "P1" ? p1FactionRules : p2FactionRules;
-      if (activeRules.some((r) => r.id === "nec-reanimation-protocols")) {
-        resolveReanimation(activePlayer, afterShock);
-      }
-
-      if (activePlayer === "P1") {
-        const newPlayer: "P1" | "P2" = "P2";
-        setActivePlayer(newPlayer);
-        setGamePhase("command");
-        setDestroyedThisTurn([]);
-        setDestroyedThisPhase([]);
-        setAdvancedThisTurn([]);
-        setMarkers((prev) =>
-          prev.map((m) =>
-            m.player === "P2"
-              ? { ...m, hasAdvanced: false, hasCharged: false, hasFought: false, hasShotThisTurn: false }
-              : m
-          )
-        );
-        if (gameMode === "solo") setSoloSide("P2");
-        addLog(`P1's turn complete. Round ${round} — Player 2's Turn: Command Phase.`, "system");
-        giveCommandPhaseCP("P2", markers);
-        // Draw tactical mission for P2 if hand < 3
-        if (p2Hand.length < 3) drawMission("P2");
-      } else {
-        setGamePhase("scoring");
-        setDestroyedThisTurn([]);
-        setDestroyedThisPhase([]);
-        setAdvancedThisTurn([]);
-        addLog(`P2's turn complete. End of Round ${round} — click "End Round" to continue.`, "system");
-      }
+      finishAfterBattleShock(afterShock);
       return;
     }
 
@@ -1804,6 +1944,7 @@ export default function WarhammerGameRoom() {
   function handleUnitClick(markerId: string) {
     const m = markers.find((mk) => mk.id === markerId);
     if (!m) return;
+    if (m.isInReserve) return; // in-reserve units are not interactive during normal gameplay
 
     // If a stacked-picker is already open and the user clicked one of its listed units, proceed normally
     if (stackedPicker) {
@@ -1959,11 +2100,26 @@ export default function WarhammerGameRoom() {
     const weapon = attacker.weapons[combat.weaponIdx];
     const attacksPerModel = parseDiceExpr(weapon.attacks);
     const numAttacks = attacksPerModel * (attacker.modelCount ?? 1);
-    const skillTarget = parseSkill(weapon.skill);
-    const rolls = rollDice(numAttacks);
+    const isNecron = attacker.faction?.toLowerCase().includes("necron");
+    const isSM = attacker.faction?.toLowerCase().includes("space marine") || attacker.faction?.toLowerCase().includes("dark angel");
+    // +1 to hit from Necron Conquering Tyrant protocol (active player's units only)
+    const necronHitBonus = isNecron && necronProtocol === "Protocol of the Conquering Tyrant" && attacker.player === activePlayer;
+    const rawSkill = parseSkill(weapon.skill);
+    const skillTarget = necronHitBonus ? Math.max(2, rawSkill - 1) : rawSkill;
+
+    let rolls = rollDice(numAttacks);
+
+    // Oath of Moment: re-roll 1s against the oath target
+    const isAgainstOathTarget = combat.targetId === oathTarget;
+    if (isSM && isAgainstOathTarget && oathTarget) {
+      rolls = rolls.map((r) => (r === 1 ? d6() : r));
+      addLog(`Oath of Moment: re-rolling 1s against ${markers.find((m) => m.id === oathTarget)?.unitName ?? "oath target"}.`, attacker.player);
+    }
+
     const hits = rolls.filter((r) => r >= skillTarget).length;
     const modelNote = (attacker.modelCount ?? 1) > 1 ? ` (${attacker.modelCount} models × ${attacksPerModel})` : "";
-    addLog(`${gamePhase === "fight" ? "Fight" : "Shooting"}: ${numAttacks} attack(s)${modelNote} → ${rolls.join(", ")} → ${hits} hit(s) (needing ${skillTarget}+).`, attacker.player);
+    const bonusNote = necronHitBonus ? ` [Conquering Tyrant +1]` : "";
+    addLog(`${gamePhase === "fight" ? "Fight" : "Shooting"}: ${numAttacks} attack(s)${modelNote} → ${rolls.join(", ")} → ${hits} hit(s) (needing ${skillTarget}+${bonusNote}).`, attacker.player);
     showRoll({ rolls, type: "hit", threshold: skillTarget, label: `Hit Rolls (${skillTarget}+)` });
     setCombat((prev) => ({ ...prev, hitRolls: rolls, hits, step: "woundRolls" }));
     pushHistory();
@@ -2010,12 +2166,25 @@ export default function WarhammerGameRoom() {
       addLog(`Cover: ${target.unitName} is in ruins — save improved to ${coverSave}+.`, "system");
     }
 
+    // Necron Eternal Guardian protocol: +1 to save rolls (defender's faction, active player's turn)
+    const isNecronTarget = target.faction?.toLowerCase().includes("necron");
+    const necronSaveBonus = isNecronTarget && necronProtocol === "Protocol of the Eternal Guardian" && target.player === activePlayer;
+    const finalSave = necronSaveBonus ? Math.max(2, coverSave - 1) : coverSave;
+
+    // Tyranid Lurk and Feed: +1 to save near objectives (simplified: any tyranid within range)
+    const isTyranidTarget = target.faction?.toLowerCase().includes("tyranid");
+    const tyranidSaveBonus = isTyranidTarget && synapticImperative === "Lurk and Feed" && target.player === activePlayer
+      ? mapPreset.objectives.some((obj) => Math.sqrt((target.x + 0.5 - obj.x) ** 2 + (target.y + 0.5 - obj.y) ** 2) <= 6)
+      : false;
+    const effectiveFinalSave = tyranidSaveBonus ? Math.max(2, finalSave - 1) : finalSave;
+
     const rolls = rollDice(combat.wounds);
-    const unsaved = rolls.filter((r) => r < coverSave).length;
+    const unsaved = rolls.filter((r) => r < effectiveFinalSave).length;
     const dmgPer = parseDiceExpr(weapon.damage);
     const totalDmg = unsaved * dmgPer;
-    addLog(`Saves: ${coverSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
-    showRoll({ rolls, type: "save", threshold: coverSave, label: `Save Rolls (${coverSave}+)` });
+    const saveBonusNote = necronSaveBonus ? " [Eternal Guardian +1]" : tyranidSaveBonus ? " [Lurk and Feed +1]" : "";
+    addLog(`Saves: ${effectiveFinalSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}${saveBonusNote}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
+    showRoll({ rolls, type: "save", threshold: effectiveFinalSave, label: `Save Rolls (${effectiveFinalSave}+)` });
 
     // Damage cascade: apply damage across models, killing models as wounds hit 0
     const currentTarget = markers.find((m) => m.id === combat.targetId);
@@ -2248,6 +2417,60 @@ export default function WarhammerGameRoom() {
       setP2Cp((n) => n - cost);
     }
     addLog(`${player} used "${name}" (${cost} CP).`, player);
+  }
+
+  function beginStratagem(player: "P1" | "P2", strat: StratagemDef) {
+    const cp = player === "P1" ? p1Cp : p2Cp;
+    if (cp < strat.cost) { addLog(`${player} — not enough CP for ${strat.name}.`, "system"); return; }
+    pushHistory();
+    if (player === "P1") setP1Cp((n) => n - strat.cost);
+    else setP2Cp((n) => n - strat.cost);
+    if (!strat.requiresUnit && !strat.requiresTarget) {
+      addLog(`${player} used "${strat.name}" (${strat.cost} CP).`, player);
+      return;
+    }
+    setActiveStratagem({
+      name: strat.name, phase: strat.phase, description: strat.description,
+      step: "select_unit", unitId: null, targetId: null, effect: strat.effect, player,
+    });
+  }
+
+  function resolveStratagemEffect(sName: string, sEffect: string, sPlayer: "P1" | "P2", unitId: string | null, targetId: string | null) {
+    setActiveStratagem(null);
+    const unit = unitId ? markers.find((m) => m.id === unitId) : null;
+    const target = targetId ? markers.find((m) => m.id === targetId) : null;
+    if (sEffect === "rapid_ingress" && unit) {
+      setReservesUnitId(unit.id);
+      setReservesMode("place_normal");
+      addLog(`${sPlayer} Rapid Ingress: deploy ${unit.unitName} from reserves (place more than 9" from enemy).`, sPlayer);
+    } else if (sEffect === "counter_offensive" && unit) {
+      addLog(`${sPlayer} Counter-Offensive: ${unit.unitName} fights again this phase.`, sPlayer);
+    } else if (sEffect === "insane_bravery" && unit) {
+      setMarkers((prev) => prev.map((m) => m.id === unit.id ? { ...m, battleShocked: false } : m));
+      addLog(`${sPlayer} Insane Bravery: ${unit.unitName} auto-passes Battle-shock.`, sPlayer);
+    } else if (sEffect === "grenade" && unit && target) {
+      // Mini grenade shoot: D3 shots, S4, AP0, D1, BS same as unit
+      const shots = Math.floor(Math.random() * 3) + 1;
+      const unitDef = findUnit(unit.faction, unit.unitId);
+      const bsStr = unitDef?.weapons.find((w) => w.type !== "Melee")?.skill ?? "4+";
+      const skillTarget = parseSkill(bsStr);
+      let hits = 0;
+      const hitRolls = Array.from({ length: shots }, () => d6());
+      hits = hitRolls.filter((r) => r >= skillTarget).length;
+      const woundTarget = getWoundTarget(4, target.stats?.toughness ?? 4);
+      const woundRolls = Array.from({ length: hits }, () => d6());
+      const wounds = woundRolls.filter((r) => r >= woundTarget).length;
+      const saveNum = parseSave(target.stats?.save ?? "6+");
+      const saveRolls = Array.from({ length: wounds }, () => d6());
+      const unsaved = saveRolls.filter((r) => r < saveNum).length;
+      const dmg = unsaved;
+      if (dmg > 0) {
+        setMarkers((prev) => prev.map((m) => m.id === target.id ? { ...m, currentWounds: Math.max(0, m.currentWounds - dmg) } : m));
+      }
+      addLog(`${sPlayer} Grenade: ${unit.unitName} → ${target.unitName}: ${shots} shots, ${hits} hits, ${wounds} wounds, ${dmg} damage.`, sPlayer);
+    } else {
+      addLog(`${sPlayer} used "${sName}" on ${unit?.unitName ?? "—"}${target ? ` → ${target.unitName}` : ""}.`, sPlayer);
+    }
   }
 
   // ─── Phase action panel ───────────────────────────────────────────────────
@@ -3103,17 +3326,22 @@ export default function WarhammerGameRoom() {
                 className="flex items-center justify-between w-full text-xs"
                 style={{ color: "var(--text-muted)" }}
               >
-                <span>Stratagems</span>
+                <span className="flex items-center gap-1"><Scroll size={10} />Stratagems</span>
                 {p1StratOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
               </button>
               {p1StratOpen && (
                 <div className="mt-1.5 space-y-1">
-                  {genericStratagems.map((s) => (
+                  {STRATAGEMS.filter((s) => {
+                    const phaseOk = s.phase === "Any" || s.phase.toLowerCase() === gamePhase;
+                    const facOk = !s.factionFilter || s.factionFilter.some((f) => p1FactionRules.some((r) => r.faction === f));
+                    return phaseOk && facOk;
+                  }).map((s) => (
                     <button
                       key={s.name}
-                      onClick={() => useStratagem("P1", s.cost, s.name)}
+                      onClick={() => beginStratagem("P1", s)}
+                      disabled={p1Cp < s.cost}
                       className="w-full text-left px-2 py-1.5 rounded text-[10px]"
-                      style={{ backgroundColor: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.12)" }}
+                      style={{ backgroundColor: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.12)", opacity: p1Cp < s.cost ? 0.45 : 1 }}
                     >
                       <div className="flex justify-between mb-0.5">
                         <span className="font-medium" style={{ color: "#93c5fd" }}>{s.name}</span>
@@ -3177,7 +3405,7 @@ export default function WarhammerGameRoom() {
                               <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>Active: {synapticImperative ?? "None"}</p>
                               {showSynapticPicker ? (
                                 <div className="space-y-0.5">
-                                  {["Instinctive Rampage", "Synaptic Channelling", "Perfect Synchrony"].map((opt) => (
+                                  {["Aggressive Expansion", "Lurk and Feed", "Without Number"].map((opt) => (
                                     <button key={opt} onClick={() => { setSynapticImperative(opt); setShowSynapticPicker(false); addLog(`P1 Synaptic Imperative: "${opt}".`, "P1"); }}
                                       className="w-full text-left px-1.5 py-1 rounded text-[9px]"
                                       style={{ backgroundColor: opt === synapticImperative ? "rgba(59,130,246,0.2)" : "rgba(59,130,246,0.06)", color: "#93c5fd" }}>{opt}</button>
@@ -3188,6 +3416,26 @@ export default function WarhammerGameRoom() {
                                 <button onClick={() => setShowSynapticPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
                                   style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
                                   {synapticImperative ? "Change Imperative" : "Choose Imperative"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {rule.id === "nec-awakened-dynasty" && gamePhase === "command" && activePlayer === "P1" && !commandAbilityUsed && (
+                            <div className="pt-1 mt-0.5" style={{ borderTop: "1px solid rgba(59,130,246,0.15)" }}>
+                              <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>Protocol: {necronProtocol ?? "None chosen"}</p>
+                              {showNecronProtocolPicker ? (
+                                <div className="space-y-0.5">
+                                  {["Protocol of the Eternal Guardian", "Protocol of the Conquering Tyrant"].map((opt) => (
+                                    <button key={opt} onClick={() => { setNecronProtocol(opt); setShowNecronProtocolPicker(false); setCommandAbilityUsed(true); addLog(`P1 Awakened Dynasty: "${opt}" active.`, "P1"); }}
+                                      className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                                      style={{ backgroundColor: opt === necronProtocol ? "rgba(59,130,246,0.2)" : "rgba(59,130,246,0.06)", color: "#93c5fd" }}>{opt}</button>
+                                  ))}
+                                  <button onClick={() => setShowNecronProtocolPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setShowNecronProtocolPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                                  style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                                  {necronProtocol ? "Active this turn" : "Activate Protocol"}
                                 </button>
                               )}
                             </div>
@@ -3255,12 +3503,17 @@ export default function WarhammerGameRoom() {
               </button>
               {p2StratOpen && (
                 <div className="mt-1.5 space-y-1">
-                  {genericStratagems.map((s) => (
+                  {STRATAGEMS.filter((s) => {
+                    const phaseOk = s.phase === "Any" || s.phase.toLowerCase() === gamePhase;
+                    const facOk = !s.factionFilter || s.factionFilter.some((f) => p2FactionRules.some((r) => r.faction === f));
+                    return phaseOk && facOk;
+                  }).map((s) => (
                     <button
                       key={s.name}
-                      onClick={() => useStratagem("P2", s.cost, s.name)}
+                      onClick={() => beginStratagem("P2", s)}
+                      disabled={p2Cp < s.cost}
                       className="w-full text-left px-2 py-1.5 rounded text-[10px]"
-                      style={{ backgroundColor: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.12)" }}
+                      style={{ backgroundColor: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.12)", opacity: p2Cp < s.cost ? 0.45 : 1 }}
                     >
                       <div className="flex justify-between mb-0.5">
                         <span className="font-medium" style={{ color: "#fca5a5" }}>{s.name}</span>
@@ -3324,7 +3577,7 @@ export default function WarhammerGameRoom() {
                               <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>Active: {synapticImperative ?? "None"}</p>
                               {showSynapticPicker ? (
                                 <div className="space-y-0.5">
-                                  {["Instinctive Rampage", "Synaptic Channelling", "Perfect Synchrony"].map((opt) => (
+                                  {["Aggressive Expansion", "Lurk and Feed", "Without Number"].map((opt) => (
                                     <button key={opt} onClick={() => { setSynapticImperative(opt); setShowSynapticPicker(false); addLog(`P2 Synaptic Imperative: "${opt}".`, "P2"); }}
                                       className="w-full text-left px-1.5 py-1 rounded text-[9px]"
                                       style={{ backgroundColor: opt === synapticImperative ? "rgba(239,68,68,0.2)" : "rgba(239,68,68,0.06)", color: "#fca5a5" }}>{opt}</button>
@@ -3335,6 +3588,26 @@ export default function WarhammerGameRoom() {
                                 <button onClick={() => setShowSynapticPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
                                   style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" }}>
                                   {synapticImperative ? "Change Imperative" : "Choose Imperative"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {rule.id === "nec-awakened-dynasty" && gamePhase === "command" && activePlayer === "P2" && !commandAbilityUsed && (
+                            <div className="pt-1 mt-0.5" style={{ borderTop: "1px solid rgba(239,68,68,0.15)" }}>
+                              <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>Protocol: {necronProtocol ?? "None chosen"}</p>
+                              {showNecronProtocolPicker ? (
+                                <div className="space-y-0.5">
+                                  {["Protocol of the Eternal Guardian", "Protocol of the Conquering Tyrant"].map((opt) => (
+                                    <button key={opt} onClick={() => { setNecronProtocol(opt); setShowNecronProtocolPicker(false); setCommandAbilityUsed(true); addLog(`P2 Awakened Dynasty: "${opt}" active.`, "P2"); }}
+                                      className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                                      style={{ backgroundColor: opt === necronProtocol ? "rgba(239,68,68,0.2)" : "rgba(239,68,68,0.06)", color: "#fca5a5" }}>{opt}</button>
+                                  ))}
+                                  <button onClick={() => setShowNecronProtocolPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setShowNecronProtocolPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                                  style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" }}>
+                                  {necronProtocol ? "Active this turn" : "Activate Protocol"}
                                 </button>
                               )}
                             </div>
@@ -3383,6 +3656,7 @@ export default function WarhammerGameRoom() {
                       <span className="flex-1 truncate" style={{ color: "var(--text-primary)" }}>
                         {m.unitName}
                       </span>
+                      {m.battleShocked && <Zap size={9} style={{ color: "#facc15" }} />}
                       <span
                         className="text-[10px]"
                         style={{ color: m.currentWounds / m.maxWounds > 0.5 ? "#4ade80" : "#f87171" }}
@@ -3392,6 +3666,30 @@ export default function WarhammerGameRoom() {
                     </div>
                   </button>
                 ))}
+              {/* In-reserve units */}
+              {(() => {
+                const inReserve = markers.filter((m) => m.isInReserve && !m.isDestroyed);
+                if (inReserve.length === 0) return null;
+                return (
+                  <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-[10px] uppercase tracking-widest mb-1.5 flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+                      <Archive size={9} />Reserves
+                      <span className="ml-auto px-1.5 py-0.5 rounded text-[9px]" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>
+                        {inReserve.length}
+                      </span>
+                    </p>
+                    {inReserve.map((m) => (
+                      <div key={m.id} className="w-full px-2 py-1 rounded-lg mb-0.5 text-xs flex items-center gap-1.5"
+                        style={{ backgroundColor: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.12)" }}>
+                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: m.player === "P1" ? "#ef4444" : "#3b82f6" }} />
+                        <span className="flex-1 truncate text-[10px]" style={{ color: "var(--text-muted)" }}>{m.unitName}</span>
+                        <span className="text-[9px]" style={{ color: "#fbbf24" }}>Reserve</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -3697,6 +3995,165 @@ export default function WarhammerGameRoom() {
             <button onClick={() => setStackedPicker(null)} className="w-full py-1.5 rounded-lg text-xs" style={{ color: "var(--text-muted)" }}>
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Active state banner ── */}
+      {roomPhase === "game" && (oathTarget || synapticImperative || necronProtocol || activeStratagem) && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 flex gap-2 flex-wrap justify-center">
+          {oathTarget && (
+            <div className="px-3 py-1 rounded-full text-xs flex items-center gap-1.5"
+              style={{ backgroundColor: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.35)", color: "#6ee7b7" }}>
+              <Target size={10} />
+              Oath: {markers.find((m) => m.id === oathTarget)?.unitName ?? "—"}
+              <button onClick={() => setOathTarget(null)} className="ml-1 opacity-60 hover:opacity-100">✕</button>
+            </div>
+          )}
+          {synapticImperative && (
+            <div className="px-3 py-1 rounded-full text-xs flex items-center gap-1.5"
+              style={{ backgroundColor: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.35)", color: "#c4b5fd" }}>
+              <Star size={10} />
+              Synaptic: {synapticImperative}
+              <button onClick={() => setSynapticImperative(null)} className="ml-1 opacity-60 hover:opacity-100">✕</button>
+            </div>
+          )}
+          {necronProtocol && (
+            <div className="px-3 py-1 rounded-full text-xs flex items-center gap-1.5"
+              style={{ backgroundColor: "rgba(234,179,8,0.15)", border: "1px solid rgba(234,179,8,0.35)", color: "#fde047" }}>
+              <Shield size={10} />
+              {necronProtocol}
+            </div>
+          )}
+          {activeStratagem && (
+            <div className="px-3 py-1 rounded-full text-xs flex items-center gap-1.5"
+              style={{ backgroundColor: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.35)", color: "#fca5a5" }}>
+              <Scroll size={10} />
+              Stratagem: {activeStratagem.name}
+              <button onClick={() => { setActiveStratagem(null); if (activeStratagem.player === "P1") setP1Cp((n) => n + (STRATAGEMS.find((s) => s.name === activeStratagem.name)?.cost ?? 0)); else setP2Cp((n) => n + (STRATAGEMS.find((s) => s.name === activeStratagem.name)?.cost ?? 0)); }}
+                className="ml-1 opacity-60 hover:opacity-100">✕</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Stratagem unit/target selection modal ── */}
+      {activeStratagem && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: "rgba(0,0,0,0.72)" }}>
+          <div className="rounded-xl p-5 space-y-3 max-w-xs w-full mx-4" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-card)" }}>
+            <p className="font-cinzel font-bold text-sm" style={{ color: "var(--text-primary)" }}>{activeStratagem.name}</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>{activeStratagem.description}</p>
+            {activeStratagem.step === "select_unit" && (() => {
+              const stratDef = STRATAGEMS.find((s) => s.name === activeStratagem.name);
+              const eligible = stratDef?.unitFilter
+                ? markers.filter((m) => stratDef.unitFilter!(m, activeStratagem.player) && !m.isDestroyed)
+                : markers.filter((m) => m.player === activeStratagem.player && !m.isDestroyed);
+              return (
+                <>
+                  <p className="text-xs font-medium" style={{ color: "#93c5fd" }}>Select a unit:</p>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {eligible.map((m) => (
+                      <button key={m.id}
+                        onClick={() => {
+                          if (stratDef?.requiresTarget) {
+                            setActiveStratagem({ ...activeStratagem, step: "select_target", unitId: m.id });
+                          } else {
+                            resolveStratagemEffect(activeStratagem.name, activeStratagem.effect, activeStratagem.player, m.id, null);
+                          }
+                        }}
+                        className="w-full text-left px-3 py-1.5 rounded-lg text-xs"
+                        style={{ backgroundColor: "rgba(59,130,246,0.08)", color: "var(--text-primary)", border: "1px solid rgba(59,130,246,0.18)" }}
+                      >
+                        {m.unitName} <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>({m.player})</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+            {activeStratagem.step === "select_target" && (
+              <>
+                <p className="text-xs font-medium" style={{ color: "#fca5a5" }}>Select a target:</p>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {markers.filter((m) => m.player !== activeStratagem.player && !m.isDestroyed && !m.isInReserve).map((m) => (
+                    <button key={m.id}
+                      onClick={() => resolveStratagemEffect(activeStratagem.name, activeStratagem.effect, activeStratagem.player, activeStratagem.unitId, m.id)}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs"
+                      style={{ backgroundColor: "rgba(239,68,68,0.08)", color: "var(--text-primary)", border: "1px solid rgba(239,68,68,0.18)" }}
+                    >
+                      {m.unitName}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <button onClick={() => { setActiveStratagem(null); const strat = STRATAGEMS.find((s) => s.name === activeStratagem.name); if (strat) { if (activeStratagem.player === "P1") setP1Cp((n) => n + strat.cost); else setP2Cp((n) => n + strat.cost); } }}
+              className="w-full py-1.5 rounded-lg text-xs" style={{ color: "var(--text-muted)" }}>
+              Cancel (refund CP)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Battle-shock modal ── */}
+      {battleShockPhase && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: "rgba(0,0,0,0.78)" }}>
+          <div className="rounded-xl p-5 space-y-3 max-w-sm w-full mx-4" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-card)" }}>
+            <p className="font-cinzel font-bold text-base flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+              <Zap size={16} style={{ color: "#facc15" }} />Battle-shock Tests
+            </p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {activePlayer}&apos;s units below half-strength must test on 2D6 vs Leadership.
+            </p>
+            <div className="space-y-2">
+              {battleShockQueue.map((uid) => {
+                const unit = markers.find((m) => m.id === uid);
+                if (!unit) return null;
+                const tested = battleShockTested.has(uid);
+                const result = battleShockResults[uid];
+                const ldNum = parseInt(unit.stats?.leadership ?? "7");
+                return (
+                  <div key={uid} className="px-3 py-2 rounded-lg text-xs"
+                    style={{ backgroundColor: tested ? (result ? "rgba(239,68,68,0.12)" : "rgba(74,222,128,0.1)") : "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="flex items-center justify-between">
+                      <span style={{ color: "var(--text-primary)" }}>{unit.unitName}</span>
+                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Ld {ldNum}+</span>
+                    </div>
+                    {!tested ? (
+                      <button
+                        onClick={() => {
+                          const r1 = d6(); const r2 = d6(); const total = r1 + r2;
+                          const shocked = total > ldNum;
+                          setBattleShockTested((prev) => new Set([...prev, uid]));
+                          setBattleShockResults((prev) => ({ ...prev, [uid]: shocked }));
+                          setMarkers((prev) => prev.map((m) => m.id === uid ? { ...m, battleShocked: shocked, belowHalfStrength: true } : m));
+                          addLog(`Battle-shock: ${unit.unitName} — 2D6 (${r1}+${r2}=${total}) vs Ld${ldNum}+ → ${shocked ? "SHOCKED!" : "holds."}`, activePlayer);
+                        }}
+                        className="mt-1.5 w-full py-1.5 rounded text-[10px] font-semibold"
+                        style={{ backgroundColor: "rgba(250,204,21,0.15)", color: "#facc15", border: "1px solid rgba(250,204,21,0.3)" }}>
+                        <Dice6 size={10} className="inline mr-1" />Roll Test
+                      </button>
+                    ) : (
+                      <p className="mt-1 text-[11px] font-bold" style={{ color: result ? "#f87171" : "#4ade80" }}>
+                        {result ? "⚡ SHOCKED" : "✓ PASSED"}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {battleShockQueue.every((uid) => battleShockTested.has(uid)) && (
+              <button
+                onClick={() => {
+                  setBattleShockPhase(false);
+                  const afterShock = markers; // already updated via setMarkers in each roll
+                  finishAfterBattleShock(afterShock);
+                }}
+                className="w-full py-2 rounded-lg text-sm font-semibold"
+                style={{ backgroundColor: "rgba(74,222,128,0.15)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}>
+                Continue
+              </button>
+            )}
           </div>
         </div>
       )}
