@@ -2180,10 +2180,13 @@ export default function WarhammerGameRoom() {
 
     const rolls = rollDice(combat.wounds);
     const unsaved = rolls.filter((r) => r < effectiveFinalSave).length;
-    const dmgPer = parseDiceExpr(weapon.damage);
-    const totalDmg = unsaved * dmgPer;
+    // Roll damage per unsaved wound (correct for variable damage like D3/D6)
+    let totalDmg = 0;
+    const dmgRolls: number[] = [];
+    for (let i = 0; i < unsaved; i++) { const d = parseDiceExpr(weapon.damage); dmgRolls.push(d); totalDmg += d; }
+    const dmgNote = dmgRolls.length > 1 ? ` [${dmgRolls.join("+")}]` : "";
     const saveBonusNote = necronSaveBonus ? " [Eternal Guardian +1]" : tyranidSaveBonus ? " [Lurk and Feed +1]" : "";
-    addLog(`Saves: ${effectiveFinalSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}${saveBonusNote}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage.`, target.player);
+    addLog(`Saves: ${effectiveFinalSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}${saveBonusNote}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage${dmgNote}.`, target.player);
     showRoll({ rolls, type: "save", threshold: effectiveFinalSave, label: `Save Rolls (${effectiveFinalSave}+)` });
 
     // Damage cascade: apply damage across models, killing models as wounds hit 0
@@ -2498,14 +2501,15 @@ export default function WarhammerGameRoom() {
           label: `${moveIn}"`,
         });
         if (mu.hasAdvanced || moveAdvance) {
+          const advBonus = advanceRollResult ?? 6;
           rangeIndicators.push({
             centreX: mu.x + 0.5,
             centreY: mu.y + 0.5,
-            radiusInches: moveIn + 6,
+            radiusInches: moveIn + advBonus,
             colour: "#f97316",
             opacity: 0.05,
             strokeOpacity: 0.35,
-            label: `Adv max ${moveIn + 6}"`,
+            label: `Adv max ${moveIn + advBonus}"`,
           });
         }
       }
