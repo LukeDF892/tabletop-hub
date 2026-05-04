@@ -192,7 +192,14 @@ export function DiceRollerPopup({ request, onDismiss, onReroll, rerollCp }: Dice
         {/* Outcome */}
         {!spinning && (
           <div style={{ fontSize: 13, fontWeight: 700, color: colour, marginBottom: 8 }}>
-            {request.hits}/{request.total} {request.label.toLowerCase().includes("wound") ? "wounds" : request.label.toLowerCase().includes("save") ? "failed saves" : "successes"}
+            {request.type === "save"
+              // For saves: hits = passed saves, so failures = total - hits
+              ? `${request.total - request.hits}/${request.total} failed saves`
+              : request.type === "charge"
+              // For charge: show sum vs needed, not per-die count
+              ? `Total: ${request.rolls.reduce((a, b) => a + b, 0)} (need ${request.threshold}+)`
+              : `${request.hits}/${request.total} ${request.label.toLowerCase().includes("wound") ? "wounds" : "successes"}`
+            }
           </div>
         )}
 
