@@ -3324,6 +3324,81 @@ export default function WarhammerGameRoom() {
                 ))}
               </div>
 
+              {/* P1 Command Phase Abilities */}
+              {gamePhase === "command" && activePlayer === "P1" && p1FactionRules.some(r => r.id === "sm-oath-of-moment" || r.id === "tyr-synaptic-imperative" || r.id === "nec-awakened-dynasty") && (
+                <div className="mb-2 p-2 rounded-lg" style={{ backgroundColor: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.2)" }}>
+                  <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: "#d97706" }}>⚔️ Command Abilities</p>
+
+                  {p1FactionRules.some(r => r.id === "sm-oath-of-moment") && (
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Oath of Moment</p>
+                      <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>
+                        Target: {oathTarget ? (markers.find((m) => m.id === oathTarget)?.unitName ?? "—") : "None set"}
+                      </p>
+                      {showOathPicker ? (
+                        <div className="space-y-0.5">
+                          {markers.filter((m) => m.player === "P2" && !m.isDestroyed && !m.isInReserve && !m.isAttached).map((m) => (
+                            <button key={m.id} onClick={() => { setOathTarget(m.id); setShowOathPicker(false); addLog(`P1 Oath of Moment: targeting ${m.unitName}.`, "P1"); }}
+                              className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                              style={{ backgroundColor: "rgba(59,130,246,0.1)", color: "#93c5fd" }}>{m.unitName}</button>
+                          ))}
+                          <button onClick={() => setShowOathPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setShowOathPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                          style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                          {oathTarget ? "Change Target" : "Set Target"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {p1FactionRules.some(r => r.id === "tyr-synaptic-imperative") && markers.some((m) => m.player === "P1" && !m.isDestroyed && !m.isInReserve && findUnit(m.faction, m.unitId)?.keywords?.some((k) => k.toLowerCase() === "synapse")) && (
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Synaptic Imperative</p>
+                      <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>Active: {synapticImperative ?? "None"}</p>
+                      {showSynapticPicker ? (
+                        <div className="space-y-0.5">
+                          {["Aggressive Expansion", "Lurk and Feed", "Without Number"].map((opt) => (
+                            <button key={opt} onClick={() => { setSynapticImperative(opt); setShowSynapticPicker(false); addLog(`P1 Synaptic Imperative: "${opt}".`, "P1"); }}
+                              className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                              style={{ backgroundColor: opt === synapticImperative ? "rgba(59,130,246,0.2)" : "rgba(59,130,246,0.06)", color: "#93c5fd" }}>{opt}</button>
+                          ))}
+                          <button onClick={() => setShowSynapticPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setShowSynapticPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                          style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                          {synapticImperative ? "Change Imperative" : "Choose Imperative"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {p1FactionRules.some(r => r.id === "nec-awakened-dynasty") && !commandAbilityUsed && (
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Dynastic Protocol</p>
+                      <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>Protocol: {necronProtocol ?? "None chosen"}</p>
+                      {showNecronProtocolPicker ? (
+                        <div className="space-y-0.5">
+                          {["Protocol of the Eternal Guardian", "Protocol of the Conquering Tyrant"].map((opt) => (
+                            <button key={opt} onClick={() => { setNecronProtocol(opt); setShowNecronProtocolPicker(false); setCommandAbilityUsed(true); addLog(`P1 Awakened Dynasty: "${opt}" active.`, "P1"); }}
+                              className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                              style={{ backgroundColor: opt === necronProtocol ? "rgba(59,130,246,0.2)" : "rgba(59,130,246,0.06)", color: "#93c5fd" }}>{opt}</button>
+                          ))}
+                          <button onClick={() => setShowNecronProtocolPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setShowNecronProtocolPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                          style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                          {necronProtocol ? "Active this turn" : "Activate Protocol"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* P1 Stratagems */}
               <button
                 onClick={() => setP1StratOpen((x) => !x)}
@@ -3496,6 +3571,81 @@ export default function WarhammerGameRoom() {
                   </div>
                 ))}
               </div>
+
+              {/* P2 Command Phase Abilities */}
+              {gamePhase === "command" && activePlayer === "P2" && p2FactionRules.some(r => r.id === "sm-oath-of-moment" || r.id === "tyr-synaptic-imperative" || r.id === "nec-awakened-dynasty") && (
+                <div className="mb-2 p-2 rounded-lg" style={{ backgroundColor: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.2)" }}>
+                  <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: "#d97706" }}>⚔️ Command Abilities</p>
+
+                  {p2FactionRules.some(r => r.id === "sm-oath-of-moment") && (
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Oath of Moment</p>
+                      <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>
+                        Target: {oathTarget ? (markers.find((m) => m.id === oathTarget)?.unitName ?? "—") : "None set"}
+                      </p>
+                      {showOathPicker ? (
+                        <div className="space-y-0.5">
+                          {markers.filter((m) => m.player === "P1" && !m.isDestroyed && !m.isInReserve && !m.isAttached).map((m) => (
+                            <button key={m.id} onClick={() => { setOathTarget(m.id); setShowOathPicker(false); addLog(`P2 Oath of Moment: targeting ${m.unitName}.`, "P2"); }}
+                              className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                              style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#fca5a5" }}>{m.unitName}</button>
+                          ))}
+                          <button onClick={() => setShowOathPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setShowOathPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                          style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" }}>
+                          {oathTarget ? "Change Target" : "Set Target"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {p2FactionRules.some(r => r.id === "tyr-synaptic-imperative") && markers.some((m) => m.player === "P2" && !m.isDestroyed && !m.isInReserve && findUnit(m.faction, m.unitId)?.keywords?.some((k) => k.toLowerCase() === "synapse")) && (
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Synaptic Imperative</p>
+                      <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>Active: {synapticImperative ?? "None"}</p>
+                      {showSynapticPicker ? (
+                        <div className="space-y-0.5">
+                          {["Aggressive Expansion", "Lurk and Feed", "Without Number"].map((opt) => (
+                            <button key={opt} onClick={() => { setSynapticImperative(opt); setShowSynapticPicker(false); addLog(`P2 Synaptic Imperative: "${opt}".`, "P2"); }}
+                              className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                              style={{ backgroundColor: opt === synapticImperative ? "rgba(239,68,68,0.2)" : "rgba(239,68,68,0.06)", color: "#fca5a5" }}>{opt}</button>
+                          ))}
+                          <button onClick={() => setShowSynapticPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setShowSynapticPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                          style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" }}>
+                          {synapticImperative ? "Change Imperative" : "Choose Imperative"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {p2FactionRules.some(r => r.id === "nec-awakened-dynasty") && !commandAbilityUsed && (
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Dynastic Protocol</p>
+                      <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>Protocol: {necronProtocol ?? "None chosen"}</p>
+                      {showNecronProtocolPicker ? (
+                        <div className="space-y-0.5">
+                          {["Protocol of the Eternal Guardian", "Protocol of the Conquering Tyrant"].map((opt) => (
+                            <button key={opt} onClick={() => { setNecronProtocol(opt); setShowNecronProtocolPicker(false); setCommandAbilityUsed(true); addLog(`P2 Awakened Dynasty: "${opt}" active.`, "P2"); }}
+                              className="w-full text-left px-1.5 py-1 rounded text-[9px]"
+                              style={{ backgroundColor: opt === necronProtocol ? "rgba(239,68,68,0.2)" : "rgba(239,68,68,0.06)", color: "#fca5a5" }}>{opt}</button>
+                          ))}
+                          <button onClick={() => setShowNecronProtocolPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setShowNecronProtocolPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                          style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" }}>
+                          {necronProtocol ? "Active this turn" : "Activate Protocol"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={() => setP2StratOpen((x) => !x)}
@@ -3682,15 +3832,45 @@ export default function WarhammerGameRoom() {
                         {inReserve.length}
                       </span>
                     </p>
-                    {inReserve.map((m) => (
-                      <div key={m.id} className="w-full px-2 py-1 rounded-lg mb-0.5 text-xs flex items-center gap-1.5"
-                        style={{ backgroundColor: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.12)" }}>
-                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: m.player === "P1" ? "#ef4444" : "#3b82f6" }} />
-                        <span className="flex-1 truncate text-[10px]" style={{ color: "var(--text-muted)" }}>{m.unitName}</span>
-                        <span className="text-[9px]" style={{ color: "#fbbf24" }}>Reserve</span>
-                      </div>
-                    ))}
+                    {inReserve.map((m) => {
+                      const isDeepStrikeUnit = (m.keywords ?? []).some((k) => k.toLowerCase() === "deep strike");
+                      const canDeployNow = gamePhase === "movement" && m.player === activeSide && reservesMode === "idle" && round >= 2;
+                      const availableNextMovement = gamePhase !== "movement" && m.player === activeSide;
+                      return (
+                        <div key={m.id} className="w-full px-2 py-1 rounded-lg mb-0.5 text-xs flex flex-col gap-0.5"
+                          style={{ backgroundColor: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.12)" }}>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: m.player === "P1" ? "#ef4444" : "#3b82f6" }} />
+                            <span className="flex-1 truncate text-[10px]" style={{ color: "var(--text-muted)" }}>{m.unitName}</span>
+                            <span className="text-[9px]" style={{ color: "#fbbf24" }}>Reserve</span>
+                          </div>
+                          {canDeployNow && (
+                            <div className="flex gap-1 mt-0.5">
+                              <button
+                                onClick={() => { setReservesUnitId(m.id); setReservesMode("place_normal"); }}
+                                className="flex-1 py-1 rounded text-[9px] font-semibold"
+                                style={{ backgroundColor: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.3)" }}
+                              >
+                                Deploy
+                              </button>
+                              {isDeepStrikeUnit && (
+                                <button
+                                  onClick={() => { setReservesUnitId(m.id); setReservesMode("place_deepstrike"); }}
+                                  className="flex-1 py-1 rounded text-[9px] font-semibold"
+                                  style={{ backgroundColor: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}
+                                >
+                                  Deep Strike
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {availableNextMovement && (
+                            <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>Deploy in Movement phase</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })()}
