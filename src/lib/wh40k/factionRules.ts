@@ -23,6 +23,14 @@ export const FACTION_RULES: FactionRule[] = [
 
   // ─── DARK ANGELS ──────────────────────────────────────────────────
   {
+    id: "da-oath-of-moment",
+    name: "Oath of Moment",
+    faction: "Dark Angels",
+    description:
+      "At the start of your Command Phase, select one enemy unit on the battlefield. Until the start of your next Command Phase, all friendly Dark Angels units have the Lethal Hits ability when targeting the selected unit.",
+    trigger: "command_phase",
+  },
+  {
     id: "da-grim-resolve",
     name: "Grim Resolve",
     faction: "Dark Angels",
