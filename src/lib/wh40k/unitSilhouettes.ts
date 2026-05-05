@@ -141,6 +141,31 @@ export function silhouetteTypeForUnit(faction: string, baseSize: BaseSize): Silh
   return "generic_infantry";
 }
 
+// Keyword-based icon paths, defined in a [-10, 10] normalized space.
+// Priority order: Titanic > Flyer > Monster > Walker > Vehicle/Transport > Cavalry > Terminator > Character > Infantry
+export function getUnitIcon(keywords: string[]): string {
+  const kw = keywords.map((k) => k.toUpperCase());
+  if (kw.includes("TITANIC"))
+    return "M0,-8 L3,-2 L8,0 L3,2 L0,8 L-3,2 L-8,0 L-3,-2 Z";
+  if (kw.includes("FLYER"))
+    return "M0,-6 L8,2 L2,0 L0,6 L-2,0 L-8,2 Z";
+  if (kw.includes("MONSTER"))
+    return "M-6,-4 L-2,-8 L2,-8 L6,-4 L8,2 L0,6 L-8,2 Z";
+  if (kw.includes("WALKER"))
+    return "M-3,-8 L3,-8 L5,-2 L3,0 L5,6 L0,8 L-5,6 L-3,0 L-5,-2 Z";
+  if (kw.includes("VEHICLE") || kw.includes("TRANSPORT"))
+    return "M-8,-3 L-4,-6 L4,-6 L8,-3 L8,3 L4,6 L-4,6 L-8,3 Z";
+  if (kw.includes("CAVALRY") || kw.includes("MOUNTED"))
+    return "M-5,-6 L0,-8 L5,-6 L7,0 L5,6 L0,4 L-5,6 L-7,0 Z";
+  if (kw.includes("TERMINATOR"))
+    return "M-4,-8 L4,-8 L6,-4 L6,2 L4,8 L-4,8 L-6,2 L-6,-4 Z";
+  if (kw.includes("CHARACTER"))
+    return "M0,-8 L2,-3 L8,-3 L3,1 L5,7 L0,3 L-5,7 L-3,1 L-8,-3 L-2,-3 Z";
+  if (kw.includes("INFANTRY"))
+    return "M-2,-8 L2,-8 L3,-2 L6,0 L3,4 L3,8 L-3,8 L-3,4 L-6,0 L-3,-2 Z";
+  return "M0,-6 A6,6 0 1,1 0,6 A6,6 0 1,1 0,-6";
+}
+
 // Radius multipliers (in inches on the board) per base size
 export const BASE_RADIUS_INCHES: Record<BaseSize, number> = {
   infantry:       0.5,

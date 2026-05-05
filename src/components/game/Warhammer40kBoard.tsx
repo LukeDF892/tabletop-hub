@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import type { UnitMarker, RangeIndicator } from "@/lib/wh40k/gameTypes";
 import type { TerrainPiece, MapObjective, DeploymentZone } from "@/lib/wh40k/mapPresets";
-import { getSilhouettePath, silhouetteTypeForUnit, BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
+import { getUnitIcon, BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
 
 // Board: 60" wide × 44" tall. 1 SVG unit = 1 inch.
 const BOARD_W = 60;
@@ -17,6 +17,39 @@ const SVG_H = BOARD_H * INCH_PX + MARGIN;
 
 // Objective physical size in 40k = 40mm ≈ 1.6" radius on board
 const OBJ_RADIUS_INCHES = 1.6;
+
+const FACTION_COLORS: Record<string, { p1: string; p2: string }> = {
+  "Space Marines":   { p1: "#1e40af", p2: "#1e3a8a" },
+  "Dark Angels":     { p1: "#166534", p2: "#14532d" },
+  "Blood Angels":    { p1: "#991b1b", p2: "#7f1d1d" },
+  "Space Wolves":    { p1: "#1d4ed8", p2: "#1e40af" },
+  "Ultramarines":    { p1: "#1d4ed8", p2: "#1e3a8a" },
+  "Tyranids":        { p1: "#6b21a8", p2: "#581c87" },
+  "Necrons":         { p1: "#374151", p2: "#1f2937" },
+  "Chaos Space Marines": { p1: "#7f1d1d", p2: "#450a0a" },
+  "Death Guard":     { p1: "#365314", p2: "#1a2e05" },
+  "Thousand Sons":   { p1: "#1e3a8a", p2: "#1e1b4b" },
+  "Astra Militarum": { p1: "#713f12", p2: "#451a03" },
+  "Orks":            { p1: "#166534", p2: "#052e16" },
+  "Eldar":           { p1: "#065f46", p2: "#022c22" },
+  "Craftworlds":     { p1: "#065f46", p2: "#022c22" },
+  "Drukhari":        { p1: "#4c1d95", p2: "#2e1065" },
+  "Tau Empire":      { p1: "#164e63", p2: "#083344" },
+  "T'au Empire":     { p1: "#164e63", p2: "#083344" },
+  "Adeptus Mechanicus": { p1: "#7f1d1d", p2: "#450a0a" },
+};
+
+function getFactionColor(faction: string, player: "p1" | "p2"): string {
+  const entry = FACTION_COLORS[faction];
+  if (entry) return entry[player];
+  // Fuzzy fallback: match substring
+  for (const [key, val] of Object.entries(FACTION_COLORS)) {
+    if (faction.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(faction.toLowerCase())) {
+      return val[player];
+    }
+  }
+  return player === "p1" ? "#dc2626" : "#2563eb";
+}
 
 function getUnitAbbr(name: string): string {
   const words = name.trim().split(/\s+/);
@@ -588,24 +621,28 @@ export default function Warhammer40kBoard({
                 const isSelected = m.id === selectedMarkerId;
                 const hasActed = actedThisTurn.includes(m.id);
                 const isP1 = m.player === "P1";
-                const fillColor = isP1 ? "rgba(220,38,38,0.88)" : "rgba(37,99,235,0.88)";
-                const strokeColor = isP1 ? "#f87171" : "#60a5fa";
-                const hpFrac = m.currentWounds / (m.woundsPerModel ?? m.maxWounds);
-                const hpColor = hpFrac > 0.6 ? "#4ade80" : hpFrac > 0.3 ? "#facc15" : "#f87171";
+                const playerSide: "p1" | "p2" = isP1 ? "p1" : "p2";
+                const factionFill = getFactionColor(m.faction ?? "", playerSide);
+                const strokeColor = isSelected ? "#fbbf24" : (isP1 ? "#f87171" : "#60a5fa");
                 const isAttachedChar = m.isAttached;
 
-                // Pick silhouette
-                const silType = silhouetteTypeForUnit(m.faction ?? "", baseSize);
-                const silPath = getSilhouettePath(silType);
+                const kw = (m.keywords ?? []).map((k) => k.toUpperCase());
+                const isCharacter = kw.includes("CHARACTER");
+                const iconPath = getUnitIcon(m.keywords ?? []);
+                const iconScale = (r * 0.82) / 10;
 
-                // Scale silhouette to fit inside the circle (normalized [-10,10] → r*0.85)
-                const silScale = (r * 0.82) / 10;
+                const maxW = m.woundsPerModel ?? m.maxWounds;
+                const hpFrac = m.currentWounds / maxW;
+                const hpColor = hpFrac > 0.6 ? "#4ade80" : hpFrac > 0.3 ? "#facc15" : "#f87171";
+                const isDamaged = m.currentWounds < maxW;
 
                 // Label: show "+ CharName" if character is attached
                 const displayName = m.attachedCharacterName
                   ? `${m.unitName} + ${m.attachedCharacterName}`
                   : m.unitName;
                 const abbr = getUnitAbbr(m.unitName);
+                const woundLabel = `${m.currentWounds}/${maxW}${(m.modelCount ?? 1) > 1 ? ` ×${m.modelCount}` : ""}`;
+                const labelFontSize = Math.max(10, Math.min(18, r * 0.28));
 
                 return (
                   <g
@@ -621,7 +658,7 @@ export default function Warhammer40kBoard({
                   >
                     {/* Selection ring */}
                     {isSelected && (
-                      <circle cx={cx} cy={cy} r={r + INCH_PX * 0.2} fill="none" stroke="white" strokeWidth={3} opacity={0.9} strokeDasharray="12 6" />
+                      <circle cx={cx} cy={cy} r={r + INCH_PX * 0.2} fill="none" stroke="#fbbf24" strokeWidth={3} opacity={0.9} strokeDasharray="12 6" />
                     )}
 
                     {/* Attached character indicator ring */}
@@ -629,41 +666,67 @@ export default function Warhammer40kBoard({
                       <circle cx={cx} cy={cy} r={r + 3} fill="none" stroke="#eab308" strokeWidth={2} opacity={0.7} strokeDasharray="6 3" />
                     )}
 
-                    {/* Body circle */}
-                    <circle cx={cx} cy={cy} r={r} fill={fillColor} stroke={strokeColor} strokeWidth={2.5} />
+                    {/* Battle-shocked indicator */}
+                    {m.battleShocked && (
+                      <circle cx={cx} cy={cy} r={r + (isSelected ? INCH_PX * 0.2 + 6 : 6)} fill="none" stroke="#a855f7" strokeWidth={1.5} strokeOpacity={0.7} />
+                    )}
 
-                    {/* Silhouette (clipped to circle) */}
+                    {/* Body circle with faction color */}
+                    <circle cx={cx} cy={cy} r={r} fill={factionFill} stroke={strokeColor} strokeWidth={isSelected ? 3 : 2} />
+
+                    {/* Keyword-based silhouette icon */}
                     <path
-                      d={silPath}
-                      fill="rgba(255,255,255,0.22)"
-                      transform={`translate(${cx},${cy}) scale(${silScale})`}
+                      d={iconPath}
+                      fill="white"
+                      fillOpacity={isDamaged ? 0.65 : 0.82}
+                      stroke="none"
+                      transform={`translate(${cx},${cy}) scale(${iconScale})`}
                       clipPath={`url(#clip-${m.id})`}
                     />
 
-                    {/* Abbreviation (small, above centre for large bases) */}
+                    {/* Damage overlay: red tint when hurt */}
+                    {isDamaged && (
+                      <circle cx={cx} cy={cy} r={r} fill="#ef4444" fillOpacity={0.18} stroke="none" />
+                    )}
+
+                    {/* Abbreviation label below circle */}
                     <text
                       x={cx}
-                      y={cy - (r > 50 ? r * 0.35 : 4)}
+                      y={cy + r + labelFontSize + 2}
                       textAnchor="middle"
-                      fontSize={Math.max(14, Math.min(26, r * 0.38))}
+                      fontSize={labelFontSize}
                       fontWeight="bold"
                       fill="white"
                       fontFamily="monospace"
+                      style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}
                     >
                       {abbr}
                     </text>
 
-                    {/* Wound count */}
+                    {/* Wound count — shown below abbr */}
                     <text
                       x={cx}
-                      y={cy + (r > 50 ? r * 0.55 : 18)}
+                      y={cy + r + labelFontSize * 2 + 4}
                       textAnchor="middle"
-                      fontSize={Math.max(11, Math.min(18, r * 0.26))}
+                      fontSize={Math.max(9, labelFontSize * 0.85)}
                       fill={hpColor}
                       fontFamily="monospace"
                     >
-                      {m.currentWounds}/{m.woundsPerModel ?? m.maxWounds}W{(m.modelCount ?? 1) > 1 ? ` ×${m.modelCount}` : ""}
+                      {woundLabel}
                     </text>
+
+                    {/* CHARACTER star badge — top-right of token */}
+                    {isCharacter && (
+                      <text
+                        x={cx + r * 0.72}
+                        y={cy - r * 0.62}
+                        textAnchor="middle"
+                        fontSize={Math.max(12, r * 0.32)}
+                        fill="#fbbf24"
+                      >
+                        ★
+                      </text>
+                    )}
 
                     {/* Attached-character link icon */}
                     {m.attachedCharacterName && (
@@ -702,41 +765,110 @@ export default function Warhammer40kBoard({
         </div>
 
         {/* Hover tooltip */}
-        {tooltip && (
-          <div
-            style={{
-              position: "absolute",
-              left: Math.min(tooltip.x + 12, (containerRef.current?.clientWidth ?? 400) - 210),
-              top: Math.min(tooltip.y + 12, (containerRef.current?.clientHeight ?? 300) - 190),
-              zIndex: 20,
-              backgroundColor: "rgba(15,15,20,0.95)",
-              border: `1px solid ${tooltip.marker.player === "P1" ? "rgba(220,38,38,0.5)" : "rgba(37,99,235,0.5)"}`,
-              borderRadius: 8,
-              padding: "8px 10px",
-              minWidth: 190,
-              pointerEvents: "none",
-            }}
-          >
-            <p style={{ fontSize: 11, fontWeight: 700, color: tooltip.marker.player === "P1" ? "#f87171" : "#60a5fa", marginBottom: 4 }}>
-              {tooltip.marker.unitName}
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "2px 8px" }}>
-              {[
-                ["M",  tooltip.marker.stats.movement],
-                ["T",  String(tooltip.marker.stats.toughness)],
-                ["Sv", tooltip.marker.stats.save],
-                ["W",  `${tooltip.marker.currentWounds}/${tooltip.marker.woundsPerModel ?? tooltip.marker.maxWounds}${(tooltip.marker.modelCount ?? 1) > 1 ? ` ×${tooltip.marker.modelCount}` : ""}`],
-                ["Ld", tooltip.marker.stats.leadership],
-                ["OC", String(tooltip.marker.stats.oc)],
-              ].map(([label, val]) => (
-                <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>{label}</span>
-                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{val}</span>
+        {tooltip && (() => {
+          const tm = tooltip.marker;
+          const isP1tip = tm.player === "P1";
+          const nameColor = isP1tip ? "#f87171" : "#60a5fa";
+          const borderColor = isP1tip ? "rgba(220,38,38,0.5)" : "rgba(37,99,235,0.5)";
+          const tipKw = (tm.keywords ?? []).map((k) => k.toUpperCase());
+          const isChar = tipKw.includes("CHARACTER");
+          const maxWTip = tm.woundsPerModel ?? tm.maxWounds;
+          const hpFracTip = tm.currentWounds / maxWTip;
+          const hpColorTip = hpFracTip > 0.6 ? "#4ade80" : hpFracTip > 0.3 ? "#facc15" : "#f87171";
+          const tooltipW = 210;
+          const tooltipH = 210;
+          return (
+            <div
+              style={{
+                position: "absolute",
+                left: Math.min(tooltip.x + 14, (containerRef.current?.clientWidth ?? 400) - tooltipW - 8),
+                top: Math.min(tooltip.y + 14, (containerRef.current?.clientHeight ?? 300) - tooltipH - 8),
+                zIndex: 20,
+                backgroundColor: "rgba(10,10,15,0.97)",
+                border: `1px solid ${borderColor}`,
+                borderRadius: 8,
+                padding: "8px 10px",
+                minWidth: tooltipW,
+                pointerEvents: "none",
+              }}
+            >
+              {/* Header: name + CHARACTER badge */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: nameColor, margin: 0, lineHeight: 1.3 }}>
+                  {tm.unitName}
+                </p>
+                {isChar && (
+                  <span style={{
+                    fontSize: 8, color: "#fbbf24", border: "1px solid #92400e",
+                    backgroundColor: "rgba(234,179,8,0.15)", borderRadius: 3,
+                    padding: "1px 4px", marginLeft: 6, whiteSpace: "nowrap", flexShrink: 0,
+                  }}>
+                    ★ Character
+                  </span>
+                )}
+              </div>
+
+              {/* Faction */}
+              {tm.faction && (
+                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", margin: "0 0 6px" }}>
+                  {tm.faction}
+                </p>
+              )}
+
+              {/* Wounds bar */}
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>Wounds</span>
+                  <span style={{ fontSize: 10, color: hpColorTip, fontWeight: 700 }}>
+                    {tm.currentWounds}/{maxWTip}{(tm.modelCount ?? 1) > 1 ? ` ×${tm.modelCount}` : ""}
+                  </span>
                 </div>
-              ))}
+                <div style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, hpFracTip * 100))}%`, backgroundColor: hpColorTip, borderRadius: 2, transition: "width 0.2s" }} />
+                </div>
+              </div>
+
+              {/* Stats grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "2px 4px", marginBottom: 6 }}>
+                {([
+                  ["M",  tm.stats.movement],
+                  ["T",  String(tm.stats.toughness)],
+                  ["Sv", tm.stats.save],
+                  ["W",  String(maxWTip)],
+                  ["Ld", tm.stats.leadership],
+                  ["OC", String(tm.battleShocked ? 0 : tm.stats.oc)],
+                ] as [string, string][]).map(([label, val]) => (
+                  <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{label}</span>
+                    <span style={{ fontSize: 11, color: label === "OC" && tm.battleShocked ? "#a855f7" : "rgba(255,255,255,0.9)", fontWeight: 600 }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Battle-shocked badge */}
+              {tm.battleShocked && (
+                <div style={{ fontSize: 9, color: "#a855f7", border: "1px solid #7e22ce", borderRadius: 3, padding: "1px 5px", display: "inline-block", marginBottom: 4 }}>
+                  ⚡ Battle-shocked (OC 0)
+                </div>
+              )}
+
+              {/* Keywords */}
+              {(tm.keywords ?? []).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                  {(tm.keywords ?? []).slice(0, 5).map((kw) => (
+                    <span key={kw} style={{
+                      fontSize: 8, color: "rgba(255,255,255,0.45)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: 2, padding: "1px 4px",
+                    }}>
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
