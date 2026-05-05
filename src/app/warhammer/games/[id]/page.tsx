@@ -14,6 +14,7 @@ import type { Unit } from "@/lib/wh40k/types";
 import { MAP_PRESETS, DEFAULT_PRESET, getPresetById } from "@/lib/wh40k/mapPresets";
 import type { MapPreset } from "@/lib/wh40k/mapPresets";
 import { BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
+import { hexPackPositions } from "@/lib/wh40k/hexPack";
 import type { BaseSize } from "@/lib/wh40k/gameTypes";
 import { FACTION_RULES, getFactionRules } from "@/lib/wh40k/factionRules";
 import type { FactionRule } from "@/lib/wh40k/factionRules";
@@ -258,6 +259,15 @@ function lineIntersectsRect(
   if (!clip(-dy, ay - ry)) return false;
   if (!clip(dy, ry + rh - ay)) return false;
   return tMin < tMax;
+}
+
+// Returns the effective center of a unit for range/distance calculations.
+// Uses first model position (absolute board inches) when available.
+function markerPos(unit: UnitMarker): { x: number; y: number } {
+  if (unit.modelPositions && unit.modelPositions.length > 0) {
+    return unit.modelPositions[0];
+  }
+  return { x: unit.x + 0.5, y: unit.y + 0.5 };
 }
 
 // ─── Activity log ─────────────────────────────────────────────────────────────
@@ -1995,10 +2005,9 @@ export default function WarhammerGameRoom() {
             if (weapon?.range) {
               const rangeIn = parseStat(weapon.range);
               if (rangeIn > 0) {
-                const dist = Math.sqrt(
-                  (attacker.x + 0.5 - (m.x + 0.5)) ** 2 +
-                  (attacker.y + 0.5 - (m.y + 0.5)) ** 2
-                );
+                const aPos = markerPos(attacker);
+                const tPos = markerPos(m);
+                const dist = Math.sqrt((aPos.x - tPos.x) ** 2 + (aPos.y - tPos.y) ** 2);
                 if (dist > rangeIn) {
                   addLog(
                     `Target out of range (${dist.toFixed(1)}" away, weapon range ${rangeIn}").`,
@@ -2079,7 +2088,9 @@ export default function WarhammerGameRoom() {
         if (combat.step === "selectTarget") {
           const attacker = markers.find((mk) => mk.id === combat.attackerId);
           if (!attacker || m.player === attacker.player) return;
-          const dist = Math.sqrt((attacker.x - m.x) ** 2 + (attacker.y - m.y) ** 2);
+          const aFightPos = markerPos(attacker);
+          const tFightPos = markerPos(m);
+          const dist = Math.sqrt((aFightPos.x - tFightPos.x) ** 2 + (aFightPos.y - tFightPos.y) ** 2);
           if (dist > 2) {
             addLog(`${m.unitName} not in engagement range (within 1").`, "system");
             return;
@@ -2226,7 +2237,14 @@ export default function WarhammerGameRoom() {
           } else if (modelsKilled > 0) {
             addLog(`${m.unitName}: ${modelsKilled} model(s) slain — ${newModelCount} remain.`, "system");
           }
-          return { ...m, currentWounds: newTargetWounds, modelCount: newModelCount, isDestroyed: targetDestroyed };
+          let updatedModelPositions = m.modelPositions;
+          if (modelsKilled > 0 && (m.modelCount ?? 1) > 1) {
+            if (!updatedModelPositions || updatedModelPositions.length === 0) {
+              updatedModelPositions = hexPackPositions(m.x + 0.5, m.y + 0.5, m.modelCount ?? 1);
+            }
+            updatedModelPositions = updatedModelPositions.slice(0, newModelCount);
+          }
+          return { ...m, currentWounds: newTargetWounds, modelCount: newModelCount, isDestroyed: targetDestroyed, modelPositions: updatedModelPositions };
         }
         if (m.id === attackerId) {
           return isFightPhase
@@ -2251,7 +2269,9 @@ export default function WarhammerGameRoom() {
     const target = markers.find((m) => m.id === targetId);
     if (!attacker || !target) return;
 
-    const dist = Math.sqrt((attacker.x - target.x) ** 2 + (attacker.y - target.y) ** 2);
+    const aChargePos = markerPos(attacker);
+    const tChargePos = markerPos(target);
+    const dist = Math.sqrt((aChargePos.x - tChargePos.x) ** 2 + (aChargePos.y - tChargePos.y) ** 2);
 
     // 10th ed: charge declaration requires target within 12"
     if (dist > 12) {

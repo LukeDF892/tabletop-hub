@@ -3,7 +3,8 @@
 import { useRef, useState, useEffect } from "react";
 import type { UnitMarker, RangeIndicator } from "@/lib/wh40k/gameTypes";
 import type { TerrainPiece, MapObjective, DeploymentZone } from "@/lib/wh40k/mapPresets";
-import { getUnitIcon, BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
+import { getUnitIcon, getSilhouettePath, silhouetteTypeForUnit, BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
+import { hexPackPositions } from "@/lib/wh40k/hexPack";
 
 // Board: 60" wide × 44" tall. 1 SVG unit = 1 inch.
 const BOARD_W = 60;
@@ -358,16 +359,26 @@ export default function Warhammer40kBoard({
                 <stop offset="60%" stopColor="#163418" />
                 <stop offset="100%" stopColor="#0c2010" />
               </radialGradient>
-              {/* Clip path for unit silhouettes — one per marker id */}
-              {activeMarkers.map((m) => {
-                const r = BASE_RADIUS_INCHES[m.baseSize ?? "infantry"] * INCH_PX;
-                const cx = (m.x + 0.5) * INCH_PX;
-                const cy = (m.y + 0.5) * INCH_PX;
-                return (
-                  <clipPath key={`clip-${m.id}`} id={`clip-${m.id}`}>
-                    <circle cx={cx} cy={cy} r={r} />
+              {/* Clip paths for unit silhouettes — one per model for multi-model units */}
+              {activeMarkers.flatMap((m) => {
+                const baseSize = m.baseSize ?? "infantry";
+                const r = BASE_RADIUS_INCHES[baseSize] * INCH_PX;
+                const isMulti = (m.modelCount ?? 1) > 1;
+                if (!isMulti) {
+                  const cx = (m.x + 0.5) * INCH_PX;
+                  const cy = (m.y + 0.5) * INCH_PX;
+                  return [(
+                    <clipPath key={`clip-${m.id}`} id={`clip-${m.id}`}>
+                      <circle cx={cx} cy={cy} r={r} />
+                    </clipPath>
+                  )];
+                }
+                const positions = m.modelPositions ?? hexPackPositions(m.x + 0.5, m.y + 0.5, m.modelCount ?? 1);
+                return positions.map((pos, idx) => (
+                  <clipPath key={`clip-${m.id}-${idx}`} id={`clip-${m.id}-${idx}`}>
+                    <circle cx={pos.x * INCH_PX} cy={pos.y * INCH_PX} r={r} />
                   </clipPath>
-                );
+                ));
               })}
             </defs>
 
@@ -616,8 +627,6 @@ export default function Warhammer40kBoard({
               {activeMarkers.map((m) => {
                 const baseSize = m.baseSize ?? "infantry";
                 const r = BASE_RADIUS_INCHES[baseSize] * INCH_PX;
-                const cx = (m.x + 0.5) * INCH_PX;
-                const cy = (m.y + 0.5) * INCH_PX;
                 const isSelected = m.id === selectedMarkerId;
                 const hasActed = actedThisTurn.includes(m.id);
                 const isP1 = m.player === "P1";
@@ -637,22 +646,109 @@ export default function Warhammer40kBoard({
                 const isDamaged = m.currentWounds < maxW;
 
                 // Label: show "+ CharName" if character is attached
+                const silType = silhouetteTypeForUnit(m.faction ?? "", baseSize);
+                const silPath = getSilhouettePath(silType);
+                const silScale = (r * 0.82) / 10;
                 const displayName = m.attachedCharacterName
                   ? `${m.unitName} + ${m.attachedCharacterName}`
                   : m.unitName;
                 const abbr = getUnitAbbr(m.unitName);
                 const woundLabel = `${m.currentWounds}/${maxW}${(m.modelCount ?? 1) > 1 ? ` ×${m.modelCount}` : ""}`;
                 const labelFontSize = Math.max(10, Math.min(18, r * 0.28));
+                const isMulti = (m.modelCount ?? 1) > 1;
 
+                const handleClick = (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  if (!didDragRef.current) onUnitClick(m.id);
+                };
+                const handleEnter = (e: React.MouseEvent) => {
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  setTooltip({ marker: { ...m, unitName: displayName }, x: e.clientX - rect.left, y: e.clientY - rect.top });
+                };
+
+                if (isMulti) {
+                  const positions = m.modelPositions ?? hexPackPositions(m.x + 0.5, m.y + 0.5, m.modelCount ?? 1);
+                  const cPos = positions[0];
+                  const cSvgX = cPos.x * INCH_PX;
+                  const cSvgY = cPos.y * INCH_PX;
+
+                  return (
+                    <g
+                      key={m.id}
+                      onClick={handleClick}
+                      onMouseEnter={handleEnter}
+                      onMouseLeave={() => setTooltip(null)}
+                      style={{ cursor: "pointer", opacity: hasActed ? 0.5 : 1 }}
+                    >
+                      {/* Selection ring around center model */}
+                      {isSelected && (
+                        <circle cx={cSvgX} cy={cSvgY} r={r + INCH_PX * 0.2} fill="none" stroke="white" strokeWidth={3} opacity={0.9} strokeDasharray="12 6" />
+                      )}
+                      {/* Attached character indicator ring */}
+                      {isAttachedChar && (
+                        <circle cx={cSvgX} cy={cSvgY} r={r + 3} fill="none" stroke="#eab308" strokeWidth={2} opacity={0.7} strokeDasharray="6 3" />
+                      )}
+                      {/* Cohesion lines from center to outer models */}
+                      {positions.slice(1).map((pos, i) => (
+                        <line
+                          key={`coh-${i}`}
+                          x1={cSvgX} y1={cSvgY}
+                          x2={pos.x * INCH_PX} y2={pos.y * INCH_PX}
+                          stroke={strokeColor} strokeWidth={0.8} strokeOpacity={0.3}
+                        />
+                      ))}
+                      {/* Individual model circles */}
+                      {positions.map((pos, idx) => {
+                        const sx = pos.x * INCH_PX;
+                        const sy = pos.y * INCH_PX;
+                        return (
+                          <g key={`mdl-${idx}`}>
+                            <circle cx={sx} cy={sy} r={r} fill={factionFill} stroke={strokeColor} strokeWidth={1.5} />
+                            <path
+                              d={silPath}
+                              fill="rgba(255,255,255,0.22)"
+                              transform={`translate(${sx},${sy}) scale(${silScale})`}
+                              clipPath={`url(#clip-${m.id}-${idx})`}
+                            />
+                            {idx === 0 && (
+                              <>
+                                <text
+                                  x={sx} y={sy - (r > 50 ? r * 0.35 : 4)}
+                                  textAnchor="middle"
+                                  fontSize={Math.max(10, Math.min(20, r * 0.38))}
+                                  fontWeight="bold" fill="white" fontFamily="monospace"
+                                >
+                                  {abbr}
+                                </text>
+                                <text
+                                  x={sx} y={sy + (r > 50 ? r * 0.55 : 14)}
+                                  textAnchor="middle"
+                                  fontSize={Math.max(8, Math.min(13, r * 0.26))}
+                                  fill={hpColor} fontFamily="monospace"
+                                >
+                                  {m.currentWounds}/{m.woundsPerModel ?? m.maxWounds}W×{m.modelCount}
+                                </text>
+                                {m.attachedCharacterName && (
+                                  <text x={sx + r * 0.6} y={sy - r * 0.6} textAnchor="middle" fontSize={16} fill="#eab308">⚔</text>
+                                )}
+                              </>
+                            )}
+                          </g>
+                        );
+                      })}
+                    </g>
+                  );
+                }
+
+                // Single-model rendering (original)
+                const cx = (m.x + 0.5) * INCH_PX;
+                const cy = (m.y + 0.5) * INCH_PX;
                 return (
                   <g
                     key={m.id}
-                    onClick={(e) => { e.stopPropagation(); if (!didDragRef.current) onUnitClick(m.id); }}
-                    onMouseEnter={(e) => {
-                      const rect = containerRef.current?.getBoundingClientRect();
-                      if (!rect) return;
-                      setTooltip({ marker: { ...m, unitName: displayName }, x: e.clientX - rect.left, y: e.clientY - rect.top });
-                    }}
+                    onClick={handleClick}
+                    onMouseEnter={handleEnter}
                     onMouseLeave={() => setTooltip(null)}
                     style={{ cursor: "pointer", opacity: hasActed ? 0.5 : 1 }}
                   >

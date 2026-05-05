@@ -61,6 +61,7 @@ export interface UnitMarker {
   belowHalfStrength?: boolean;     // currentWounds < maxWounds/2
   lastPhaseWoundsTaken?: number;   // wounds taken this phase (for Reanimation)
   keywords?: string[];             // unit keywords (e.g. "Deep Strike")
+  modelPositions?: { x: number; y: number }[]; // absolute board-inch centers for each live model
 }
 
 export interface DeploymentState {
