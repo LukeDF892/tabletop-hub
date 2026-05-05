@@ -62,6 +62,9 @@ export interface UnitMarker {
   lastPhaseWoundsTaken?: number;   // wounds taken this phase (for Reanimation)
   keywords?: string[];             // unit keywords (e.g. "Deep Strike")
   modelPositions?: { x: number; y: number }[]; // absolute board-inch centers for each live model
+  isEmbarked?: boolean;            // true = unit is inside a transport, hidden from board
+  embarkTransportId?: string;      // ID of the transport marker this unit is inside
+  transportCapacity?: number;      // max models this transport can carry (TRANSPORT keyword units only)
 }
 
 export interface DeploymentState {
