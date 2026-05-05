@@ -124,6 +124,185 @@ const STRATAGEMS: StratagemDef[] = [
       !m.isAttached &&
       (m.keywords ?? []).some((k) => k.toUpperCase().includes("INFANTRY")),
   },
+  // ── Space Marines ────────────────────────────────────────────────────────
+  {
+    name: "Honour the Chapter",
+    cost: 1,
+    phase: "Fight",
+    description: "Use in Fight phase when a SPACE MARINES unit fights. That unit's melee weapons gain +1 Attack this phase.",
+    effect: "honour_the_chapter",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Space Marines"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "Transhuman Physiology",
+    cost: 1,
+    phase: "Any",
+    description: "REACTIVE: Use when a SPACE MARINES INFANTRY or TERMINATOR unit is selected as a target. Until end of phase, wound rolls of 1–3 against that unit automatically fail.",
+    effect: "transhuman_physiology",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: true,
+    factionFilter: ["Space Marines"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "Only in Death Does Duty End",
+    cost: 2,
+    phase: "Fight",
+    description: "REACTIVE: Use when a SPACE MARINES CHARACTER model is destroyed. Before removing the model, it immediately fights as if it were your Fight phase.",
+    effect: "only_in_death",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: true,
+    factionFilter: ["Space Marines"],
+    unitFilter: (m, ap) =>
+      m.player === ap &&
+      !m.isInReserve &&
+      (m.keywords ?? []).some((k) => k.toUpperCase().includes("CHARACTER")),
+  },
+  // ── Dark Angels ──────────────────────────────────────────────────────────
+  {
+    name: "Deathwing Assault",
+    cost: 1,
+    phase: "Movement",
+    description: "Use at the end of the opponent's Movement phase. One DARK ANGELS TERMINATOR unit from Strategic Reserve can arrive anywhere more than 9\" from all enemy models.",
+    effect: "deathwing_assault",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Dark Angels"],
+    unitFilter: (m, ap) => m.player === ap && !!m.isInReserve && !m.isDestroyed,
+  },
+  {
+    name: "Speed of the Ravenwing",
+    cost: 1,
+    phase: "Movement",
+    description: "Use in the Movement phase for a DARK ANGELS CAVALRY or MOUNTED unit. That unit can move an additional 6\" this phase.",
+    effect: "speed_of_the_ravenwing",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Dark Angels"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "Grim Interrogation",
+    cost: 1,
+    phase: "Fight",
+    description: "Use at end of Fight phase when a DARK ANGELS CHARACTER fights and destroys an enemy CHARACTER. Gain 1 Victory Point.",
+    effect: "grim_interrogation",
+    requiresUnit: false,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Dark Angels"],
+  },
+  // ── Tyranids ─────────────────────────────────────────────────────────────
+  {
+    name: "Metabolic Overdrive",
+    cost: 1,
+    phase: "Movement",
+    description: "Use in the Movement phase for a TYRANIDS unit. That unit can Advance and still shoot this turn.",
+    effect: "metabolic_overdrive",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Tyranids"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "Voracious Appetite",
+    cost: 1,
+    phase: "Fight",
+    description: "Use in the Fight phase for a TYRANIDS unit. Re-roll all failed wound rolls for that unit this phase.",
+    effect: "voracious_appetite",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Tyranids"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "Synaptic Communion",
+    cost: 2,
+    phase: "Command",
+    description: "Use at the start of your Command phase. Remove the Battle-shocked condition from one friendly TYRANIDS unit within 12\" of a SYNAPSE unit.",
+    effect: "synaptic_communion",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Tyranids"],
+    unitFilter: (m, ap) =>
+      m.player === ap && !m.isDestroyed && !m.isInReserve && !!m.battleShocked,
+  },
+  {
+    name: "Pheromone Trail",
+    cost: 1,
+    phase: "Movement",
+    description: "Use at the end of your Movement phase. One TYRANIDS unit in Strategic Reserve can be placed anywhere more than 9\" from all enemy models.",
+    effect: "pheromone_trail",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Tyranids"],
+    unitFilter: (m, ap) => m.player === ap && !!m.isInReserve && !m.isDestroyed,
+  },
+  // ── Necrons ──────────────────────────────────────────────────────────────
+  {
+    name: "Their Number is Legion",
+    cost: 1,
+    phase: "Any",
+    description: "REACTIVE: Use at end of opponent's Shooting or Fight phase when a NECRONS INFANTRY unit had models destroyed. Roll D6 for each; on 4+, return that model with 1 wound.",
+    effect: "their_number_is_legion",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: true,
+    factionFilter: ["Necrons"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "Disruption Fields",
+    cost: 1,
+    phase: "Fight",
+    description: "Use in the Fight phase for a NECRONS unit. Until end of phase, add +1 to wound rolls for that unit's melee weapons.",
+    effect: "disruption_fields",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Necrons"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "Quantum Shielding",
+    cost: 1,
+    phase: "Any",
+    description: "REACTIVE: Use when a NECRONS VEHICLE is hit by an attack with Damage 3+. Reduce the damage of that attack by D3 (minimum 1).",
+    effect: "quantum_shielding",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: true,
+    factionFilter: ["Necrons"],
+    unitFilter: (m, ap) =>
+      m.player === ap &&
+      !m.isDestroyed &&
+      !m.isInReserve &&
+      (m.keywords ?? []).some((k) => k.toUpperCase().includes("VEHICLE")),
+  },
+  {
+    name: "My Will Be Done",
+    cost: 1,
+    phase: "Movement",
+    description: "Use at the start of your Movement phase for a NECRONS unit within 9\" of a NECRONS NOBLE. Until end of turn, that unit has +1 to hit rolls.",
+    effect: "my_will_be_done",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    factionFilter: ["Necrons"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
 ];
 
 const ALL_FACTIONS = [
@@ -2471,6 +2650,9 @@ export default function WarhammerGameRoom() {
     } else if (sEffect === "insane_bravery" && unit) {
       setMarkers((prev) => prev.map((m) => m.id === unit.id ? { ...m, battleShocked: false } : m));
       addLog(`${sPlayer} Insane Bravery: ${unit.unitName} auto-passes Battle-shock.`, sPlayer);
+    } else if (sEffect === "synaptic_communion" && unit) {
+      setMarkers((prev) => prev.map((m) => m.id === unit.id ? { ...m, battleShocked: false } : m));
+      addLog(`${sPlayer} Synaptic Communion: ${unit.unitName} recovers from Battle-shock via Synapse link.`, sPlayer);
     } else if (sEffect === "grenade" && unit && target) {
       // Mini grenade shoot: D3 shots, S4, AP0, D1, BS same as unit
       const shots = Math.floor(Math.random() * 3) + 1;
