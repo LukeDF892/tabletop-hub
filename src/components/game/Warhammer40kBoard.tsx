@@ -297,8 +297,8 @@ export default function Warhammer40kBoard({
   const xLabels = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60];
   const yLabels = [0, 6, 12, 18, 24, 30, 36, 42];
 
-  // Filter: only show non-destroyed, non-reserve markers (except attached chars are shown with unit)
-  const activeMarkers = markers.filter((m) => !m.isDestroyed && !m.isInReserve);
+  // Filter: only show non-destroyed, non-reserve, non-embarked markers
+  const activeMarkers = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isEmbarked);
 
   return (
     <div style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column" }}>

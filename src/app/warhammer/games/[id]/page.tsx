@@ -449,6 +449,23 @@ function markerPos(unit: UnitMarker): { x: number; y: number } {
   return { x: unit.x + 0.5, y: unit.y + 0.5 };
 }
 
+// ─── Transport helpers ─────────────────────────────────────────────────────────
+
+function isTransportUnit(m: UnitMarker): boolean {
+  return (m.keywords ?? []).some((k) => k.toUpperCase() === "TRANSPORT");
+}
+
+function getTransportCapacity(m: UnitMarker): number {
+  if (m.transportCapacity !== undefined) return m.transportCapacity;
+  const name = m.unitName.toLowerCase();
+  if (name.includes("impulsor") || name.includes("repulsor")) return 6;
+  return 10; // Rhino, Razorback, Drop Pod
+}
+
+function isDropPod(m: UnitMarker): boolean {
+  return m.unitName.toLowerCase().includes("drop pod");
+}
+
 // ─── Activity log ─────────────────────────────────────────────────────────────
 
 interface LogEntry {
@@ -1183,6 +1200,9 @@ export default function WarhammerGameRoom() {
   const [reservesMode, setReservesMode] = useState<'idle' | 'place_normal' | 'place_deepstrike'>('idle');
   const [reservesUnitId, setReservesUnitId] = useState<string | null>(null);
 
+  // ── Transport mechanics ──
+  const [transportContents, setTransportContents] = useState<Record<string, string[]>>({});
+
   function addLog(text: string, player?: "P1" | "P2" | "system") {
     setActLog((prev) => [...prev, { time: nowTime(), text, player }]);
     setTimeout(() => logRef.current?.scrollTo({ top: 9999, behavior: "smooth" }), 50);
@@ -1559,7 +1579,7 @@ export default function WarhammerGameRoom() {
   // ── Score a tactical mission card ──
   function scoreMission(player: "P1" | "P2", card: TacticalMission) {
     const captureRadius = 3;
-    const active = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
+    const active = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached && !m.isEmbarked);
     const objectiveControl = mapPreset.objectives.map((obj) => {
       const p1Near = active.filter(
         (m) =>
@@ -1975,6 +1995,116 @@ export default function WarhammerGameRoom() {
     if (p1Hand.length < 3) drawMission("P1");
   }
 
+  // ── Transport: embark / disembark ──
+  function handleEmbark(infantryId: string, transportId: string) {
+    const infantry = markers.find((m) => m.id === infantryId);
+    const transport = markers.find((m) => m.id === transportId);
+    if (!infantry || !transport) return;
+
+    const capacity = getTransportCapacity(transport);
+    const currentLoad = (transportContents[transportId] ?? []).length;
+    if (currentLoad >= capacity) {
+      addLog(`${transport.unitName} is full (capacity: ${capacity}).`, "system");
+      return;
+    }
+
+    const dist = Math.sqrt((infantry.x - transport.x) ** 2 + (infantry.y - transport.y) ** 2);
+    if (dist > 3) {
+      addLog(`${infantry.unitName} is ${dist.toFixed(1)}" from ${transport.unitName} — must be within 3" to embark.`, "system");
+      return;
+    }
+
+    if (movedThisTurn.includes(infantryId)) {
+      addLog(`${infantry.unitName} has already moved this phase — cannot embark.`, "system");
+      return;
+    }
+
+    pushHistory();
+    setTransportContents((prev) => ({
+      ...prev,
+      [transportId]: [...(prev[transportId] ?? []), infantryId],
+    }));
+    setMarkers((prev) =>
+      prev.map((m) =>
+        m.id === infantryId ? { ...m, isEmbarked: true, embarkTransportId: transportId } : m
+      )
+    );
+    setMovedThisTurn((prev) => [...prev, infantryId]);
+    addLog(`${infantry.unitName} embarks onto ${transport.unitName}.`, infantry.player);
+  }
+
+  function handleDisembark(infantryId: string, transportId: string) {
+    const infantry = markers.find((m) => m.id === infantryId);
+    const transport = markers.find((m) => m.id === transportId);
+    if (!infantry || !transport) return;
+
+    const transportHasMoved = movedThisTurn.includes(transportId);
+    pushHistory();
+    setTransportContents((prev) => ({
+      ...prev,
+      [transportId]: (prev[transportId] ?? []).filter((id) => id !== infantryId),
+    }));
+    setMarkers((prev) =>
+      prev.map((m) => {
+        if (m.id !== infantryId) return m;
+        // Place the unit adjacent to the transport; offset slightly so they don't stack
+        const dx = transport.player === "P1" ? 0 : 0;
+        const dy = transport.player === "P1" ? 1 : -1;
+        return {
+          ...m,
+          isEmbarked: false,
+          embarkTransportId: undefined,
+          x: Math.max(0, Math.min(59, transport.x + dx)),
+          y: Math.max(0, Math.min(43, transport.y + dy)),
+          hasCharged: transportHasMoved ? true : m.hasCharged,
+        };
+      })
+    );
+    if (transportHasMoved) {
+      addLog(`${infantry.unitName} disembarks from ${transport.unitName} — cannot charge this turn (transport moved).`, infantry.player);
+    } else {
+      addLog(`${infantry.unitName} disembarks from ${transport.unitName}.`, infantry.player);
+    }
+  }
+
+  function handleTransportDestroyed(transportId: string) {
+    const transport = markers.find((m) => m.id === transportId);
+    if (!transport) return;
+    const embarked = transportContents[transportId] ?? [];
+    if (embarked.length === 0) return;
+
+    let updatedMarkers = [...markers];
+    for (const uid of embarked) {
+      const unit = updatedMarkers.find((m) => m.id === uid);
+      if (!unit) continue;
+      const mortalWounds = Math.floor(Math.random() * 3) + 1;
+      const newW = Math.max(0, unit.currentWounds - mortalWounds);
+      addLog(
+        `${unit.unitName} takes ${mortalWounds} mortal wound(s) escaping the destroyed ${transport.unitName}! (${newW}W remaining)`,
+        unit.player
+      );
+      updatedMarkers = updatedMarkers.map((m) =>
+        m.id === uid
+          ? {
+              ...m,
+              isEmbarked: false,
+              embarkTransportId: undefined,
+              x: Math.max(0, Math.min(59, transport.x)),
+              y: Math.max(0, Math.min(43, transport.y + 1)),
+              currentWounds: newW,
+              isDestroyed: newW <= 0,
+            }
+          : m
+      );
+    }
+    setMarkers(updatedMarkers);
+    setTransportContents((prev) => {
+      const next = { ...prev };
+      delete next[transportId];
+      return next;
+    });
+  }
+
   // ── Reserves deployment ──
   function handleReservesDeploy(x: number, y: number) {
     if (!reservesUnitId) return;
@@ -2025,6 +2155,9 @@ export default function WarhammerGameRoom() {
     }
 
     pushHistory();
+    // Auto-disembark any units inside a Drop Pod on landing
+    const isDP = isDropPod(marker);
+    const embarkedInThis = transportContents[marker.id] ?? [];
     setMarkers((prev) =>
       prev.map((m) => {
         if (m.id === reservesUnitId) return { ...m, x, y, isInReserve: false };
@@ -2032,10 +2165,27 @@ export default function WarhammerGameRoom() {
           const dy2 = marker.player === "P1" ? -1 : 1;
           return { ...m, x, y: Math.max(0, Math.min(43, y + dy2)), isInReserve: false };
         }
+        if (isDP && embarkedInThis.includes(m.id)) {
+          const idx = embarkedInThis.indexOf(m.id);
+          return {
+            ...m,
+            isEmbarked: false,
+            embarkTransportId: undefined,
+            isInReserve: false,
+            x: Math.max(0, Math.min(59, x + (idx % 2 === 0 ? 1 : -1))),
+            y: Math.max(0, Math.min(43, y + Math.floor(idx / 2))),
+          };
+        }
         return m;
       })
     );
-    addLog(`${marker.player} deployed ${marker.unitName} from reserves at (${x}, ${y})${reservesMode === 'place_deepstrike' ? ' (Deep Strike)' : ''}.`, marker.player);
+    if (isDP && embarkedInThis.length > 0) {
+      setTransportContents((prev) => { const next = { ...prev }; delete next[marker.id]; return next; });
+      addLog(`Drop Pod lands at (${x}, ${y}) — ${embarkedInThis.length} unit(s) disembark immediately!`, marker.player);
+    } else {
+      addLog(`${marker.player} deployed ${marker.unitName} from reserves at (${x}, ${y})${reservesMode === 'place_deepstrike' ? ' (Deep Strike)' : ''}.`, marker.player);
+    }
+    setMovedThisTurn((prev) => isDP ? [...prev, marker.id] : prev); // Drop Pod can't move after landing
     setReservesMode('idle');
     setReservesUnitId(null);
     setSelectedMarkerId(null);
@@ -2438,6 +2588,10 @@ export default function WarhammerGameRoom() {
       setFoughtThisPhase((prev) => new Set([...prev, attackerId]));
     }
 
+    if (targetDestroyed && targetId && (transportContents[targetId] ?? []).length > 0) {
+      setTimeout(() => handleTransportDestroyed(targetId), 50);
+    }
+
     setCombat({ ...INIT_COMBAT, step: "done" });
     setTimeout(() => setCombat(INIT_COMBAT), 2000);
   }
@@ -2567,6 +2721,10 @@ export default function WarhammerGameRoom() {
         return m;
       })
     );
+
+    if (newW <= 0 && (transportContents[targetId] ?? []).length > 0) {
+      setTimeout(() => handleTransportDestroyed(targetId), 50);
+    }
 
     setCombat(INIT_COMBAT);
     setSelectedMarkerId(null);
@@ -2787,7 +2945,7 @@ export default function WarhammerGameRoom() {
 
     if (gamePhase === "movement") {
       const reservedForActive = markers.filter(
-        (m) => m.isInReserve && !m.isDestroyed && m.player === activeSide && !m.isAttached
+        (m) => m.isInReserve && !m.isDestroyed && m.player === activeSide && !m.isAttached && !m.isEmbarked
       );
       const canBringReserves = round >= 2 && reservedForActive.length > 0;
 
@@ -2865,6 +3023,163 @@ export default function WarhammerGameRoom() {
               )}
             </>
           )}
+
+          {/* Transport panel */}
+          {reservesMode === 'idle' && (() => {
+            const activeTransports = markers.filter(
+              (m) => m.player === activeSide && !m.isDestroyed && !m.isInReserve && !m.isEmbarked && isTransportUnit(m)
+            );
+            const inReserveTransports = markers.filter(
+              (m) => m.player === activeSide && !m.isDestroyed && m.isInReserve && isTransportUnit(m)
+            );
+            if (activeTransports.length === 0 && inReserveTransports.length === 0) return null;
+            return (
+              <div>
+                <p className="text-[10px] uppercase tracking-widest mt-2 mb-1" style={{ color: "#10b981" }}>
+                  Transports
+                </p>
+                <div className="space-y-2">
+                  {activeTransports.map((transport) => {
+                    const embarked = (transportContents[transport.id] ?? [])
+                      .map((uid) => markers.find((m) => m.id === uid))
+                      .filter(Boolean) as typeof markers;
+                    const capacity = getTransportCapacity(transport);
+                    const nearbyInfantry = markers.filter((m) =>
+                      m.player === activeSide &&
+                      !m.isDestroyed &&
+                      !m.isInReserve &&
+                      !m.isEmbarked &&
+                      !m.isAttached &&
+                      !isTransportUnit(m) &&
+                      (m.keywords ?? []).some((k) => k.toUpperCase().includes("INFANTRY")) &&
+                      Math.sqrt((m.x - transport.x) ** 2 + (m.y - transport.y) ** 2) <= 3 &&
+                      !movedThisTurn.includes(m.id)
+                    );
+                    return (
+                      <div key={transport.id} className="rounded-lg p-2" style={{ backgroundColor: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-semibold" style={{ color: "#10b981" }}>
+                            📦 {transport.unitName}
+                          </span>
+                          <span className="text-[9px]" style={{ color: "var(--text-muted)" }}>
+                            {embarked.length}/{capacity}
+                          </span>
+                        </div>
+                        {embarked.length > 0 && (
+                          <div className="mb-1 space-y-0.5">
+                            <p className="text-[9px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Embarked</p>
+                            {embarked.map((unit) => (
+                              <div key={unit.id} className="flex items-center gap-1">
+                                <span className="flex-1 text-[10px] truncate" style={{ color: "var(--text-primary)" }}>{unit.unitName}</span>
+                                <button
+                                  onClick={() => handleDisembark(unit.id, transport.id)}
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                                  style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
+                                >
+                                  Disembark
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {nearbyInfantry.length > 0 && embarked.length < capacity && (
+                          <div className="space-y-0.5">
+                            <p className="text-[9px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Nearby infantry (≤3")</p>
+                            {nearbyInfantry.map((unit) => (
+                              <div key={unit.id} className="flex items-center gap-1">
+                                <span className="flex-1 text-[10px] truncate" style={{ color: "var(--text-primary)" }}>{unit.unitName}</span>
+                                <button
+                                  onClick={() => handleEmbark(unit.id, transport.id)}
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                                  style={{ backgroundColor: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)" }}
+                                >
+                                  Embark
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {nearbyInfantry.length === 0 && embarked.length === 0 && (
+                          <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>No infantry within 3"</p>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Drop Pod pre-loading (in reserve) */}
+                  {inReserveTransports.filter(isDropPod).map((dp) => {
+                    const embarked = (transportContents[dp.id] ?? [])
+                      .map((uid) => markers.find((m) => m.id === uid))
+                      .filter(Boolean) as typeof markers;
+                    const capacity = getTransportCapacity(dp);
+                    const loadableUnits = markers.filter((m) =>
+                      m.player === activeSide && !m.isDestroyed && m.isInReserve && !m.isEmbarked && !isTransportUnit(m)
+                    );
+                    return (
+                      <div key={dp.id} className="rounded-lg p-2" style={{ backgroundColor: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)" }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-semibold" style={{ color: "#818cf8" }}>
+                            🚀 {dp.unitName} (Reserve)
+                          </span>
+                          <span className="text-[9px]" style={{ color: "var(--text-muted)" }}>
+                            {embarked.length}/{capacity}
+                          </span>
+                        </div>
+                        {embarked.length > 0 && (
+                          <div className="mb-1 space-y-0.5">
+                            <p className="text-[9px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Loading</p>
+                            {embarked.map((unit) => (
+                              <div key={unit.id} className="flex items-center gap-1">
+                                <span className="flex-1 text-[10px] truncate" style={{ color: "var(--text-primary)" }}>{unit.unitName}</span>
+                                <button
+                                  onClick={() => {
+                                    setTransportContents((prev) => ({
+                                      ...prev,
+                                      [dp.id]: (prev[dp.id] ?? []).filter((id) => id !== unit.id),
+                                    }));
+                                    setMarkers((prev) => prev.map((m) => m.id === unit.id ? { ...m, isEmbarked: false, embarkTransportId: undefined } : m));
+                                    addLog(`${unit.unitName} unloaded from ${dp.unitName}.`, unit.player);
+                                  }}
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                                  style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)" }}
+                                >
+                                  Unload
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {loadableUnits.length > 0 && embarked.length < capacity && (
+                          <div className="space-y-0.5">
+                            <p className="text-[9px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Load from Reserve</p>
+                            {loadableUnits.map((unit) => (
+                              <div key={unit.id} className="flex items-center gap-1">
+                                <span className="flex-1 text-[10px] truncate" style={{ color: "var(--text-primary)" }}>{unit.unitName}</span>
+                                <button
+                                  onClick={() => {
+                                    setTransportContents((prev) => ({
+                                      ...prev,
+                                      [dp.id]: [...(prev[dp.id] ?? []), unit.id],
+                                    }));
+                                    setMarkers((prev) => prev.map((m) => m.id === unit.id ? { ...m, isEmbarked: true, embarkTransportId: dp.id } : m));
+                                    addLog(`${unit.unitName} loaded into ${dp.unitName} (will disembark on landing).`, unit.player);
+                                  }}
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                                  style={{ backgroundColor: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}
+                                >
+                                  Load
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Reserves panel — available from Round 2 */}
           {canBringReserves && reservesMode === 'idle' && (
@@ -3982,7 +4297,7 @@ export default function WarhammerGameRoom() {
                 Units on Board
               </p>
               {markers
-                .filter((m) => !m.isDestroyed && !m.isInReserve)
+                .filter((m) => !m.isDestroyed && !m.isInReserve && !m.isEmbarked)
                 .map((m) => (
                   <button
                     key={m.id}
@@ -4022,9 +4337,35 @@ export default function WarhammerGameRoom() {
                     </div>
                   </button>
                 ))}
+              {/* Embarked units */}
+              {(() => {
+                const embarked = markers.filter((m) => m.isEmbarked && !m.isDestroyed);
+                if (embarked.length === 0) return null;
+                return (
+                  <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: "var(--text-muted)" }}>
+                      In Transports
+                    </p>
+                    {embarked.map((m) => {
+                      const transport = markers.find((t) => t.id === m.embarkTransportId);
+                      return (
+                        <div key={m.id} className="w-full px-2 py-1 rounded-lg mb-0.5 text-xs"
+                          style={{ backgroundColor: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.12)" }}>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: m.player === "P1" ? "#ef4444" : "#3b82f6" }} />
+                            <span className="flex-1 truncate text-[10px]" style={{ color: "var(--text-muted)" }}>{m.unitName}</span>
+                            <span className="text-[9px]" style={{ color: "#10b981" }}>📦 {transport?.unitName ?? "transport"}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {/* In-reserve units */}
               {(() => {
-                const inReserve = markers.filter((m) => m.isInReserve && !m.isDestroyed);
+                const inReserve = markers.filter((m) => m.isInReserve && !m.isDestroyed && !m.isEmbarked);
                 if (inReserve.length === 0) return null;
                 return (
                   <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
@@ -4085,7 +4426,7 @@ export default function WarhammerGameRoom() {
           {(() => {
             // Compute which player controls each objective for ring colouring
             const captureR = 3;
-            const activeM = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached);
+            const activeM = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached && !m.isEmbarked);
             const objectiveControl: ('P1' | 'P2' | null)[] = mapPreset.objectives.map((obj) => {
               const p1n = activeM.filter(
                 (m) => m.player === "P1" &&
