@@ -732,6 +732,9 @@ export default function Warhammer40kBoard({
                                 {m.attachedCharacterName && (
                                   <text x={sx + r * 0.6} y={sy - r * 0.6} textAnchor="middle" fontSize={16} fill="#eab308">⚔</text>
                                 )}
+                                {m.inCover && (
+                                  <text x={sx - r * 0.72} y={sy - r * 0.62} textAnchor="middle" fontSize={Math.max(10, r * 0.28)} fill="#4ade80">▲</text>
+                                )}
                               </>
                             )}
                           </g>
@@ -834,6 +837,19 @@ export default function Warhammer40kBoard({
                         fill="#eab308"
                       >
                         ⚔
+                      </text>
+                    )}
+
+                    {/* Cover badge — green triangle top-left when unit is in ruins */}
+                    {m.inCover && (
+                      <text
+                        x={cx - r * 0.72}
+                        y={cy - r * 0.62}
+                        textAnchor="middle"
+                        fontSize={Math.max(12, r * 0.32)}
+                        fill="#4ade80"
+                      >
+                        ▲
                       </text>
                     )}
 
@@ -945,6 +961,13 @@ export default function Warhammer40kBoard({
               {tm.battleShocked && (
                 <div style={{ fontSize: 9, color: "#a855f7", border: "1px solid #7e22ce", borderRadius: 3, padding: "1px 5px", display: "inline-block", marginBottom: 4 }}>
                   ⚡ Battle-shocked (OC 0)
+                </div>
+              )}
+
+              {/* Cover badge */}
+              {tm.inCover && (
+                <div style={{ fontSize: 9, color: "#4ade80", border: "1px solid #166534", borderRadius: 3, padding: "1px 5px", display: "inline-block", marginBottom: 4, marginLeft: tm.battleShocked ? 4 : 0 }}>
+                  ▲ COV — +1 save (AP0/AP-1)
                 </div>
               )}
 
