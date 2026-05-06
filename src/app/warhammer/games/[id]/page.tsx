@@ -1215,6 +1215,7 @@ export default function WarhammerGameRoom() {
   // Oath of Moment target (Space Marines)
   const [oathTarget, setOathTarget] = useState<string | null>(null); // marker ID
   const [showOathPicker, setShowOathPicker] = useState(false);
+  const [oathSelectionMode, setOathSelectionMode] = useState(false);
   // Synaptic Imperative choice (Tyranids)
   const [synapticImperative, setSynapticImperative] = useState<string | null>(null);
   const [showSynapticPicker, setShowSynapticPicker] = useState(false);
@@ -1244,6 +1245,9 @@ export default function WarhammerGameRoom() {
 
   // ── Battle-shock ──
   const [battleShockPhase, setBattleShockPhase] = useState(false);
+
+  // ── Multi-weapon shooting tracking (cleared on Done Shooting or phase advance) ──
+  const [weaponsFiredThisShot, setWeaponsFiredThisShot] = useState<Set<number>>(new Set());
 
   // ── Fight phase tracking ──
   const [foughtThisPhase, setFoughtThisPhase] = useState<Set<string>>(new Set());
@@ -1344,6 +1348,18 @@ export default function WarhammerGameRoom() {
     setFightBackMode(false);
     setCombat(INIT_COMBAT);
     setSelectedMarkerId(null);
+  }
+
+  function doneShooting() {
+    if (!combat.attackerId) return;
+    const attackerId = combat.attackerId;
+    const unit = markers.find((m) => m.id === attackerId);
+    setMarkers((prev) => prev.map((m) => m.id === attackerId ? { ...m, hasShotThisTurn: true } : m));
+    setShotThisTurn((prev) => [...prev, attackerId]);
+    setWeaponsFiredThisShot(new Set());
+    setCombat(INIT_COMBAT);
+    setSelectedMarkerId(null);
+    if (unit) addLog(`${unit.unitName} done shooting.`, unit.player);
   }
 
   // ── Load game from Supabase ──
@@ -1960,7 +1976,7 @@ export default function WarhammerGameRoom() {
       setFoughtThisTurn([]);
     }
     if (gamePhase === "movement") setMovedThisTurn([]);
-    if (gamePhase === "shooting") setShotThisTurn([]);
+    if (gamePhase === "shooting") { setShotThisTurn([]); setWeaponsFiredThisShot(new Set()); }
     if (gamePhase === "charge") setChargedThisTurn([]);
 
     if (gamePhase === "fight") {
@@ -2417,6 +2433,18 @@ export default function WarhammerGameRoom() {
     if (!m) return;
     if (m.isInReserve) return; // in-reserve units are not interactive during normal gameplay
 
+    // Oath of Moment board-click targeting: if selection mode is active, designate enemy unit
+    if (oathSelectionMode) {
+      const activeSide = gameMode === "solo" ? soloSide : activePlayer;
+      if (m.player !== activeSide) {
+        setOathTarget(markerId);
+        setOathSelectionMode(false);
+        setCommandAbilityUsed(true);
+        addLog(`Oath of Moment: ${m.unitName} designated as target. All attacks against it may reroll 1s to hit.`, activePlayer);
+      }
+      return;
+    }
+
     // If a stacked-picker is already open and the user clicked one of its listed units, proceed normally
     if (stackedPicker) {
       setStackedPicker(null);
@@ -2612,7 +2640,7 @@ export default function WarhammerGameRoom() {
       showRoll({ rolls: [], type: "hit", threshold: 0, label: `Torrent — ${numAttacks} auto-hits` });
       setCombat((prev) => ({ ...prev, hitRolls: [], hits: numAttacks, autoWounds: 0, step: "woundRolls" }));
       pushHistory();
-      if (gamePhase === "shooting" && combat.attackerId) setShotThisTurn((prev) => [...prev, combat.attackerId!]);
+      // For shooting, hasShotThisTurn is deferred to doneShooting() so the unit can fire all weapons first
       if (gamePhase === "fight" && combat.attackerId) setFoughtThisTurn((prev) => [...prev, combat.attackerId!]);
       return;
     }
@@ -2622,8 +2650,13 @@ export default function WarhammerGameRoom() {
     // Oath of Moment: re-roll 1s against the oath target
     const isAgainstOathTarget = combat.targetId === oathTarget;
     if (isSM && isAgainstOathTarget && oathTarget) {
-      rolls = rolls.map((r) => (r === 1 ? d6() : r));
-      addLog(`Oath of Moment: re-rolling 1s against ${markers.find((m) => m.id === oathTarget)?.unitName ?? "oath target"}.`, attacker.player);
+      const oathTargetName = markers.find((m) => m.id === oathTarget)?.unitName ?? "oath target";
+      const newRolls = rolls.map((r) => r === 1 ? d6() : r);
+      rolls.forEach((old, i) => {
+        if (old === 1) addLog(`⚔️ Oath of Moment reroll: ${old} → ${newRolls[i]}`, attacker.player);
+      });
+      rolls = newRolls;
+      addLog(`Oath of Moment: re-rolled 1s against ${oathTargetName} — all attacks may reroll 1s to hit.`, attacker.player);
     }
 
     // Count hits and apply special rules on natural 6s
@@ -2657,7 +2690,7 @@ export default function WarhammerGameRoom() {
     if (autoWounds > 0) addLog(`⚡ Lethal Hit — ${autoWounds} auto-wound(s), bypassing wound rolls!`, attacker.player);
     setCombat((prev) => ({ ...prev, hitRolls: rolls, hits: totalHits, autoWounds, step: "woundRolls" }));
     pushHistory();
-    if (gamePhase === "shooting" && combat.attackerId) setShotThisTurn((prev) => [...prev, combat.attackerId!]);
+    // For shooting, hasShotThisTurn is deferred to doneShooting() so the unit can fire all weapons first
     if (gamePhase === "fight" && combat.attackerId) setFoughtThisTurn((prev) => [...prev, combat.attackerId!]);
   }
 
@@ -2784,6 +2817,7 @@ export default function WarhammerGameRoom() {
     // Apply damage and mark attacker
     const attackerId = combat.attackerId;
     const targetId = combat.targetId;
+    const firedWeaponIdx = combat.weaponIdx!;
     const isFightPhase = gamePhase === "fight";
     const isFightback = combat.isFightback ?? false;
 
@@ -2807,9 +2841,8 @@ export default function WarhammerGameRoom() {
           return { ...m, currentWounds: newTargetWounds, modelCount: newModelCount, isDestroyed: targetDestroyed, modelPositions: updatedModelPositions };
         }
         if (m.id === attackerId) {
-          return isFightPhase
-            ? { ...m, hasFought: true }
-            : { ...m, hasShotThisTurn: true };
+          // For shooting, hasShotThisTurn is deferred until doneShooting() so the unit fires all weapons
+          return isFightPhase ? { ...m, hasFought: true } : m;
         }
         return m;
       })
@@ -2834,8 +2867,15 @@ export default function WarhammerGameRoom() {
       }
     }
 
-    setCombat({ ...INIT_COMBAT, step: "done" });
-    setTimeout(() => setCombat(INIT_COMBAT), 2000);
+    if (isFightPhase) {
+      setCombat({ ...INIT_COMBAT, step: "done" });
+      setTimeout(() => setCombat(INIT_COMBAT), 2000);
+    } else {
+      // Shooting: mark this weapon as fired, then return to weapon select so the unit can fire more
+      setWeaponsFiredThisShot((prev) => new Set([...prev, firedWeaponIdx]));
+      setCombat({ ...INIT_COMBAT, step: "done" });
+      setTimeout(() => setCombat({ ...INIT_COMBAT, step: "selectWeapon", attackerId }), 1500);
+    }
   }
 
   // ── Charge ──
@@ -3592,33 +3632,64 @@ export default function WarhammerGameRoom() {
           )}
           {combat.step === "selectWeapon" && combatAttacker && (
             <div>
-              <p className="text-xs mb-2" style={{ color: "#d97706" }}>
-                {combatAttacker.unitName} — Select weapon:
+              <p className="text-xs mb-1 font-semibold" style={{ color: "#d97706" }}>
+                {combatAttacker.unitName} — Fire weapons:
+              </p>
+              <p className="text-[10px] mb-2" style={{ color: "var(--text-muted)" }}>
+                Select each weapon to fire, then click Done Shooting.
               </p>
               <div className="space-y-1">
-                {combatAttacker.weapons
-                  .map((w, origIdx) => ({ w, origIdx }))
-                  .filter(({ w }) => w.type !== "Melee")
-                  .map(({ w, origIdx }) => (
-                  <button
-                    key={origIdx}
-                    onClick={() => setCombat((prev) => ({ ...prev, weaponIdx: origIdx, step: "selectTarget" }))}
-                    className="w-full text-left px-2 py-1.5 rounded text-xs"
-                    style={{ backgroundColor: "rgba(217,119,6,0.1)", color: "var(--text-primary)", border: "1px solid rgba(217,119,6,0.2)" }}
-                  >
-                    <span className="font-medium">{w.name}</span>
-                    <span className="ml-2" style={{ color: "var(--text-muted)" }}>
-                      {w.range} A{w.attacks} S{w.strength} AP{w.ap} D{w.damage}
-                    </span>
-                  </button>
-                ))}
+                {(() => {
+                  const rangedWeapons = combatAttacker.weapons
+                    .map((w, origIdx) => ({ w, origIdx }))
+                    .filter(({ w }) => w.type !== "Melee");
+                  // Detect which weapons are "grouped" (share a base name slot, e.g. plasma modes)
+                  const getBaseName = (name: string) => {
+                    const i = name.indexOf(" ("); return i >= 0 ? name.slice(0, i) : name;
+                  };
+                  return rangedWeapons.map(({ w, origIdx }) => {
+                    const baseName = getBaseName(w.name);
+                    const isFired = weaponsFiredThisShot.has(origIdx) ||
+                      rangedWeapons.some(({ w: o, origIdx: oi }) =>
+                        oi !== origIdx && weaponsFiredThisShot.has(oi) &&
+                        (getBaseName(o.name) === baseName || getBaseName(w.name) === getBaseName(o.name))
+                      );
+                    return (
+                      <button
+                        key={origIdx}
+                        disabled={isFired}
+                        onClick={() => setCombat((prev) => ({ ...prev, weaponIdx: origIdx, step: "selectTarget" }))}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs"
+                        style={{
+                          backgroundColor: isFired ? "rgba(255,255,255,0.03)" : "rgba(217,119,6,0.1)",
+                          color: isFired ? "var(--text-muted)" : "var(--text-primary)",
+                          border: `1px solid ${isFired ? "rgba(255,255,255,0.06)" : "rgba(217,119,6,0.2)"}`,
+                          opacity: isFired ? 0.6 : 1,
+                          cursor: isFired ? "default" : "pointer",
+                        }}
+                      >
+                        <span className="font-medium">{isFired ? "✓ " : ""}{w.name}</span>
+                        <span className="ml-2" style={{ color: "var(--text-muted)" }}>
+                          {w.range} A{w.attacks} S{w.strength} AP{w.ap} D{w.damage}
+                        </span>
+                      </button>
+                    );
+                  });
+                })()}
               </div>
               <button
-                onClick={() => { setCombat(INIT_COMBAT); setSelectedMarkerId(null); }}
-                className="w-full py-1.5 rounded-lg text-xs mt-2"
+                onClick={doneShooting}
+                className="w-full py-1.5 rounded-lg text-xs font-semibold mt-2"
+                style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}
+              >
+                ✓ Done Shooting
+              </button>
+              <button
+                onClick={() => { setCombat(INIT_COMBAT); setWeaponsFiredThisShot(new Set()); setSelectedMarkerId(null); }}
+                className="w-full py-1 rounded-lg text-xs mt-1"
                 style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
               >
-                ← Back
+                ← Cancel
               </button>
             </div>
           )}
@@ -4193,24 +4264,24 @@ export default function WarhammerGameRoom() {
                   {p1FactionRules.some(r => r.id === "sm-oath-of-moment") && (
                     <div className="mb-2">
                       <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Oath of Moment</p>
-                      <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>
-                        Target: {oathTarget ? (markers.find((m) => m.id === oathTarget)?.unitName ?? "—") : "None set"}
-                      </p>
-                      {showOathPicker ? (
-                        <div className="space-y-0.5">
-                          {markers.filter((m) => m.player === "P2" && !m.isDestroyed && !m.isInReserve && !m.isAttached).map((m) => (
-                            <button key={m.id} onClick={() => { setOathTarget(m.id); setShowOathPicker(false); addLog(`P1 Oath of Moment: targeting ${m.unitName}.`, "P1"); }}
-                              className="w-full text-left px-1.5 py-1 rounded text-[9px]"
-                              style={{ backgroundColor: "rgba(59,130,246,0.1)", color: "#93c5fd" }}>{m.unitName}</button>
-                          ))}
-                          <button onClick={() => setShowOathPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                      {oathTarget ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] flex-1" style={{ color: "#93c5fd" }}>✅ {markers.find((m) => m.id === oathTarget)?.unitName ?? "—"}</span>
+                          <button onClick={() => { setOathTarget(null); setCommandAbilityUsed(false); addLog("Oath of Moment target cleared.", "P1"); }}
+                            className="text-[9px] px-1 rounded" style={{ color: "#f87171", backgroundColor: "rgba(220,38,38,0.12)", border: "1px solid rgba(220,38,38,0.25)" }}>✕</button>
                         </div>
-                      ) : (
-                        <button onClick={() => setShowOathPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                      ) : oathSelectionMode ? (
+                        <div>
+                          <p className="text-[9px] mb-1 font-medium" style={{ color: "#fbbf24" }}>Click an enemy unit to designate</p>
+                          <button onClick={() => setOathSelectionMode(false)} className="text-[9px] px-2 py-0.5 rounded"
+                            style={{ color: "var(--text-muted)", backgroundColor: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancel</button>
+                        </div>
+                      ) : !commandAbilityUsed ? (
+                        <button onClick={() => setOathSelectionMode(true)} className="px-2 py-1 rounded text-[9px] w-full"
                           style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
-                          {oathTarget ? "Change Target" : "Set Target"}
+                          Select Target Unit
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   )}
 
@@ -4444,24 +4515,24 @@ export default function WarhammerGameRoom() {
                   {p2FactionRules.some(r => r.id === "sm-oath-of-moment") && (
                     <div className="mb-2">
                       <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Oath of Moment</p>
-                      <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>
-                        Target: {oathTarget ? (markers.find((m) => m.id === oathTarget)?.unitName ?? "—") : "None set"}
-                      </p>
-                      {showOathPicker ? (
-                        <div className="space-y-0.5">
-                          {markers.filter((m) => m.player === "P1" && !m.isDestroyed && !m.isInReserve && !m.isAttached).map((m) => (
-                            <button key={m.id} onClick={() => { setOathTarget(m.id); setShowOathPicker(false); addLog(`P2 Oath of Moment: targeting ${m.unitName}.`, "P2"); }}
-                              className="w-full text-left px-1.5 py-1 rounded text-[9px]"
-                              style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#fca5a5" }}>{m.unitName}</button>
-                          ))}
-                          <button onClick={() => setShowOathPicker(false)} className="text-[9px]" style={{ color: "var(--text-muted)" }}>Cancel</button>
+                      {oathTarget ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] flex-1" style={{ color: "#fca5a5" }}>✅ {markers.find((m) => m.id === oathTarget)?.unitName ?? "—"}</span>
+                          <button onClick={() => { setOathTarget(null); setCommandAbilityUsed(false); addLog("Oath of Moment target cleared.", "P2"); }}
+                            className="text-[9px] px-1 rounded" style={{ color: "#f87171", backgroundColor: "rgba(220,38,38,0.12)", border: "1px solid rgba(220,38,38,0.25)" }}>✕</button>
                         </div>
-                      ) : (
-                        <button onClick={() => setShowOathPicker(true)} className="px-2 py-1 rounded text-[9px] w-full"
+                      ) : oathSelectionMode ? (
+                        <div>
+                          <p className="text-[9px] mb-1 font-medium" style={{ color: "#fbbf24" }}>Click an enemy unit to designate</p>
+                          <button onClick={() => setOathSelectionMode(false)} className="text-[9px] px-2 py-0.5 rounded"
+                            style={{ color: "var(--text-muted)", backgroundColor: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancel</button>
+                        </div>
+                      ) : !commandAbilityUsed ? (
+                        <button onClick={() => setOathSelectionMode(true)} className="px-2 py-1 rounded text-[9px] w-full"
                           style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" }}>
-                          {oathTarget ? "Change Target" : "Set Target"}
+                          Select Target Unit
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   )}
 
@@ -4811,6 +4882,7 @@ export default function WarhammerGameRoom() {
                 objectiveControl={objectiveControl}
                 showMeasurementLine={showMeasurementLine}
                 actedThisTurn={[...movedThisTurn, ...shotThisTurn, ...chargedThisTurn, ...foughtThisTurn]}
+                oathTargetId={oathTarget ?? undefined}
               />
             );
           })()}
