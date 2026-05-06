@@ -107,11 +107,11 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     role: "Character",
     category: "HQ",
     isEpicHero: true,
-    stats: { movement: '6"', toughness: 4, save: "3+/5++", wounds: 4, leadership: "5+", oc: 1 },
+    stats: { movement: '6"', toughness: 4, save: "3+", wounds: 5, leadership: "6+", oc: 1 },
     models: { min: 1, max: 1 },
-    points: 90,
+    points: 100,
     weapons: [
-      { name: "Psychic Staff", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-1", damage: "D3" },
+      { name: "Force Sword", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-3", damage: "2", keywords: ["Lethal Hits"] },
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
     ],
     abilities: [
@@ -119,7 +119,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
       { name: "Book of Salvation", description: "Friendly Dark Angels units within 6\" gain either Scouts 6\" OR ignore cover bonuses when targeting them (choose at start of game)." },
       { name: "Psychic Hood", description: "+1 to Deny attempts against Psykers within 18\"." },
     ],
-    keywords: ["Infantry", "Character", "Epic Hero", "Psyker", "Librarian", "Ezekiel"],
+    keywords: ["CHARACTER", "INFANTRY", "PSYKER", "DARK ANGELS", "ADEPTUS ASTARTES", "Epic Hero", "Librarian", "Ezekiel"],
     factionKeywords: ["Adeptus Astartes", "Dark Angels"],
     canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-hellblasters"],
   },

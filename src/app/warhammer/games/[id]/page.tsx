@@ -59,6 +59,7 @@ interface StratagemDef {
   requiresUnit: boolean;
   requiresTarget: boolean;
   reactive: boolean;
+  isPsychic?: boolean;
   unitFilter?: (m: UnitMarker, ap: "P1" | "P2") => boolean;
   factionFilter?: string[];
 }
@@ -200,6 +201,46 @@ const STRATAGEMS: StratagemDef[] = [
     reactive: false,
     factionFilter: ["Dark Angels"],
   },
+  {
+    name: "✨ Mind Worm",
+    cost: 1,
+    phase: "Command",
+    description: "Use at the start of your Command phase. Target enemy unit within 18\" of Ezekiel suffers D3 mortal wounds.",
+    effect: "mind_worm",
+    requiresUnit: false,
+    requiresTarget: true,
+    reactive: false,
+    isPsychic: true,
+    factionFilter: ["Dark Angels"],
+  },
+  {
+    name: "✨ Aversion",
+    cost: 1,
+    phase: "Shooting",
+    description: "REACTIVE: Use at the start of the opponent's Shooting phase. Target friendly DARK ANGELS unit within 18\" of Ezekiel. Until end of phase, attackers suffer -1 to hit rolls against it.",
+    effect: "aversion",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: true,
+    isPsychic: true,
+    factionFilter: ["Dark Angels"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "✨ Might of Heroes",
+    cost: 1,
+    phase: "Fight",
+    description: "Use in the Fight phase. Target friendly DARK ANGELS CHARACTER within 6\" of Ezekiel gains +1 Strength and +1 Attacks until end of phase.",
+    effect: "might_of_heroes",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    isPsychic: true,
+    factionFilter: ["Dark Angels"],
+    unitFilter: (m, ap) =>
+      m.player === ap && !m.isDestroyed && !m.isInReserve &&
+      (m.keywords ?? []).some((k) => k.toUpperCase().includes("CHARACTER")),
+  },
   // ── Tyranids ─────────────────────────────────────────────────────────────
   {
     name: "Metabolic Overdrive",
@@ -249,6 +290,43 @@ const STRATAGEMS: StratagemDef[] = [
     reactive: false,
     factionFilter: ["Tyranids"],
     unitFilter: (m, ap) => m.player === ap && !!m.isInReserve && !m.isDestroyed,
+  },
+  {
+    name: "✨ Psychic Scream",
+    cost: 1,
+    phase: "Command",
+    description: "Use at the start of your Command phase. Target visible enemy unit within 18\" of a SYNAPSE unit. It suffers D3 mortal wounds and must take a Battle-shock test.",
+    effect: "psychic_scream",
+    requiresUnit: false,
+    requiresTarget: true,
+    reactive: false,
+    isPsychic: true,
+    factionFilter: ["Tyranids"],
+  },
+  {
+    name: "✨ Catalyst",
+    cost: 1,
+    phase: "Any",
+    description: "Use in any phase. Target friendly TYRANIDS unit within 12\" of a SYNAPSE unit. Until end of turn, it has Feel No Pain 5+.",
+    effect: "catalyst",
+    requiresUnit: true,
+    requiresTarget: false,
+    reactive: false,
+    isPsychic: true,
+    factionFilter: ["Tyranids"],
+    unitFilter: (m, ap) => m.player === ap && !m.isDestroyed && !m.isInReserve,
+  },
+  {
+    name: "✨ The Horror",
+    cost: 1,
+    phase: "Shooting",
+    description: "Use at the start of the Shooting phase. Target enemy unit within 18\" of a SYNAPSE unit. Until end of phase, it suffers -1 to its hit rolls.",
+    effect: "the_horror",
+    requiresUnit: false,
+    requiresTarget: true,
+    reactive: false,
+    isPsychic: true,
+    factionFilter: ["Tyranids"],
   },
   // ── Necrons ──────────────────────────────────────────────────────────────
   {
@@ -1140,6 +1218,9 @@ export default function WarhammerGameRoom() {
   // Synaptic Imperative choice (Tyranids)
   const [synapticImperative, setSynapticImperative] = useState<string | null>(null);
   const [showSynapticPicker, setShowSynapticPicker] = useState(false);
+  // Psychic debuffs (cleared at end of phase)
+  const [horrorTargetId, setHorrorTargetId] = useState<string | null>(null);   // The Horror: -1 to that unit's hit rolls
+  const [aversionTargetId, setAversionTargetId] = useState<string | null>(null); // Aversion: -1 to hit rolls targeting this unit
 
   // ── Secondary objectives (Tactical Missions) ──
   const [p1Deck, setP1Deck] = useState<TacticalMission[]>([]);
@@ -1833,9 +1914,12 @@ export default function WarhammerGameRoom() {
       setSynapticImperative(null);
       setOathTarget(null);
       setCommandAbilityUsed(false);
+      // Clear turn-scoped effects (Catalyst FNP) from P1's units
       setMarkers((prev) =>
         prev.map((m) =>
-          m.player === "P2"
+          m.player === "P1"
+            ? { ...m, feelNoPain: undefined }
+            : m.player === "P2"
             ? { ...m, hasAdvanced: false, hasCharged: false, hasFought: false, hasShotThisTurn: false }
             : m
         )
@@ -1849,6 +1933,10 @@ export default function WarhammerGameRoom() {
       setDestroyedThisTurn([]);
       setDestroyedThisPhase([]);
       setAdvancedThisTurn([]);
+      // Clear turn-scoped effects (Catalyst FNP) from P2's units
+      setMarkers((prev) =>
+        prev.map((m) => m.player === "P2" ? { ...m, feelNoPain: undefined } : m)
+      );
       addLog(`P2's turn complete. End of Round ${round} — click "End Round" to continue.`, "system");
     }
   }
@@ -1862,6 +1950,9 @@ export default function WarhammerGameRoom() {
     setMoveUnit(null);
     setReservesMode('idle');
     setReservesUnitId(null);
+    // Clear phase-scoped psychic debuffs
+    setHorrorTargetId(null);
+    setAversionTargetId(null);
     if (gamePhase === "fight") {
       setFoughtThisPhase(new Set());
       setFightBackMode(false);
@@ -2494,7 +2585,11 @@ export default function WarhammerGameRoom() {
     const isSM = attacker.faction?.toLowerCase().includes("space marine") || attacker.faction?.toLowerCase().includes("dark angel");
     const necronHitBonus = isNecron && necronProtocol === "Protocol of the Conquering Tyrant" && attacker.player === activePlayer;
     const rawSkill = parseSkill(weapon.skill);
-    const skillTarget = necronHitBonus ? Math.max(2, rawSkill - 1) : rawSkill;
+    // Psychic debuffs: The Horror (-1 to attacker's hit rolls), Aversion (-1 when attacking the aversion target)
+    const horrorPenalty = combat.attackerId === horrorTargetId ? 1 : 0;
+    const aversionPenalty = combat.targetId === aversionTargetId ? 1 : 0;
+    const psychicPenalty = Math.min(horrorPenalty + aversionPenalty, 1); // cap at -1
+    const skillTarget = Math.min(6, necronHitBonus ? Math.max(2, rawSkill - 1) : rawSkill + psychicPenalty);
 
     // Blast: +1 attack vs 6+ models; +D3 vs 11+ models
     const targetModelCount = target?.modelCount ?? 1;
@@ -2549,8 +2644,8 @@ export default function WarhammerGameRoom() {
       }
     }
     const totalHits = normalHits + sustainedBonus; // hits going to wound roll
-    const bonusNote = necronHitBonus ? ` [Conquering Tyrant +1]` : "";
     const modelNote = (attacker.modelCount ?? 1) > 1 ? ` (${attacker.modelCount} models × ${attacksPerModel})` : "";
+    const bonusNote = necronHitBonus ? ` [Conquering Tyrant +1]` : psychicPenalty ? ` [✨ psychic -1 to hit]` : "";
     let specialNote = "";
     if (autoWounds > 0) specialNote += ` ⚡ Lethal Hits: ${autoWounds} auto-wound(s)!`;
     if (sustainedBonus > 0) specialNote += ` (+${sustainedBonus} sustained)`;
@@ -2655,6 +2750,18 @@ export default function WarhammerGameRoom() {
 
     // Damage cascade: apply damage across models, killing models as wounds hit 0
     const currentTarget = markers.find((m) => m.id === combat.targetId);
+
+    // Feel No Pain: roll D6 per damage point; on threshold+ ignore that wound
+    const fnpThreshold = currentTarget?.feelNoPain ?? 0;
+    if (fnpThreshold > 0 && totalDmg > 0) {
+      const fnpRolls = Array.from({ length: totalDmg }, () => d6());
+      const fnpSaved = fnpRolls.filter((r) => r >= fnpThreshold).length;
+      totalDmg = Math.max(0, totalDmg - fnpSaved);
+      if (fnpSaved > 0) {
+        addLog(`🧬 FNP: saved ${fnpSaved} wound(s) on ${currentTarget!.unitName}! (${fnpThreshold}+ save, rolls: ${fnpRolls.join(", ")})`, target.player);
+      }
+    }
+
     let remainingDmg = totalDmg;
     let curWounds = currentTarget?.currentWounds ?? 0;
     let curModelCount = currentTarget?.modelCount ?? 1;
@@ -2996,7 +3103,8 @@ export default function WarhammerGameRoom() {
     }
     setActiveStratagem({
       name: strat.name, phase: strat.phase, description: strat.description,
-      step: "select_unit", unitId: null, targetId: null, effect: strat.effect, player,
+      step: strat.requiresUnit ? "select_unit" : "select_target",
+      unitId: null, targetId: null, effect: strat.effect, player,
     });
   }
 
@@ -3036,6 +3144,37 @@ export default function WarhammerGameRoom() {
         setMarkers((prev) => prev.map((m) => m.id === target.id ? { ...m, currentWounds: Math.max(0, m.currentWounds - dmg) } : m));
       }
       addLog(`${sPlayer} Grenade: ${unit.unitName} → ${target.unitName}: ${shots} shots, ${hits} hits, ${wounds} wounds, ${dmg} damage.`, sPlayer);
+    // ── Psychic stratagems ──────────────────────────────────────────────────
+    } else if (sEffect === "psychic_scream" && target) {
+      const mw = Math.floor(Math.random() * 3) + 1;
+      const newW = Math.max(0, target.currentWounds - mw);
+      const isDestroyed = newW <= 0;
+      setMarkers((prev) => prev.map((m) => m.id === target.id ? { ...m, currentWounds: newW, isDestroyed } : m));
+      addLog(`✨ ${sPlayer} Psychic Scream: ${target.unitName} suffers ${mw} mortal wound(s) → ${newW}W remaining.`, sPlayer);
+      if (!isDestroyed) {
+        const ldNum = parseInt(target.stats?.leadership ?? "7");
+        const r1 = d6(); const r2 = d6(); const total = r1 + r2;
+        const shocked = total > ldNum;
+        setMarkers((prev) => prev.map((m) => m.id === target.id ? { ...m, battleShocked: shocked, belowHalfStrength: m.currentWounds < m.maxWounds / 2 } : m));
+        addLog(`✨ Battle-shock test: ${target.unitName} — 2D6 (${r1}+${r2}=${total}) vs Ld${ldNum}+ → ${shocked ? "SHOCKED!" : "holds."}`, sPlayer);
+      }
+    } else if (sEffect === "catalyst" && unit) {
+      setMarkers((prev) => prev.map((m) => m.id === unit.id ? { ...m, feelNoPain: 5 } : m));
+      addLog(`✨ ${sPlayer} Catalyst: ${unit.unitName} gains Feel No Pain 5+ until end of turn.`, sPlayer);
+    } else if (sEffect === "the_horror" && target) {
+      setHorrorTargetId(target.id);
+      addLog(`✨ ${sPlayer} The Horror: ${target.unitName} suffers -1 to hit rolls until end of phase.`, sPlayer);
+    } else if (sEffect === "mind_worm" && target) {
+      const mw = Math.floor(Math.random() * 3) + 1;
+      const newW = Math.max(0, target.currentWounds - mw);
+      const isDestroyed = newW <= 0;
+      setMarkers((prev) => prev.map((m) => m.id === target.id ? { ...m, currentWounds: newW, isDestroyed } : m));
+      addLog(`✨ ${sPlayer} Mind Worm: ${target.unitName} suffers ${mw} mortal wound(s) → ${newW}W remaining${isDestroyed ? " — DESTROYED!" : ""}.`, sPlayer);
+    } else if (sEffect === "aversion" && unit) {
+      setAversionTargetId(unit.id);
+      addLog(`✨ ${sPlayer} Aversion: attackers suffer -1 to hit rolls against ${unit.unitName} until end of phase.`, sPlayer);
+    } else if (sEffect === "might_of_heroes" && unit) {
+      addLog(`✨ ${sPlayer} Might of Heroes: ${unit.unitName} gains +1 Strength and +1 Attacks until end of Fight phase.`, sPlayer);
     } else {
       addLog(`${sPlayer} used "${sName}" on ${unit?.unitName ?? "—"}${target ? ` → ${target.unitName}` : ""}.`, sPlayer);
     }
@@ -4142,10 +4281,13 @@ export default function WarhammerGameRoom() {
                       onClick={() => beginStratagem("P1", s)}
                       disabled={p1Cp < s.cost}
                       className="w-full text-left px-2 py-1.5 rounded text-[10px]"
-                      style={{ backgroundColor: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.12)", opacity: p1Cp < s.cost ? 0.45 : 1 }}
+                      style={{ backgroundColor: s.isPsychic ? "rgba(139,92,246,0.08)" : "rgba(59,130,246,0.06)", border: `1px solid ${s.isPsychic ? "rgba(139,92,246,0.25)" : "rgba(59,130,246,0.12)"}`, opacity: p1Cp < s.cost ? 0.45 : 1 }}
                     >
                       <div className="flex justify-between mb-0.5">
-                        <span className="font-medium" style={{ color: "#93c5fd" }}>{s.name}</span>
+                        <span className="font-medium flex items-center gap-1" style={{ color: s.isPsychic ? "#c4b5fd" : "#93c5fd" }}>
+                          {s.name}
+                          {s.isPsychic && <span className="text-[8px] px-1 rounded" style={{ backgroundColor: "rgba(139,92,246,0.3)", color: "#c4b5fd" }}>Psychic</span>}
+                        </span>
                         <span style={{ color: "#eab308" }}>{s.cost}CP</span>
                       </div>
                       <span style={{ color: "var(--text-muted)" }}>{s.description}</span>
@@ -4389,10 +4531,13 @@ export default function WarhammerGameRoom() {
                       onClick={() => beginStratagem("P2", s)}
                       disabled={p2Cp < s.cost}
                       className="w-full text-left px-2 py-1.5 rounded text-[10px]"
-                      style={{ backgroundColor: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.12)", opacity: p2Cp < s.cost ? 0.45 : 1 }}
+                      style={{ backgroundColor: s.isPsychic ? "rgba(139,92,246,0.08)" : "rgba(239,68,68,0.06)", border: `1px solid ${s.isPsychic ? "rgba(139,92,246,0.25)" : "rgba(239,68,68,0.12)"}`, opacity: p2Cp < s.cost ? 0.45 : 1 }}
                     >
                       <div className="flex justify-between mb-0.5">
-                        <span className="font-medium" style={{ color: "#fca5a5" }}>{s.name}</span>
+                        <span className="font-medium flex items-center gap-1" style={{ color: s.isPsychic ? "#c4b5fd" : "#fca5a5" }}>
+                          {s.name}
+                          {s.isPsychic && <span className="text-[8px] px-1 rounded" style={{ backgroundColor: "rgba(139,92,246,0.3)", color: "#c4b5fd" }}>Psychic</span>}
+                        </span>
                         <span style={{ color: "#eab308" }}>{s.cost}CP</span>
                       </div>
                       <span style={{ color: "var(--text-muted)" }}>{s.description}</span>
