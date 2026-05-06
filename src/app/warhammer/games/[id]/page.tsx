@@ -967,6 +967,7 @@ interface DeploymentPanelProps {
   onReserve: (id: string) => void;
   onEndDeployment: () => void;
   allDone: boolean;
+  pendingHomerUnit?: UnitMarker | null;
 }
 
 function DeploymentPanel({
@@ -977,6 +978,7 @@ function DeploymentPanel({
   onReserve,
   onEndDeployment,
   allDone,
+  pendingHomerUnit,
 }: DeploymentPanelProps) {
   // Hide attached character markers — they deploy automatically with the parent unit
   const currentUnits = undeployedMarkers.filter(
@@ -992,18 +994,29 @@ function DeploymentPanel({
         <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>
           Deployment
         </p>
-        <p
-          className="text-sm font-semibold"
-          style={{ color: currentDeployer === "P1" ? "#ef4444" : "#3b82f6" }}
-        >
-          {currentDeployer} deploys
-        </p>
-        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-          Click unit → click deployment zone
-        </p>
+        {pendingHomerUnit ? (
+          <>
+            <p className="text-sm font-semibold" style={{ color: "#eab308" }}>📡 Place Homer</p>
+            <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
+              Click in your deployment zone to place a Teleport Homer for <strong style={{ color: "var(--text-primary)" }}>{pendingHomerUnit.unitName}</strong>.
+            </p>
+          </>
+        ) : (
+          <>
+            <p
+              className="text-sm font-semibold"
+              style={{ color: currentDeployer === "P1" ? "#ef4444" : "#3b82f6" }}
+            >
+              {currentDeployer} deploys
+            </p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+              Click unit → click deployment zone
+            </p>
+          </>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto p-2 space-y-1" style={{ opacity: pendingHomerUnit ? 0.35 : 1, pointerEvents: pendingHomerUnit ? "none" : "auto" }}>
         {currentUnits.length === 0 && (
           <p className="text-xs text-center py-4" style={{ color: "var(--text-muted)" }}>
             All units deployed
@@ -1283,10 +1296,12 @@ export default function WarhammerGameRoom() {
   const [showMeasurementLine, setShowMeasurementLine] = useState(false);
 
   // ── Reserves deployment ──
-  const [reservesMode, setReservesMode] = useState<'idle' | 'place_normal' | 'place_deepstrike'>('idle');
+  const [reservesMode, setReservesMode] = useState<'idle' | 'place_normal' | 'place_deepstrike' | 'place_homer'>('idle');
   const [reservesUnitId, setReservesUnitId] = useState<string | null>(null);
-  const [teleportHomers, setTeleportHomers] = useState<{ id: string; x: number; y: number; placedBy: string }[]>([]);
-  const [homerPlacementForId, setHomerPlacementForId] = useState<string | null>(null);
+  // forMarkerId links each homer to the unit it was placed for, so it can be removed on deploy
+  const [teleportHomers, setTeleportHomers] = useState<{ id: string; x: number; y: number; placedBy: string; forMarkerId: string }[]>([]);
+  // Set during deployment phase when a homer-eligible unit goes to reserves — must place homer before continuing
+  const [pendingHomerForMarkerId, setPendingHomerForMarkerId] = useState<string | null>(null);
 
   // ── Transport mechanics ──
   const [transportContents, setTransportContents] = useState<Record<string, string[]>>({});
@@ -1627,13 +1642,24 @@ export default function WarhammerGameRoom() {
   function handleReserve(markerId: string) {
     const marker = markers.find((m) => m.id === markerId);
     if (!marker) return;
-    addLog(`${marker.player} places ${marker.unitName} in Reserve.`, marker.player);
+    const kw = (marker.keywords ?? []).map((k) => k.toUpperCase());
+    const needsHomer = marker.teleportHomer || kw.includes("DEATHWING");
+    addLog(
+      `${marker.player} places ${marker.unitName} in Strategic Reserve.${needsHomer ? " Place Teleport Homer in your deployment zone." : ""}`,
+      marker.player
+    );
     setDeploySelectedId(null);
 
     const updatedMarkers = markers.map((m) =>
       m.id === markerId ? { ...m, isInReserve: true } : m
     );
     setMarkers(updatedMarkers);
+
+    if (needsHomer) {
+      setPendingHomerForMarkerId(markerId);
+      // Don't alternate deployer yet — wait until homer is placed
+      return;
+    }
 
     const stillP1 = updatedMarkers.filter((m) => m.player === "P1" && m.isInReserve).length;
     const stillP2 = updatedMarkers.filter((m) => m.player === "P2" && m.isInReserve).length;
@@ -1976,7 +2002,7 @@ export default function WarhammerGameRoom() {
       setFightPhaseStep('active');
       setFoughtThisTurn([]);
     }
-    if (gamePhase === "movement") { setMovedThisTurn([]); setTeleportHomers([]); setHomerPlacementForId(null); }
+    if (gamePhase === "movement") setMovedThisTurn([]);
     if (gamePhase === "shooting") setShotThisTurn([]);
     if (gamePhase === "charge") setChargedThisTurn([]);
 
@@ -2251,22 +2277,28 @@ export default function WarhammerGameRoom() {
     );
     if (occupied) { addLog("That cell is occupied.", "system"); return; }
 
-    if (reservesMode === 'place_deepstrike') {
-      // Deep strike: must be 9"+ from all enemy units (3" if Teleport Homer active)
-      const enemies = activeMarkers.filter((m) => m.player !== marker.player);
-      const markerKw = (marker.keywords ?? []).map((k) => k.toUpperCase());
-      const isDeathwingOrIC = markerKw.includes("DEATHWING") || markerKw.includes("INNER CIRCLE");
-      const nearHomer = isDeathwingOrIC && teleportHomers.some(
-        (h) => h.placedBy === marker.player && Math.sqrt((x - h.x) ** 2 + (y - h.y) ** 2) <= 6
-      );
-      const exclusionZone = nearHomer ? 3 : 9;
-      const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < exclusionZone);
-      if (tooClose) {
-        addLog(`Deep Strike must be placed more than ${exclusionZone}" from all enemy models.`, "system");
+    if (reservesMode === 'place_homer') {
+      // Homer arrival: must be within 6" of this unit's homer and 3"+ from all enemies
+      const homer = teleportHomers.find((h) => h.forMarkerId === reservesUnitId);
+      if (!homer) { addLog("No Teleport Homer found for this unit.", "system"); return; }
+      const distToHomer = Math.sqrt((x + 0.5 - homer.x) ** 2 + (y + 0.5 - homer.y) ** 2);
+      if (distToHomer > 6) {
+        addLog(`Must arrive within 6" of the Teleport Homer (${distToHomer.toFixed(1)}" away).`, "system");
         return;
       }
-      if (nearHomer) {
-        addLog(`📡 Teleport Homer active — reduced exclusion zone (3")`, marker.player);
+      const enemies = activeMarkers.filter((m) => m.player !== marker.player);
+      const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < 3);
+      if (tooClose) {
+        addLog("Homer arrival must be more than 3\" from all enemy models.", "system");
+        return;
+      }
+    } else if (reservesMode === 'place_deepstrike') {
+      // Deep strike: must be 9"+ from all enemy units
+      const enemies = activeMarkers.filter((m) => m.player !== marker.player);
+      const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < 9);
+      if (tooClose) {
+        addLog("Deep Strike must be placed more than 9\" from all enemy models.", "system");
+        return;
       }
     } else {
       // Normal reserve: must be within 6" of player's board edge
@@ -2332,7 +2364,12 @@ export default function WarhammerGameRoom() {
       setTransportContents((prev) => { const next = { ...prev }; delete next[marker.id]; return next; });
       addLog(`Drop Pod lands at (${x}, ${y}) — ${embarkedInThis.length} unit(s) disembark immediately!`, marker.player);
     } else {
-      addLog(`${marker.player} deployed ${marker.unitName} from reserves at (${x}, ${y})${reservesMode === 'place_deepstrike' ? ' (Deep Strike)' : ''}.`, marker.player);
+      const modeLabel = reservesMode === 'place_deepstrike' ? ' (Deep Strike)' : reservesMode === 'place_homer' ? ' (Homer Arrival)' : '';
+      addLog(`${marker.player} deployed ${marker.unitName} from reserves at (${x}, ${y})${modeLabel}.`, marker.player);
+    }
+    // Remove homer linked to this unit
+    if (reservesMode === 'place_homer' || teleportHomers.some((h) => h.forMarkerId === reservesUnitId)) {
+      setTeleportHomers((prev) => prev.filter((h) => h.forMarkerId !== reservesUnitId));
     }
     setMovedThisTurn((prev) => [...prev, marker.id]); // Unit can't move again after arriving from reserves
     setReservesMode('idle');
@@ -2343,28 +2380,36 @@ export default function WarhammerGameRoom() {
   // ── Cell click handler (context-sensitive) ──
   function handleCellClick(x: number, y: number) {
     if (roomPhase === "deployment") {
+      // Homer placement must happen before any other deployment action
+      if (pendingHomerForMarkerId) {
+        const unit = markers.find((m) => m.id === pendingHomerForMarkerId);
+        if (!unit) { setPendingHomerForMarkerId(null); return; }
+        const { p1Zone, p2Zone } = mapPreset;
+        const zone = unit.player === "P1" ? p1Zone : p2Zone;
+        const inZone = x >= zone.x && x < zone.x + zone.w && y >= zone.y && y < zone.y + zone.h;
+        if (!inZone) {
+          addLog("Teleport Homer must be placed in your deployment zone.", "system");
+          return;
+        }
+        const homerId = `homer-${pendingHomerForMarkerId}-${Date.now()}`;
+        setTeleportHomers((prev) => [...prev, { id: homerId, x: x + 0.5, y: y + 0.5, placedBy: unit.player, forMarkerId: pendingHomerForMarkerId }]);
+        addLog(`📡 ${unit.player} placed Teleport Homer for ${unit.unitName} at (${x}, ${y}).`, unit.player);
+        setPendingHomerForMarkerId(null);
+        // Now alternate the deployer
+        const updatedMarkers = markers; // already updated by handleReserve
+        const stillP1 = updatedMarkers.filter((m) => m.player === "P1" && m.isInReserve).length;
+        const stillP2 = updatedMarkers.filter((m) => m.player === "P2" && m.isInReserve).length;
+        if (stillP1 === 0 && stillP2 === 0) return;
+        if (deployDeployer === "P1") setDeployDeployer(stillP2 > 0 ? "P2" : "P1");
+        else setDeployDeployer(stillP1 > 0 ? "P1" : "P2");
+        return;
+      }
       handleDeployCell(x, y);
       return;
     }
     if (roomPhase !== "game") return;
 
-    if (gamePhase === "movement" && homerPlacementForId) {
-      const ravenwing = markers.find((m) => m.id === homerPlacementForId);
-      if (ravenwing) {
-        const dist = Math.sqrt((x + 0.5 - (ravenwing.x + 0.5)) ** 2 + (y + 0.5 - (ravenwing.y + 0.5)) ** 2);
-        if (dist > 3) {
-          addLog(`Teleport Homer must be placed within 3" of ${ravenwing.unitName}.`, "system");
-        } else {
-          const homerId = `homer-${ravenwing.id}-${Date.now()}`;
-          setTeleportHomers((prev) => [...prev, { id: homerId, x: x + 0.5, y: y + 0.5, placedBy: ravenwing.player }]);
-          addLog(`📡 ${ravenwing.player} placed Teleport Homer at (${x}, ${y}).`, ravenwing.player);
-          setHomerPlacementForId(null);
-        }
-      }
-      return;
-    }
-
-    if (gamePhase === "movement" && (reservesMode === 'place_normal' || reservesMode === 'place_deepstrike')) {
+    if (gamePhase === "movement" && (reservesMode === 'place_normal' || reservesMode === 'place_deepstrike' || reservesMode === 'place_homer')) {
       handleReservesDeploy(x, y);
       return;
     }
@@ -3341,39 +3386,29 @@ export default function WarhammerGameRoom() {
             Movement Phase
           </p>
 
-          {/* Reserves deployment mode */}
-          {(reservesMode === 'place_normal' || reservesMode === 'place_deepstrike') && (
-            <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "#a855f7" }}>
-                {reservesMode === 'place_deepstrike' ? '🎯 Deep Strike:' : '📦 Deploy from Reserve:'}
+          {/* Active placement mode banner */}
+          {reservesMode !== 'idle' && (
+            <div className="rounded-lg p-2" style={{ backgroundColor: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.3)" }}>
+              <p className="text-xs font-semibold mb-0.5" style={{ color: "#a855f7" }}>
+                {reservesMode === 'place_homer'
+                  ? '📡 Homer Arrival'
+                  : reservesMode === 'place_deepstrike'
+                  ? '🎯 Deep Strike'
+                  : '📦 Deploy from Reserve'}
               </p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {reservesMode === 'place_deepstrike'
+              <p className="text-[10px] mb-1" style={{ color: "var(--text-muted)" }}>
+                {reservesMode === 'place_homer'
+                  ? `Click within 6" of your Teleport Homer (3"+ from enemies).`
+                  : reservesMode === 'place_deepstrike'
                   ? 'Click anywhere 9"+ from all enemies.'
                   : 'Click within 6" of your board edge.'}
               </p>
+              <p className="text-[10px] font-semibold mb-1" style={{ color: "#fbbf24" }}>
+                Placing: {markers.find((m) => m.id === reservesUnitId)?.unitName}
+              </p>
               <button
                 onClick={() => { setReservesMode('idle'); setReservesUnitId(null); }}
-                className="w-full py-1.5 rounded-lg text-xs mt-1"
-                style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-
-          {/* Teleport Homer placement mode */}
-          {homerPlacementForId && (
-            <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "#eab308" }}>
-                📡 Place Teleport Homer:
-              </p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Click within 3" of {markers.find((m) => m.id === homerPlacementForId)?.unitName}.
-              </p>
-              <button
-                onClick={() => setHomerPlacementForId(null)}
-                className="w-full py-1.5 rounded-lg text-xs mt-1"
+                className="w-full py-1 rounded text-[10px]"
                 style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
               >
                 Cancel
@@ -3586,77 +3621,60 @@ export default function WarhammerGameRoom() {
             );
           })()}
 
-          {/* Reserves panel — available from Round 2 */}
-          {canBringReserves && reservesMode === 'idle' && (
+          {/* Strategic Reserves panel */}
+          {reservedForActive.length > 0 && reservesMode === 'idle' && (
             <div>
               <p className="text-[10px] uppercase tracking-widest mt-2 mb-1" style={{ color: "#a855f7" }}>
-                Reserves
+                Strategic Reserves
               </p>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {reservedForActive.map((m) => {
                   const isDeepStrike = (m.keywords ?? []).some((k) => k.toLowerCase() === "deep strike");
+                  const unitHomer = teleportHomers.find((h) => h.forMarkerId === m.id);
+                  const available = round >= 2;
                   return (
-                    <div key={m.id} className="flex flex-col gap-0.5">
-                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{m.unitName}</span>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => { setReservesUnitId(m.id); setReservesMode('place_normal'); }}
-                          className="flex-1 py-1 rounded text-[10px] font-semibold"
-                          style={{ backgroundColor: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.3)" }}
-                        >
-                          Deploy
-                        </button>
-                        {isDeepStrike && (
-                          <button
-                            onClick={() => { setReservesUnitId(m.id); setReservesMode('place_deepstrike'); }}
-                            className="flex-1 py-1 rounded text-[10px] font-semibold"
-                            style={{ backgroundColor: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}
-                          >
-                            Deep Strike
-                          </button>
-                        )}
+                    <div key={m.id} className="rounded-lg p-2" style={{ backgroundColor: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.18)" }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.unitName}</span>
+                        {unitHomer && <span className="text-[9px] ml-1 flex-shrink-0" style={{ color: "#eab308" }}>📡 Homer</span>}
                       </div>
+                      {!available ? (
+                        <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>Available Round 2+</p>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => { setReservesUnitId(m.id); setReservesMode('place_normal'); }}
+                            className="w-full py-1 rounded text-[10px] font-semibold"
+                            style={{ backgroundColor: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.3)" }}
+                          >
+                            📦 Deploy (board edge)
+                          </button>
+                          {isDeepStrike && (
+                            <button
+                              onClick={() => { setReservesUnitId(m.id); setReservesMode('place_deepstrike'); }}
+                              className="w-full py-1 rounded text-[10px] font-semibold"
+                              style={{ backgroundColor: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}
+                            >
+                              🎯 Deep Strike (9"+ from enemies)
+                            </button>
+                          )}
+                          {unitHomer && (
+                            <button
+                              onClick={() => { setReservesUnitId(m.id); setReservesMode('place_homer'); }}
+                              className="w-full py-1 rounded text-[10px] font-semibold"
+                              style={{ backgroundColor: "rgba(234,179,8,0.12)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)" }}
+                            >
+                              📡 Homer Arrival (6" of beacon, 3"+ from enemies)
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
           )}
-
-          {canBringReserves === false && reservedForActive.length > 0 && (
-            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              Reserves available from Round 2.
-            </p>
-          )}
-
-          {/* Teleport Homer — Ravenwing units that have moved */}
-          {(() => {
-            const ravenMoved = markers.filter(
-              (m) => m.player === activeSide && m.teleportHomer && movedThisTurn.includes(m.id) && !m.isDestroyed && !m.isInReserve
-            );
-            if (ravenMoved.length === 0) return null;
-            return (
-              <div>
-                <p className="text-[10px] uppercase tracking-widest mt-2 mb-1" style={{ color: "#eab308" }}>
-                  Teleport Homer
-                </p>
-                <div className="space-y-1">
-                  {ravenMoved.map((m) => (
-                    <div key={m.id} className="flex items-center gap-1">
-                      <span className="flex-1 text-[10px] truncate" style={{ color: "var(--text-muted)" }}>{m.unitName}</span>
-                      <button
-                        onClick={() => setHomerPlacementForId(m.id)}
-                        className="px-1.5 py-0.5 rounded text-[9px] font-semibold"
-                        style={{ backgroundColor: "rgba(234,179,8,0.12)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)" }}
-                      >
-                        📡 Place Homer
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
 
           <button
             onClick={advancePhase}
@@ -4223,6 +4241,7 @@ export default function WarhammerGameRoom() {
             onReserve={handleReserve}
             onEndDeployment={startGame}
             allDone={deployAllDone}
+            pendingHomerUnit={pendingHomerForMarkerId ? markers.find((m) => m.id === pendingHomerForMarkerId) : null}
           />
         ) : (
           <div
@@ -4902,6 +4921,15 @@ export default function WarhammerGameRoom() {
                 showMeasurementLine={showMeasurementLine}
                 actedThisTurn={[...movedThisTurn, ...shotThisTurn, ...chargedThisTurn, ...foughtThisTurn]}
                 teleportHomers={teleportHomers}
+                reservesHighlight={
+                  pendingHomerForMarkerId
+                    ? { type: 'deployment_zone', player: (markers.find((m) => m.id === pendingHomerForMarkerId)?.player ?? 'P1') as 'P1' | 'P2', zone: markers.find((m) => m.id === pendingHomerForMarkerId)?.player === 'P1' ? mapPreset.p1Zone : mapPreset.p2Zone }
+                    : reservesMode === 'place_normal'
+                    ? { type: 'board_edge', player: (markers.find((m) => m.id === reservesUnitId)?.player ?? 'P1') as 'P1' | 'P2', zone: markers.find((m) => m.id === reservesUnitId)?.player === 'P1' ? mapPreset.p1Zone : mapPreset.p2Zone }
+                    : reservesMode === 'place_homer'
+                    ? (() => { const h = teleportHomers.find((th) => th.forMarkerId === reservesUnitId); return h ? { type: 'homer' as const, player: (h.placedBy) as 'P1' | 'P2', homerX: h.x, homerY: h.y } : undefined; })()
+                    : undefined
+                }
               />
             );
           })()}

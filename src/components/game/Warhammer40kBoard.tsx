@@ -81,7 +81,14 @@ export interface Warhammer40kBoardProps {
   objectiveControl?: ('P1' | 'P2' | null)[];
   showMeasurementLine?: boolean;
   actedThisTurn?: string[];
-  teleportHomers?: { id: string; x: number; y: number; placedBy: string }[];
+  teleportHomers?: { id: string; x: number; y: number; placedBy: string; forMarkerId: string }[];
+  reservesHighlight?: {
+    type: 'board_edge' | 'homer' | 'deployment_zone';
+    player: 'P1' | 'P2';
+    zone?: { x: number; y: number; w: number; h: number };
+    homerX?: number;
+    homerY?: number;
+  };
 }
 
 export default function Warhammer40kBoard({
@@ -101,6 +108,7 @@ export default function Warhammer40kBoard({
   showMeasurementLine = false,
   actedThisTurn = [],
   teleportHomers = [],
+  reservesHighlight,
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -598,6 +606,45 @@ export default function Warhammer40kBoard({
                   </g>
                 );
               })}
+
+              {/* Reserves / homer placement highlight */}
+              {reservesHighlight && (() => {
+                if (reservesHighlight.type === 'homer' && reservesHighlight.homerX !== undefined && reservesHighlight.homerY !== undefined) {
+                  return (
+                    <circle
+                      cx={reservesHighlight.homerX * INCH_PX}
+                      cy={reservesHighlight.homerY * INCH_PX}
+                      r={6 * INCH_PX}
+                      fill="rgba(234,179,8,0.08)"
+                      stroke="#eab308"
+                      strokeWidth={2}
+                      strokeDasharray="12 6"
+                      strokeOpacity={0.7}
+                    />
+                  );
+                }
+                if ((reservesHighlight.type === 'board_edge' || reservesHighlight.type === 'deployment_zone') && reservesHighlight.zone) {
+                  const z = reservesHighlight.zone;
+                  const edgeH = reservesHighlight.type === 'board_edge' ? 6 : z.h;
+                  const zx = z.x * INCH_PX;
+                  const zy = reservesHighlight.type === 'board_edge'
+                    ? (reservesHighlight.player === 'P1' ? (z.y + z.h - edgeH) * INCH_PX : z.y * INCH_PX)
+                    : z.y * INCH_PX;
+                  return (
+                    <rect
+                      x={zx} y={zy}
+                      width={z.w * INCH_PX}
+                      height={edgeH * INCH_PX}
+                      fill="rgba(34,197,94,0.10)"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      strokeOpacity={0.6}
+                      strokeDasharray="10 5"
+                    />
+                  );
+                }
+                return null;
+              })()}
 
               {/* Engagement range rings — red dashed circle for units within 1" of an enemy */}
               {activeMarkers.map((m) => {
