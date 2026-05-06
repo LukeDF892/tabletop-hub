@@ -67,6 +67,7 @@ export interface UnitMarker {
   transportCapacity?: number;      // max models this transport can carry (TRANSPORT keyword units only)
   inCover?: boolean;               // true = unit is within a Ruins terrain footprint (cover save bonus)
   feelNoPain?: number;             // FNP threshold (5 = 5+, 6 = 6+); cleared at end of turn
+  teleportHomer?: boolean;         // unit can place a Teleport Homer after moving
 }
 
 export interface DeploymentState {

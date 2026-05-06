@@ -267,6 +267,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 3, save: "5+", wounds: 1, leadership: "8+", oc: 2 },
     models: { min: 10, max: 20 },
     points: 60,
+    pointsPerModel: 6,
     weapons: [
       { name: "Fleshborer", type: "Assault", range: '18"', attacks: "1", skill: "BS4+", strength: "5", ap: "0", damage: "1" },
       { name: "Claws and Teeth", type: "Melee", attacks: "1", skill: "WS4+", strength: "3", ap: "0", damage: "1" },

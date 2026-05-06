@@ -83,6 +83,14 @@ export interface Warhammer40kBoardProps {
   actedThisTurn?: string[];
   reservesHighlightCells?: Set<string>;
   oathTargetId?: string;
+  teleportHomers?: { id: string; x: number; y: number; placedBy: string; forMarkerId: string }[];
+  reservesHighlight?: {
+    type: 'board_edge' | 'homer' | 'deployment_zone';
+    player: 'P1' | 'P2';
+    zone?: { x: number; y: number; w: number; h: number };
+    homerX?: number;
+    homerY?: number;
+  };
 }
 
 export default function Warhammer40kBoard({
@@ -103,6 +111,8 @@ export default function Warhammer40kBoard({
   actedThisTurn = [],
   reservesHighlightCells,
   oathTargetId,
+  teleportHomers = [],
+  reservesHighlight,
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -617,6 +627,45 @@ export default function Warhammer40kBoard({
                 );
               })}
 
+              {/* Reserves / homer placement highlight */}
+              {reservesHighlight && (() => {
+                if (reservesHighlight.type === 'homer' && reservesHighlight.homerX !== undefined && reservesHighlight.homerY !== undefined) {
+                  return (
+                    <circle
+                      cx={reservesHighlight.homerX * INCH_PX}
+                      cy={reservesHighlight.homerY * INCH_PX}
+                      r={6 * INCH_PX}
+                      fill="rgba(234,179,8,0.08)"
+                      stroke="#eab308"
+                      strokeWidth={2}
+                      strokeDasharray="12 6"
+                      strokeOpacity={0.7}
+                    />
+                  );
+                }
+                if ((reservesHighlight.type === 'board_edge' || reservesHighlight.type === 'deployment_zone') && reservesHighlight.zone) {
+                  const z = reservesHighlight.zone;
+                  const edgeH = reservesHighlight.type === 'board_edge' ? 6 : z.h;
+                  const zx = z.x * INCH_PX;
+                  const zy = reservesHighlight.type === 'board_edge'
+                    ? (reservesHighlight.player === 'P1' ? (z.y + z.h - edgeH) * INCH_PX : z.y * INCH_PX)
+                    : z.y * INCH_PX;
+                  return (
+                    <rect
+                      x={zx} y={zy}
+                      width={z.w * INCH_PX}
+                      height={edgeH * INCH_PX}
+                      fill="rgba(34,197,94,0.10)"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      strokeOpacity={0.6}
+                      strokeDasharray="10 5"
+                    />
+                  );
+                }
+                return null;
+              })()}
+
               {/* Engagement range rings — red dashed circle for units within 1" of an enemy */}
               {activeMarkers.map((m) => {
                 const isEngaged = activeMarkers.some(
@@ -886,6 +935,20 @@ export default function Warhammer40kBoard({
                     {m.isDestroyed && (
                       <line x1={cx - r * 0.7} y1={cy - r * 0.7} x2={cx + r * 0.7} y2={cy + r * 0.7} stroke="#ef4444" strokeWidth={3} />
                     )}
+                  </g>
+                );
+              })}
+
+              {/* Teleport Homer markers */}
+              {teleportHomers.map((homer) => {
+                const hx = homer.x * INCH_PX;
+                const hy = homer.y * INCH_PX;
+                const hr = INCH_PX * 0.35;
+                return (
+                  <g key={homer.id}>
+                    <circle cx={hx} cy={hy} r={hr + 4} fill="none" stroke="#eab308" strokeWidth={2} strokeDasharray="6 3" strokeOpacity={0.7} />
+                    <circle cx={hx} cy={hy} r={hr} fill="rgba(234,179,8,0.25)" stroke="#eab308" strokeWidth={2} />
+                    <text x={hx} y={hy + 6} textAnchor="middle" fontSize={Math.max(14, hr * 0.9)} fill="#eab308">⚡</text>
                   </g>
                 );
               })}

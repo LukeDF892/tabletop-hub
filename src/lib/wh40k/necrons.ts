@@ -149,6 +149,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "4+", wounds: 1, leadership: "7+", oc: 2 },
     models: { min: 10, max: 20 },
     points: 130,
+    pointsPerModel: 13,
     weapons: [
       { name: "Gauss Flayer", type: "Rapid Fire", range: '24"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -168,6 +169,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "4+", wounds: 1, leadership: "7+", oc: 2 },
     models: { min: 10, max: 20 },
     points: 130,
+    pointsPerModel: 13,
     weapons: [
       { name: "Gauss Reaper", type: "Assault", range: '18"', attacks: "2", skill: "BS3+", strength: "5", ap: "-2", damage: "1", keywords: ["Lethal Hits"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -187,6 +189,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 1, leadership: "7+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 85,
+    pointsPerModel: 17,
     weapons: [
       { name: "Gauss Blaster", type: "Rapid Fire", range: '24"', attacks: "1", skill: "BS3+", strength: "5", ap: "-2", damage: "2" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -206,6 +209,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 1, leadership: "7+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 85,
+    pointsPerModel: 17,
     weapons: [
       { name: "Tesla Carbine", type: "Assault", range: '24"', attacks: "2", skill: "BS3+", strength: "5", ap: "0", damage: "1", keywords: ["Sustained Hits 2"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
