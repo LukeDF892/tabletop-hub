@@ -65,6 +65,7 @@ export interface UnitMarker {
   isEmbarked?: boolean;            // true = unit is inside a transport, hidden from board
   embarkTransportId?: string;      // ID of the transport marker this unit is inside
   transportCapacity?: number;      // max models this transport can carry (TRANSPORT keyword units only)
+  inCover?: boolean;               // true = unit is within a Ruins terrain footprint (cover save bonus)
 }
 
 export interface DeploymentState {

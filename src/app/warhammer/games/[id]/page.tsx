@@ -1496,11 +1496,13 @@ export default function WarhammerGameRoom() {
     // Place unit — and attached character one cell above (or below for P2)
     const charOffset = marker.player === "P1" ? -1 : 1;
     const charY = Math.max(0, Math.min(43, cellY + charOffset));
+    const deployInCover = mapPreset.terrain.some((t) => cellX >= t.x && cellX < t.x + t.w && cellY >= t.y && cellY < t.y + t.h);
+    const charInCoverDeploy = mapPreset.terrain.some((t) => cellX >= t.x && cellX < t.x + t.w && charY >= t.y && charY < t.y + t.h);
 
     let updatedMarkers = markers.map((m) => {
-      if (m.id === deploySelectedId) return { ...m, x: cellX, y: cellY, isInReserve: false };
+      if (m.id === deploySelectedId) return { ...m, x: cellX, y: cellY, isInReserve: false, inCover: deployInCover };
       if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
-        return { ...m, x: cellX, y: charY, isInReserve: false };
+        return { ...m, x: cellX, y: charY, isInReserve: false, inCover: charInCoverDeploy };
       }
       return m;
     });
@@ -1793,6 +1795,26 @@ export default function WarhammerGameRoom() {
   function finishAfterBattleShock(afterShock: UnitMarker[]) {
     // Score objectives for the player who just finished their turn
     scoreObjectivesForPlayer(activePlayer, afterShock);
+
+    // Behind Enemy Lines: 4 VP if 2+ units fully within enemy deployment zone at end of player's turn
+    const enemyZone = activePlayer === "P1" ? mapPreset.p2Zone : mapPreset.p1Zone;
+    const unitsInEnemyZone = afterShock.filter(
+      (m) =>
+        m.player === activePlayer &&
+        !m.isDestroyed &&
+        !m.isInReserve &&
+        !m.isAttached &&
+        m.x >= enemyZone.x && m.x < enemyZone.x + enemyZone.w &&
+        m.y >= enemyZone.y && m.y < enemyZone.y + enemyZone.h
+    );
+    if (unitsInEnemyZone.length >= 2) {
+      if (activePlayer === "P1") setP1Vp((n) => n + 4);
+      else setP2Vp((n) => n + 4);
+      addLog(
+        `Behind Enemy Lines: ${activePlayer} scores 4 VP — ${unitsInEnemyZone.length} units in enemy deployment zone (${unitsInEnemyZone.map((m) => m.unitName).join(", ")}).`,
+        activePlayer
+      );
+    }
 
     // Reanimation Protocols for Necrons
     const activeRules = activePlayer === "P1" ? p1FactionRules : p2FactionRules;
@@ -2162,22 +2184,28 @@ export default function WarhammerGameRoom() {
     // Auto-disembark any units inside a Drop Pod on landing
     const isDP = isDropPod(marker);
     const embarkedInThis = transportContents[marker.id] ?? [];
+    const reserveInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
     setMarkers((prev) =>
       prev.map((m) => {
-        if (m.id === reservesUnitId) return { ...m, x, y, isInReserve: false };
+        if (m.id === reservesUnitId) return { ...m, x, y, isInReserve: false, inCover: reserveInCover };
         if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
           const dy2 = marker.player === "P1" ? -1 : 1;
-          return { ...m, x, y: Math.max(0, Math.min(43, y + dy2)), isInReserve: false };
+          const cy = Math.max(0, Math.min(43, y + dy2));
+          const charInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && cy >= t.y && cy < t.y + t.h);
+          return { ...m, x, y: cy, isInReserve: false, inCover: charInCover };
         }
         if (isDP && embarkedInThis.includes(m.id)) {
           const idx = embarkedInThis.indexOf(m.id);
+          const dx2 = Math.max(0, Math.min(59, x + (idx % 2 === 0 ? 1 : -1)));
+          const dy3 = Math.max(0, Math.min(43, y + Math.floor(idx / 2)));
           return {
             ...m,
             isEmbarked: false,
             embarkTransportId: undefined,
             isInReserve: false,
-            x: Math.max(0, Math.min(59, x + (idx % 2 === 0 ? 1 : -1))),
-            y: Math.max(0, Math.min(43, y + Math.floor(idx / 2))),
+            x: dx2,
+            y: dy3,
+            inCover: mapPreset.terrain.some((t) => dx2 >= t.x && dx2 < t.x + t.w && dy3 >= t.y && dy3 < t.y + t.h),
           };
         }
         return m;
@@ -2224,13 +2252,17 @@ export default function WarhammerGameRoom() {
       pushHistory();
       const oldX = marker.x;
       const oldY = marker.y;
+      const newInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
       setMarkers((prev) =>
         prev.map((m) => {
-          if (m.id === moveUnit) return { ...m, x, y, hasAdvanced: moveAdvance };
+          if (m.id === moveUnit) return { ...m, x, y, hasAdvanced: moveAdvance, inCover: newInCover };
           if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
             const dx = x - oldX;
             const dy = y - oldY;
-            return { ...m, x: Math.max(0, Math.min(59, m.x + dx)), y: Math.max(0, Math.min(43, m.y + dy)), hasAdvanced: moveAdvance };
+            const nx = Math.max(0, Math.min(59, m.x + dx));
+            const ny = Math.max(0, Math.min(43, m.y + dy));
+            const charInCover = mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h);
+            return { ...m, x: nx, y: ny, hasAdvanced: moveAdvance, inCover: charInCover };
           }
           return m;
         })
@@ -2239,7 +2271,7 @@ export default function WarhammerGameRoom() {
         setAdvancedThisTurn((prev) => [...prev, moveUnit]);
       }
       setMovedThisTurn((prev) => [...prev, moveUnit]);
-      addLog(`${marker.player} moved ${marker.unitName} to (${x}, ${y})${moveAdvance ? " (Advanced)" : ""}.`, marker.player);
+      addLog(`${marker.player} moved ${marker.unitName} to (${x}, ${y})${moveAdvance ? " (Advanced)" : ""}${newInCover ? " [in cover]" : ""}.`, marker.player);
       setMoveUnit(null);
       setMoveAdvance(false);
       setAdvanceRollResult(null);
@@ -2267,10 +2299,15 @@ export default function WarhammerGameRoom() {
       const charId = attacker.attachedCharacterId;
       const dx = x - attacker.x;
       const dy = y - attacker.y;
+      const chargeInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
       setMarkers((prev) =>
         prev.map((m) => {
-          if (m.id === chargeMove.unitId) return { ...m, x, y, hasCharged: true };
-          if (charId && m.id === charId) return { ...m, x: Math.max(0, Math.min(59, m.x + dx)), y: Math.max(0, Math.min(43, m.y + dy)) };
+          if (m.id === chargeMove.unitId) return { ...m, x, y, hasCharged: true, inCover: chargeInCover };
+          if (charId && m.id === charId) {
+            const nx = Math.max(0, Math.min(59, m.x + dx));
+            const ny = Math.max(0, Math.min(43, m.y + dy));
+            return { ...m, x: nx, y: ny, inCover: mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h) };
+          }
           return m;
         })
       );
@@ -2573,13 +2610,17 @@ export default function WarhammerGameRoom() {
     const invSave = parseInvSave(target.stats.save);
     const effectiveSave = Math.min(saveBase - ap, invSave ?? 7);
     // Cover: target inside ruins grants +1 to saving throw (10th ed ruins rule)
+    // Only applies when AP is -1 or better (AP0 or AP-1); AP-2 or worse strips cover.
     let coverSave = effectiveSave;
     const targetInRuins = mapPreset.terrain.some(
       (t) => target.x >= t.x && target.x < t.x + t.w && target.y >= t.y && target.y < t.y + t.h
     );
-    if (targetInRuins && effectiveSave < 7) {
-      coverSave = Math.min(7, effectiveSave + 1);
+    const coverApplies = targetInRuins && ap >= -1 && effectiveSave < 7;
+    if (coverApplies) {
+      coverSave = Math.max(2, effectiveSave - 1);
       addLog(`Cover: ${target.unitName} is in ruins — save improved to ${coverSave}+.`, "system");
+    } else if (targetInRuins && ap < -1) {
+      addLog(`Cover negated by AP${ap} weapon — ${target.unitName} receives no cover bonus.`, "system");
     }
 
     // Necron Eternal Guardian protocol: +1 to save rolls (defender's faction, active player's turn)
@@ -2609,7 +2650,7 @@ export default function WarhammerGameRoom() {
     const dmgNote = dmgRolls.length > 1 ? ` [${dmgRolls.join("+")}]` : "";
     const saveBonusNote = necronSaveBonus ? " [Eternal Guardian +1]" : tyranidSaveBonus ? " [Lurk and Feed +1]" : "";
     const mortalNote = mortalWoundDmg > 0 ? ` (+${mortalWoundDmg} mortal)` : "";
-    addLog(`Saves: ${effectiveFinalSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}${saveBonusNote}) → ${rolls.length > 0 ? rolls.join(", ") : "no rolls"} → ${unsaved} unsaved → ${totalDmg} damage${dmgNote}${mortalNote}.`, target.player);
+    addLog(`Saves: ${effectiveFinalSave}+ needed (Sv${saveBase}, AP${ap}${coverApplies ? ", +1 cover" : ""}${saveBonusNote}) → ${rolls.length > 0 ? rolls.join(", ") : "no rolls"} → ${unsaved} unsaved → ${totalDmg} damage${dmgNote}${mortalNote}.`, target.player);
     showRoll({ rolls, type: "save", threshold: effectiveFinalSave, label: `Save Rolls (${effectiveFinalSave}+)` });
 
     // Damage cascade: apply damage across models, killing models as wounds hit 0
@@ -2673,6 +2714,17 @@ export default function WarhammerGameRoom() {
 
     if (targetDestroyed && targetId && (transportContents[targetId] ?? []).length > 0) {
       setTimeout(() => handleTransportDestroyed(targetId), 50);
+    }
+
+    // No Prisoners: score 1 VP when destroying a unit with 10+ starting models
+    if (targetDestroyed && currentTarget) {
+      const startCount = currentTarget.startingModelCount ?? currentTarget.modelCount ?? 1;
+      if (startCount >= 10) {
+        const scoringPlayer = attacker!.player;
+        if (scoringPlayer === "P1") setP1Vp((n) => n + 1);
+        else setP2Vp((n) => n + 1);
+        addLog(`No Prisoners: ${scoringPlayer} scores 1 VP — ${currentTarget.unitName} had ${startCount} models.`, scoringPlayer);
+      }
     }
 
     setCombat({ ...INIT_COMBAT, step: "done" });
@@ -2858,6 +2910,13 @@ export default function WarhammerGameRoom() {
       addLog(`${target.unitName} destroyed!`, "system");
       setDestroyedThisPhase((p) => [...p, target.id]);
       setDestroyedThisTurn((p) => [...p, target.id]);
+      // No Prisoners: score 1 VP when destroying a unit with 10+ starting models
+      const startCount = target.startingModelCount ?? target.modelCount ?? 1;
+      if (startCount >= 10) {
+        if (attacker.player === "P1") setP1Vp((n) => n + 1);
+        else setP2Vp((n) => n + 1);
+        addLog(`No Prisoners: ${attacker.player} scores 1 VP — ${target.unitName} had ${startCount} models.`, attacker.player);
+      }
     }
 
     setMarkers((prev) =>
@@ -4658,28 +4717,65 @@ export default function WarhammerGameRoom() {
           )}
 
           {/* VP progress */}
-          <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-            <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>
-              Victory Points
-            </p>
-            {[
-              { label: "P1", vp: p1Vp, color: "#ef4444" },
-              { label: "P2", vp: p2Vp, color: "#3b82f6" },
-            ].map(({ label, vp, color }) => (
-              <div key={label} className="mb-2">
-                <div className="flex justify-between text-xs mb-1">
-                  <span style={{ color }}>{label}</span>
-                  <span className="font-bold" style={{ color }}>{vp}/90</span>
+          {(() => {
+            const captureRSide = 3;
+            const activeMSide = markers.filter((m) => !m.isDestroyed && !m.isInReserve && !m.isAttached && !m.isEmbarked);
+            const objControlSide = mapPreset.objectives.map((obj) => {
+              const p1n = activeMSide.filter((m) => m.player === "P1" && !m.battleShocked && Math.sqrt((m.x+0.5-obj.x)**2+(m.y+0.5-obj.y)**2) <= captureRSide);
+              const p2n = activeMSide.filter((m) => m.player === "P2" && !m.battleShocked && Math.sqrt((m.x+0.5-obj.x)**2+(m.y+0.5-obj.y)**2) <= captureRSide);
+              if (p1n.length > 0 && p2n.length === 0) return "P1" as const;
+              if (p2n.length > 0 && p1n.length === 0) return "P2" as const;
+              if (p1n.length > p2n.length) return "P1" as const;
+              if (p2n.length > p1n.length) return "P2" as const;
+              return null;
+            });
+            const p1ObjHeld = objControlSide.filter((c) => c === "P1").length;
+            const p2ObjHeld = objControlSide.filter((c) => c === "P2").length;
+            const vpCap = 85;
+            const p1Won = p1Vp >= vpCap;
+            const p2Won = p2Vp >= vpCap;
+            return (
+              <>
+                {(p1Won || p2Won) && (
+                  <div className="mx-3 mt-2 mb-1 p-2 rounded-lg text-center animate-pulse" style={{ backgroundColor: "rgba(234,179,8,0.15)", border: "1px solid rgba(234,179,8,0.5)" }}>
+                    <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: "#fbbf24" }}>
+                      ⚔ VICTORY ⚔
+                    </p>
+                    <p className="text-xs font-cinzel font-bold mt-0.5" style={{ color: "#fbbf24" }}>
+                      {p1Won && p2Won ? "Both players at 85+ VP!" : p1Won ? "P1 reaches 85 VP!" : "P2 reaches 85 VP!"}
+                    </p>
+                  </div>
+                )}
+                <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                  <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>
+                    Victory Points
+                  </p>
+                  {[
+                    { label: "P1", vp: p1Vp, objHeld: p1ObjHeld, color: "#ef4444" },
+                    { label: "P2", vp: p2Vp, objHeld: p2ObjHeld, color: "#3b82f6" },
+                  ].map(({ label, vp, objHeld, color }) => (
+                    <div key={label} className="mb-2">
+                      <div className="flex justify-between items-center text-xs mb-1">
+                        <span style={{ color }}>
+                          {label}
+                          <span className="ml-1.5 text-[9px] font-normal" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            {objHeld}/{mapPreset.objectives.length} obj
+                          </span>
+                        </span>
+                        <span className="font-bold" style={{ color }}>{vp}/85</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.07)" }}>
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${Math.min((vp / 85) * 100, 100)}%`, backgroundColor: color }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.07)" }}>
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${Math.min((vp / 90) * 100, 100)}%`, backgroundColor: color }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+              </>
+            );
+          })()}
 
           {/* Tactical Missions */}
           {roomPhase === "game" && (p1Hand.length > 0 || p2Hand.length > 0 || p1Scored.length > 0 || p2Scored.length > 0) && (
