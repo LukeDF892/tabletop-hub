@@ -102,6 +102,9 @@ export function DiceRollerPopup({ request, onDismiss, onReroll, rerollCp }: Dice
   const [progress, setProgress] = useState(100);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track current CP in a ref so the effect can read it without re-firing
+  const rerollCpRef = useRef(rerollCp ?? 0);
+  rerollCpRef.current = rerollCp ?? 0;
 
   useEffect(() => {
     if (!request) return;
@@ -109,20 +112,23 @@ export function DiceRollerPopup({ request, onDismiss, onReroll, rerollCp }: Dice
     setProgress(100);
     const spinTimer = setTimeout(() => setSpinning(false), 800);
 
-    // progress bar countdown (3s total)
+    // Only auto-dismiss when the active player has no CP to re-roll with
     const start = Date.now();
     const DURATION = 3000;
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
+      if (rerollCpRef.current >= 1) return; // freeze countdown when CP available
       const elapsed = Date.now() - start;
       setProgress(Math.max(0, 100 - (elapsed / DURATION) * 100));
     }, 50);
 
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      onDismiss();
-    }, DURATION);
+    if (rerollCpRef.current < 1) {
+      timerRef.current = setTimeout(() => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        onDismiss();
+      }, DURATION);
+    }
 
     return () => {
       clearTimeout(spinTimer);
@@ -225,18 +231,41 @@ export function DiceRollerPopup({ request, onDismiss, onReroll, rerollCp }: Dice
           </button>
         )}
 
-        {/* Progress bar */}
-        <div style={{ height: 2, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 1, overflow: "hidden" }}>
-          <div
+        {/* Accept button — shown when CP is available (popup stays open) */}
+        {!spinning && (rerollCp ?? 0) >= 1 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDismiss(); }}
             style={{
-              height: "100%",
-              width: `${progress}%`,
-              backgroundColor: colour,
-              borderRadius: 1,
-              transition: "width 50ms linear",
+              width: "100%",
+              marginBottom: 8,
+              padding: "6px 0",
+              borderRadius: 8,
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+              backgroundColor: "rgba(255,255,255,0.06)",
+              color: "rgba(255,255,255,0.55)",
+              border: "1px solid rgba(255,255,255,0.12)",
             }}
-          />
-        </div>
+          >
+            Accept Result
+          </button>
+        )}
+
+        {/* Progress bar — hidden when keeping open for re-roll */}
+        {(rerollCp ?? 0) < 1 && (
+          <div style={{ height: 2, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 1, overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${progress}%`,
+                backgroundColor: colour,
+                borderRadius: 1,
+                transition: "width 50ms linear",
+              }}
+            />
+          </div>
+        )}
       </div>
     </>
   );

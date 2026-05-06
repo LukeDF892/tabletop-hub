@@ -1284,6 +1284,10 @@ export default function WarhammerGameRoom() {
   // ── Reserves deployment ──
   const [reservesMode, setReservesMode] = useState<'idle' | 'place_normal' | 'place_deepstrike'>('idle');
   const [reservesUnitId, setReservesUnitId] = useState<string | null>(null);
+  const [reservesError, setReservesError] = useState<string | null>(null);
+
+  // ── Turn order tracking ──
+  const [firstPlayerThisRound, setFirstPlayerThisRound] = useState<"P1" | "P2">("P1");
 
   // ── Transport mechanics ──
   const [transportContents, setTransportContents] = useState<Record<string, string[]>>({});
@@ -1629,6 +1633,7 @@ export default function WarhammerGameRoom() {
   function startGame() {
     const firstPlayer = rolloffResults.firstTurn ?? "P1";
     setActivePlayer(firstPlayer);
+    setFirstPlayerThisRound(firstPlayer);
     setRoomPhase("game");
     setGamePhase("command");
     persistState({ current_phase: "command", game_state: { markers, round: 1, gamePhase: "command", activePlayer: firstPlayer, p1Cp: 0, p2Cp: 0, p1Vp, p2Vp } });
@@ -1903,9 +1908,9 @@ export default function WarhammerGameRoom() {
       resolveReanimation(activePlayer, afterShock);
     }
 
-    if (activePlayer === "P1") {
-      const newPlayer: "P1" | "P2" = "P2";
-      setActivePlayer(newPlayer);
+    if (activePlayer === firstPlayerThisRound) {
+      const secondPlayer: "P1" | "P2" = firstPlayerThisRound === "P1" ? "P2" : "P1";
+      setActivePlayer(secondPlayer);
       setGamePhase("command");
       setDestroyedThisTurn([]);
       setDestroyedThisPhase([]);
@@ -1914,30 +1919,31 @@ export default function WarhammerGameRoom() {
       setSynapticImperative(null);
       setOathTarget(null);
       setCommandAbilityUsed(false);
-      // Clear turn-scoped effects (Catalyst FNP) from P1's units
+      // Clear first player's turn-scoped effects; reset second player's action flags
       setMarkers((prev) =>
         prev.map((m) =>
-          m.player === "P1"
+          m.player === firstPlayerThisRound
             ? { ...m, feelNoPain: undefined }
-            : m.player === "P2"
+            : m.player === secondPlayer
             ? { ...m, hasAdvanced: false, hasCharged: false, hasFought: false, hasShotThisTurn: false }
             : m
         )
       );
-      if (gameMode === "solo") setSoloSide("P2");
-      addLog(`P1's turn complete. Round ${round} — Player 2's Turn: Command Phase.`, "system");
-      giveCommandPhaseCP("P2", afterShock);
-      if (p2Hand.length < 3) drawMission("P2");
+      if (gameMode === "solo") setSoloSide(secondPlayer);
+      addLog(`${firstPlayerThisRound}'s turn complete. Round ${round} — ${secondPlayer}'s Turn: Command Phase.`, "system");
+      giveCommandPhaseCP(secondPlayer, afterShock);
+      const secondPlayerHand = secondPlayer === "P2" ? p2Hand : p1Hand;
+      if (secondPlayerHand.length < 3) drawMission(secondPlayer);
     } else {
       setGamePhase("scoring");
       setDestroyedThisTurn([]);
       setDestroyedThisPhase([]);
       setAdvancedThisTurn([]);
-      // Clear turn-scoped effects (Catalyst FNP) from P2's units
+      // Clear second player's turn-scoped effects
       setMarkers((prev) =>
-        prev.map((m) => m.player === "P2" ? { ...m, feelNoPain: undefined } : m)
+        prev.map((m) => m.player === activePlayer ? { ...m, feelNoPain: undefined } : m)
       );
-      addLog(`P2's turn complete. End of Round ${round} — click "End Round" to continue.`, "system");
+      addLog(`${activePlayer}'s turn complete. End of Round ${round} — click "End Round" to continue.`, "system");
     }
   }
 
@@ -2079,8 +2085,11 @@ export default function WarhammerGameRoom() {
       return;
     }
     const nextRound = round + 1;
+    // Alternate who goes first each round
+    const newFirstPlayer: "P1" | "P2" = firstPlayerThisRound === "P1" ? "P2" : "P1";
+    setFirstPlayerThisRound(newFirstPlayer);
     setRound(nextRound);
-    setActivePlayer("P1");
+    setActivePlayer(newFirstPlayer);
     setGamePhase("command");
     setDestroyedThisTurn([]);
     setDestroyedThisPhase([]);
@@ -2105,11 +2114,11 @@ export default function WarhammerGameRoom() {
     setShotThisTurn([]);
     setChargedThisTurn([]);
     setFoughtThisTurn([]);
-    if (gameMode === "solo") setSoloSide("P1");
-    addLog(`Round ${nextRound} begins. Player 1's Turn — Command Phase.`, "system");
-    giveCommandPhaseCP("P1", markers);
-    // Draw tactical mission for P1 if hand < 3
-    if (p1Hand.length < 3) drawMission("P1");
+    if (gameMode === "solo") setSoloSide(newFirstPlayer);
+    addLog(`Round ${nextRound} begins. ${newFirstPlayer}'s Turn — Command Phase.`, "system");
+    giveCommandPhaseCP(newFirstPlayer, markers);
+    const newFirstPlayerHand = newFirstPlayer === "P1" ? p1Hand : p2Hand;
+    if (newFirstPlayerHand.length < 3) drawMission(newFirstPlayer);
   }
 
   // ── Transport: embark / disembark ──
@@ -2239,34 +2248,36 @@ export default function WarhammerGameRoom() {
       const enemies = activeMarkers.filter((m) => m.player !== marker.player);
       const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < 9);
       if (tooClose) {
+        const msg = 'Must place more than 9" from all enemies!';
         addLog("Deep Strike must be placed more than 9\" from all enemy models.", "system");
+        setReservesError(msg);
+        setTimeout(() => setReservesError(null), 2500);
         return;
       }
     } else {
       // Normal reserve: must be within 6" of player's board edge
-      const { p1Zone, p2Zone } = mapPreset;
-      const zone = marker.player === "P1" ? p1Zone : p2Zone;
-      // Check within 6" of the near edge of the deployment zone (extended 6")
-      // For standard zones: P1 is at y=35-44, so edge is at y=44; within 6" means y>=38
-      // For other zone types, compute the near edge dynamically
       let nearEdge: boolean;
       if (mapPreset.deploymentType === 'dawn_of_war') {
         // Deploy from left/right board edges
+        const zone = marker.player === "P1" ? mapPreset.p1Zone : mapPreset.p2Zone;
         if (marker.player === "P1") {
           nearEdge = x < zone.x + zone.w + 6;
         } else {
           nearEdge = x >= zone.x - 6;
         }
       } else {
-        // Standard/Crucible/Sweeping: near edge is the bottom (P1) or top (P2)
+        // Standard/Crucible/Sweeping: P1 arrives from bottom edge, P2 from top edge
         if (marker.player === "P1") {
-          nearEdge = y >= zone.y - 6;
+          nearEdge = y >= BOARD_H_CONST - 6; // y >= 38
         } else {
-          nearEdge = y < zone.y + zone.h + 6;
+          nearEdge = y < 6; // y <= 5
         }
       }
       if (!nearEdge) {
+        const msg = 'Must place within 6" of your board edge!';
         addLog(`Reserves must arrive within 6" of your board edge.`, "system");
+        setReservesError(msg);
+        setTimeout(() => setReservesError(null), 2500);
         return;
       }
     }
@@ -4794,9 +4805,44 @@ export default function WarhammerGameRoom() {
               if (p2n.length > p1n.length) return "P2";
               return null;
             });
+            // Compute green overlay for valid reserves placement cells
+            let reservesHighlightCells: Set<string> | undefined;
+            if (reservesMode !== 'idle') {
+              reservesHighlightCells = new Set<string>();
+              const activeMarkersCells = markers.filter((m) => !m.isDestroyed && !m.isInReserve);
+              if (reservesMode === 'place_deepstrike') {
+                const enemies = activeMarkersCells.filter((m) => m.player !== activePlayer);
+                for (let cx = 0; cx < 60; cx++) {
+                  for (let cy = 0; cy < BOARD_H_CONST; cy++) {
+                    const tooClose = enemies.some((e) => Math.sqrt((cx - e.x) ** 2 + (cy - e.y) ** 2) < 9);
+                    if (!tooClose) reservesHighlightCells.add(`${cx},${cy}`);
+                  }
+                }
+              } else if (mapPreset.deploymentType === 'dawn_of_war') {
+                const zone = activePlayer === "P1" ? mapPreset.p1Zone : mapPreset.p2Zone;
+                for (let cy = 0; cy < BOARD_H_CONST; cy++) {
+                  if (activePlayer === "P1") {
+                    for (let cx = 0; cx < zone.x + zone.w + 6; cx++) reservesHighlightCells.add(`${cx},${cy}`);
+                  } else {
+                    for (let cx = Math.max(0, zone.x - 6); cx < 60; cx++) reservesHighlightCells.add(`${cx},${cy}`);
+                  }
+                }
+              } else {
+                if (activePlayer === "P1") {
+                  for (let cx = 0; cx < 60; cx++)
+                    for (let cy = BOARD_H_CONST - 6; cy < BOARD_H_CONST; cy++)
+                      reservesHighlightCells.add(`${cx},${cy}`);
+                } else {
+                  for (let cx = 0; cx < 60; cx++)
+                    for (let cy = 0; cy < 6; cy++)
+                      reservesHighlightCells.add(`${cx},${cy}`);
+                }
+              }
+            }
+
             return (
               <Warhammer40kBoard
-                markers={markers}
+                markers={markers.filter((m) => !m.isInReserve)}
                 selectedMarkerId={selectedMarkerId ?? deploySelectedId}
                 onCellClick={handleCellClick}
                 onUnitClick={handleUnitClick}
@@ -4811,6 +4857,7 @@ export default function WarhammerGameRoom() {
                 objectiveControl={objectiveControl}
                 showMeasurementLine={showMeasurementLine}
                 actedThisTurn={[...movedThisTurn, ...shotThisTurn, ...chargedThisTurn, ...foughtThisTurn]}
+                reservesHighlightCells={reservesHighlightCells}
               />
             );
           })()}
@@ -5269,6 +5316,16 @@ export default function WarhammerGameRoom() {
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Reserves placement error toast ── */}
+      {reservesError && (
+        <div
+          className="fixed top-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-sm font-semibold pointer-events-none z-50"
+          style={{ backgroundColor: "rgba(220,38,38,0.92)", border: "1px solid rgba(248,113,113,0.5)", color: "#fff", boxShadow: "0 4px 16px rgba(0,0,0,0.5)" }}
+        >
+          {reservesError}
         </div>
       )}
 

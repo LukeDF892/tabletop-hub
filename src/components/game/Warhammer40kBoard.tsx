@@ -81,6 +81,7 @@ export interface Warhammer40kBoardProps {
   objectiveControl?: ('P1' | 'P2' | null)[];
   showMeasurementLine?: boolean;
   actedThisTurn?: string[];
+  reservesHighlightCells?: Set<string>;
 }
 
 export default function Warhammer40kBoard({
@@ -99,6 +100,7 @@ export default function Warhammer40kBoard({
   objectiveControl,
   showMeasurementLine = false,
   actedThisTurn = [],
+  reservesHighlightCells,
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -425,6 +427,21 @@ export default function Warhammer40kBoard({
                     fill="rgba(234,179,8,0.18)"
                     stroke="rgba(234,179,8,0.5)"
                     strokeWidth={1}
+                  />
+                );
+              })}
+
+              {/* Reserves valid placement zone (green) */}
+              {reservesHighlightCells && Array.from(reservesHighlightCells).map((key) => {
+                const [cx, cy] = key.split(",").map(Number);
+                return (
+                  <rect
+                    key={`res-${key}`}
+                    x={cx * INCH_PX} y={cy * INCH_PX}
+                    width={INCH_PX} height={INCH_PX}
+                    fill="rgba(74,222,128,0.15)"
+                    stroke="rgba(74,222,128,0.35)"
+                    strokeWidth={0.5}
                   />
                 );
               })}
