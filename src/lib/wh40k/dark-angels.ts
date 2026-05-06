@@ -90,7 +90,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     weapons: [
       { name: "Corvex", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
       { name: "Plasma Cannon (Standard)", type: "Heavy", range: '36"', attacks: "2", skill: "BS2+", strength: "7", ap: "-2", damage: "2" },
-      { name: "Plasma Cannon (Supercharge)", type: "Heavy", range: '36"', attacks: "2", skill: "BS2+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
+      { name: "Plasma Cannon (Supercharge)", type: "Heavy", range: '36"', attacks: "2", skill: "BS2+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous", "Lethal Hits"] },
     ],
     abilities: [
       { name: "Lord of the Ravenwing", description: "Friendly Ravenwing units within 6\" gain the Scout 6\" ability." },
@@ -156,7 +156,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     points: 150,
     weapons: [
       { name: "Twin Auto Boltstorm Gauntlets", type: "Pistol", range: '12"', attacks: "6", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
-      { name: "Power Sword", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "-2", damage: "1" },
+      { name: "Power Sword", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "-2", damage: "1", keywords: ["Lethal Hits"] },
     ],
     abilities: [
       { name: "Speed of the Raven", description: "Friendly Ravenwing units within 6\" add 2\" to their Move characteristic." },
@@ -352,7 +352,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     models: { min: 1, max: 1 },
     points: 130,
     weapons: [
-      { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2" },
+      { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Armoured Hull", type: "Melee", attacks: "3", skill: "WS4+", strength: "6", ap: "0", damage: "1" },
     ],
     abilities: [

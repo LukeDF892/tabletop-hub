@@ -455,9 +455,10 @@ export const SM_UNITS: Unit[] = [
       {
         replaces: "Missile Launcher (Frag)",
         options: [
-          { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2" },
+          { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
           { name: "Multi-melta", type: "Heavy", range: '18"', attacks: "2", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
           { name: "Plasma Cannon (Standard)", type: "Heavy", range: '36"', attacks: "D3", skill: "BS3+", strength: "8", ap: "-3", damage: "2", keywords: ["Blast"] },
+          { name: "Plasma Cannon (Overcharge)", type: "Heavy", range: '36"', attacks: "D3", skill: "BS3+", strength: "9", ap: "-4", damage: "3", keywords: ["Blast", "Lethal Hits", "Hazardous"] },
         ],
       },
     ],
@@ -473,7 +474,7 @@ export const SM_UNITS: Unit[] = [
     weapons: [
       { name: "Predator Autocannon", type: "Heavy", range: '48"', attacks: "4", skill: "BS3+", strength: "9", ap: "-1", damage: "3" },
       { name: "Lascannon", type: "Heavy", range: '48"', attacks: "1", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+1" },
-      { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2" },
+      { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Armoured Tracks", type: "Melee", attacks: "3", skill: "WS4+", strength: "7", ap: "0", damage: "1" },
     ],
     abilities: [
@@ -566,9 +567,10 @@ export const SM_UNITS: Unit[] = [
       {
         replaces: "Multi-melta",
         options: [
-          { name: "Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "6", ap: "-1", damage: "1" },
+          { name: "Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "6", ap: "-1", damage: "1", keywords: ["Sustained Hits 1"] },
           { name: "Twin Lascannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+1" },
           { name: "Heavy Plasma Cannon (Standard)", type: "Heavy", range: '36"', attacks: "D3", skill: "BS3+", strength: "8", ap: "-3", damage: "2", keywords: ["Blast"] },
+          { name: "Heavy Plasma Cannon (Overcharge)", type: "Heavy", range: '36"', attacks: "D3", skill: "BS3+", strength: "9", ap: "-4", damage: "3", keywords: ["Blast", "Lethal Hits", "Hazardous"] },
         ],
       },
     ],
@@ -652,7 +654,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 1, max: 1 },
     points: 135,
     weapons: [
-      { name: "Kheres Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "7", ap: "-1", damage: "2" },
+      { name: "Kheres Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "7", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Dreadnought Combat Weapon", type: "Melee", attacks: "5", skill: "WS3+", strength: "12", ap: "-2", damage: "3" },
     ],
     abilities: [
@@ -901,8 +903,8 @@ export const SM_UNITS: Unit[] = [
     models: { min: 1, max: 1 },
     points: 105,
     weapons: [
-      { name: "Twin Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS4+", strength: "6", ap: "-1", damage: "1" },
-      { name: "Twin Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS4+", strength: "5", ap: "-1", damage: "2" },
+      { name: "Twin Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS4+", strength: "6", ap: "-1", damage: "1", keywords: ["Sustained Hits 1"] },
+      { name: "Twin Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS4+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Armoured Tracks", type: "Melee", attacks: "3", skill: "WS4+", strength: "7", ap: "0", damage: "1" },
     ],
     abilities: [
@@ -969,7 +971,7 @@ export const SM_UNITS: Unit[] = [
     weapons: [
       { name: "Las-talon", type: "Heavy", range: '36"', attacks: "2", skill: "BS4+", strength: "16", ap: "-4", damage: "D6+1" },
       { name: "Heavy Onslaught Gatling Cannon", type: "Heavy", range: '24"', attacks: "12", skill: "BS4+", strength: "6", ap: "-1", damage: "1" },
-      { name: "Twin Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS4+", strength: "5", ap: "-1", damage: "2" },
+      { name: "Twin Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS4+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Twin Lascannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS4+", strength: "12", ap: "-3", damage: "D6+1" },
       { name: "Armoured Tracks", type: "Melee", attacks: "6", skill: "WS4+", strength: "9", ap: "-1", damage: "2" },
     ],
@@ -992,7 +994,7 @@ export const SM_UNITS: Unit[] = [
     weapons: [
       { name: "Twin Lascannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS4+", strength: "12", ap: "-3", damage: "D6+1", keywords: ["Twin-linked"] },
       { name: "Lascannon Sponson", type: "Heavy", range: '48"', attacks: "1", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+1" },
-      { name: "Heavy Bolter Sponson", type: "Heavy", range: '36"', attacks: "3", skill: "BS4+", strength: "5", ap: "-1", damage: "2" },
+      { name: "Heavy Bolter Sponson", type: "Heavy", range: '36"', attacks: "3", skill: "BS4+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Armoured Tracks", type: "Melee", attacks: "3", skill: "WS4+", strength: "7", ap: "0", damage: "1" },
     ],
     abilities: [
@@ -1054,7 +1056,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 1, max: 1 },
     points: 130,
     weapons: [
-      { name: "Twin Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "6", ap: "-1", damage: "1" },
+      { name: "Twin Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "6", ap: "-1", damage: "1", keywords: ["Sustained Hits 1"] },
       { name: "Typhoon Missile Launcher (Frag)", type: "Heavy", range: '48"', attacks: "D6", skill: "BS3+", strength: "5", ap: "0", damage: "1", keywords: ["Blast"] },
       { name: "Typhoon Missile Launcher (Krak)", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "10", ap: "-2", damage: "D6" },
     ],
@@ -1079,7 +1081,7 @@ export const SM_UNITS: Unit[] = [
     points: 140,
     weapons: [
       { name: "Icarus Stormcannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "7", ap: "-1", damage: "2", keywords: ["Anti-Fly 2+"] },
-      { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2" },
+      { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Skyhammer Missile Launcher (Frag)", type: "Heavy", range: '48"', attacks: "D6", skill: "BS3+", strength: "5", ap: "0", damage: "1", keywords: ["Blast"] },
       { name: "Skyhammer Missile Launcher (Krak)", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "10", ap: "-2", damage: "D6" },
     ],
@@ -1100,7 +1102,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 1, max: 1 },
     points: 250,
     weapons: [
-      { name: "Twin Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS4+", strength: "6", ap: "-1", damage: "1" },
+      { name: "Twin Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS4+", strength: "6", ap: "-1", damage: "1", keywords: ["Sustained Hits 1"] },
       { name: "Typhoon Missile Launcher (Frag)", type: "Heavy", range: '48"', attacks: "D6", skill: "BS4+", strength: "5", ap: "0", damage: "1", keywords: ["Blast"] },
       { name: "Typhoon Missile Launcher (Krak)", type: "Heavy", range: '48"', attacks: "2", skill: "BS4+", strength: "10", ap: "-2", damage: "D6" },
       { name: "Hurricane Bolter", type: "Assault", range: '24"', attacks: "8", skill: "BS4+", strength: "4", ap: "0", damage: "1" },
