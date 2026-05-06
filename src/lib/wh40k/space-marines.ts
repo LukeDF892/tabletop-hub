@@ -165,6 +165,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 2 },
     models: { min: 5, max: 10 },
     points: 90,
+    pointsPerModel: 18,
     weapons: [
       { name: "Auto Bolt Rifle", type: "Assault", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Bolt Rifle", type: "Rapid Fire", range: '30"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
@@ -230,6 +231,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 1, leadership: "6+", oc: 2 },
     models: { min: 5, max: 10 },
     points: 75,
+    pointsPerModel: 15,
     weapons: [
       { name: "Boltgun", type: "Rapid Fire", range: '24"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "2", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -742,6 +744,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "4+", wounds: 2, leadership: "6+", oc: 2 },
     models: { min: 5, max: 10 },
     points: 65,
+    pointsPerModel: 13,
     weapons: [
       { name: "Scout Sniper Rifle", type: "Heavy", range: '24"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1", keywords: ["Precision", "Indirect Fire"] },
       { name: "Boltgun", type: "Rapid Fire", range: '24"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },

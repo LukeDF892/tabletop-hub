@@ -653,7 +653,7 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         }
       }
 
-      const modelMin = Math.max(1, unit.models.min);
+      const modelCount = Math.max(1, entry.modelCount || unit.models.min);
       markers.push({
         id: uid,
         unitId: entry.unitId,
@@ -663,9 +663,9 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         y: 0,
         currentWounds: unit.stats.wounds,
         maxWounds: unit.stats.wounds,
-        modelCount: modelMin,
+        modelCount,
         woundsPerModel: unit.stats.wounds,
-        startingModelCount: modelMin,
+        startingModelCount: modelCount,
         stats: unit.stats,
         weapons: effectiveWeapons,
         hasAdvanced: false,
@@ -679,6 +679,7 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         attachedCharacterId,
         attachedCharacterName,
         keywords: unit.keywords ?? [],
+        teleportHomer: unit.teleportHomer ?? false,
       });
 
       if (charMarker) markers.push(charMarker);
@@ -1284,6 +1285,8 @@ export default function WarhammerGameRoom() {
   // ── Reserves deployment ──
   const [reservesMode, setReservesMode] = useState<'idle' | 'place_normal' | 'place_deepstrike'>('idle');
   const [reservesUnitId, setReservesUnitId] = useState<string | null>(null);
+  const [teleportHomers, setTeleportHomers] = useState<{ id: string; x: number; y: number; placedBy: string }[]>([]);
+  const [homerPlacementForId, setHomerPlacementForId] = useState<string | null>(null);
 
   // ── Transport mechanics ──
   const [transportContents, setTransportContents] = useState<Record<string, string[]>>({});
@@ -1580,8 +1583,22 @@ export default function WarhammerGameRoom() {
     const deployInCover = mapPreset.terrain.some((t) => cellX >= t.x && cellX < t.x + t.w && cellY >= t.y && cellY < t.y + t.h);
     const charInCoverDeploy = mapPreset.terrain.some((t) => cellX >= t.x && cellX < t.x + t.w && charY >= t.y && charY < t.y + t.h);
 
+    // Compute clamped hex-pack positions for multi-model units
+    let deployModelPositions: { x: number; y: number }[] | undefined;
+    if ((marker.modelCount ?? 1) > 1) {
+      const zone = marker.player === "P1" ? p1Zone : p2Zone;
+      const rings = Math.ceil((marker.modelCount - 1) / 6);
+      const radius = rings * 1.5;
+      const cx = Math.max(zone.x + radius, Math.min(zone.x + zone.w - radius, cellX + 0.5));
+      const cy = Math.max(zone.y + radius, Math.min(zone.y + zone.h - radius, cellY + 0.5));
+      deployModelPositions = hexPackPositions(cx, cy, marker.modelCount).map((pos) => ({
+        x: Math.max(zone.x, Math.min(zone.x + zone.w, pos.x)),
+        y: Math.max(zone.y, Math.min(zone.y + zone.h, pos.y)),
+      }));
+    }
+
     let updatedMarkers = markers.map((m) => {
-      if (m.id === deploySelectedId) return { ...m, x: cellX, y: cellY, isInReserve: false, inCover: deployInCover };
+      if (m.id === deploySelectedId) return { ...m, x: cellX, y: cellY, isInReserve: false, inCover: deployInCover, modelPositions: deployModelPositions };
       if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
         return { ...m, x: cellX, y: charY, isInReserve: false, inCover: charInCoverDeploy };
       }
@@ -1959,7 +1976,7 @@ export default function WarhammerGameRoom() {
       setFightPhaseStep('active');
       setFoughtThisTurn([]);
     }
-    if (gamePhase === "movement") setMovedThisTurn([]);
+    if (gamePhase === "movement") { setMovedThisTurn([]); setTeleportHomers([]); setHomerPlacementForId(null); }
     if (gamePhase === "shooting") setShotThisTurn([]);
     if (gamePhase === "charge") setChargedThisTurn([]);
 
@@ -2235,12 +2252,21 @@ export default function WarhammerGameRoom() {
     if (occupied) { addLog("That cell is occupied.", "system"); return; }
 
     if (reservesMode === 'place_deepstrike') {
-      // Deep strike: must be 9"+ from all enemy units
+      // Deep strike: must be 9"+ from all enemy units (3" if Teleport Homer active)
       const enemies = activeMarkers.filter((m) => m.player !== marker.player);
-      const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < 9);
+      const markerKw = (marker.keywords ?? []).map((k) => k.toUpperCase());
+      const isDeathwingOrIC = markerKw.includes("DEATHWING") || markerKw.includes("INNER CIRCLE");
+      const nearHomer = isDeathwingOrIC && teleportHomers.some(
+        (h) => h.placedBy === marker.player && Math.sqrt((x - h.x) ** 2 + (y - h.y) ** 2) <= 6
+      );
+      const exclusionZone = nearHomer ? 3 : 9;
+      const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < exclusionZone);
       if (tooClose) {
-        addLog("Deep Strike must be placed more than 9\" from all enemy models.", "system");
+        addLog(`Deep Strike must be placed more than ${exclusionZone}" from all enemy models.`, "system");
         return;
+      }
+      if (nearHomer) {
+        addLog(`📡 Teleport Homer active — reduced exclusion zone (3")`, marker.player);
       }
     } else {
       // Normal reserve: must be within 6" of player's board edge
@@ -2308,7 +2334,7 @@ export default function WarhammerGameRoom() {
     } else {
       addLog(`${marker.player} deployed ${marker.unitName} from reserves at (${x}, ${y})${reservesMode === 'place_deepstrike' ? ' (Deep Strike)' : ''}.`, marker.player);
     }
-    setMovedThisTurn((prev) => isDP ? [...prev, marker.id] : prev); // Drop Pod can't move after landing
+    setMovedThisTurn((prev) => [...prev, marker.id]); // Unit can't move again after arriving from reserves
     setReservesMode('idle');
     setReservesUnitId(null);
     setSelectedMarkerId(null);
@@ -2321,6 +2347,22 @@ export default function WarhammerGameRoom() {
       return;
     }
     if (roomPhase !== "game") return;
+
+    if (gamePhase === "movement" && homerPlacementForId) {
+      const ravenwing = markers.find((m) => m.id === homerPlacementForId);
+      if (ravenwing) {
+        const dist = Math.sqrt((x + 0.5 - (ravenwing.x + 0.5)) ** 2 + (y + 0.5 - (ravenwing.y + 0.5)) ** 2);
+        if (dist > 3) {
+          addLog(`Teleport Homer must be placed within 3" of ${ravenwing.unitName}.`, "system");
+        } else {
+          const homerId = `homer-${ravenwing.id}-${Date.now()}`;
+          setTeleportHomers((prev) => [...prev, { id: homerId, x: x + 0.5, y: y + 0.5, placedBy: ravenwing.player }]);
+          addLog(`📡 ${ravenwing.player} placed Teleport Homer at (${x}, ${y}).`, ravenwing.player);
+          setHomerPlacementForId(null);
+        }
+      }
+      return;
+    }
 
     if (gamePhase === "movement" && (reservesMode === 'place_normal' || reservesMode === 'place_deepstrike')) {
       handleReservesDeploy(x, y);
@@ -3320,6 +3362,25 @@ export default function WarhammerGameRoom() {
             </div>
           )}
 
+          {/* Teleport Homer placement mode */}
+          {homerPlacementForId && (
+            <div>
+              <p className="text-xs font-semibold mb-1" style={{ color: "#eab308" }}>
+                📡 Place Teleport Homer:
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Click within 3" of {markers.find((m) => m.id === homerPlacementForId)?.unitName}.
+              </p>
+              <button
+                onClick={() => setHomerPlacementForId(null)}
+                className="w-full py-1.5 rounded-lg text-xs mt-1"
+                style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
           {/* Normal movement UI */}
           {reservesMode === 'idle' && (
             <>
@@ -3567,6 +3628,35 @@ export default function WarhammerGameRoom() {
               Reserves available from Round 2.
             </p>
           )}
+
+          {/* Teleport Homer — Ravenwing units that have moved */}
+          {(() => {
+            const ravenMoved = markers.filter(
+              (m) => m.player === activeSide && m.teleportHomer && movedThisTurn.includes(m.id) && !m.isDestroyed && !m.isInReserve
+            );
+            if (ravenMoved.length === 0) return null;
+            return (
+              <div>
+                <p className="text-[10px] uppercase tracking-widest mt-2 mb-1" style={{ color: "#eab308" }}>
+                  Teleport Homer
+                </p>
+                <div className="space-y-1">
+                  {ravenMoved.map((m) => (
+                    <div key={m.id} className="flex items-center gap-1">
+                      <span className="flex-1 text-[10px] truncate" style={{ color: "var(--text-muted)" }}>{m.unitName}</span>
+                      <button
+                        onClick={() => setHomerPlacementForId(m.id)}
+                        className="px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                        style={{ backgroundColor: "rgba(234,179,8,0.12)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)" }}
+                      >
+                        📡 Place Homer
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           <button
             onClick={advancePhase}
@@ -4811,6 +4901,7 @@ export default function WarhammerGameRoom() {
                 objectiveControl={objectiveControl}
                 showMeasurementLine={showMeasurementLine}
                 actedThisTurn={[...movedThisTurn, ...shotThisTurn, ...chargedThisTurn, ...foughtThisTurn]}
+                teleportHomers={teleportHomers}
               />
             );
           })()}

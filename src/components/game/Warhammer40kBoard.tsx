@@ -81,6 +81,7 @@ export interface Warhammer40kBoardProps {
   objectiveControl?: ('P1' | 'P2' | null)[];
   showMeasurementLine?: boolean;
   actedThisTurn?: string[];
+  teleportHomers?: { id: string; x: number; y: number; placedBy: string }[];
 }
 
 export default function Warhammer40kBoard({
@@ -99,6 +100,7 @@ export default function Warhammer40kBoard({
   objectiveControl,
   showMeasurementLine = false,
   actedThisTurn = [],
+  teleportHomers = [],
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -857,6 +859,20 @@ export default function Warhammer40kBoard({
                     {m.isDestroyed && (
                       <line x1={cx - r * 0.7} y1={cy - r * 0.7} x2={cx + r * 0.7} y2={cy + r * 0.7} stroke="#ef4444" strokeWidth={3} />
                     )}
+                  </g>
+                );
+              })}
+
+              {/* Teleport Homer markers */}
+              {teleportHomers.map((homer) => {
+                const hx = homer.x * INCH_PX;
+                const hy = homer.y * INCH_PX;
+                const hr = INCH_PX * 0.35;
+                return (
+                  <g key={homer.id}>
+                    <circle cx={hx} cy={hy} r={hr + 4} fill="none" stroke="#eab308" strokeWidth={2} strokeDasharray="6 3" strokeOpacity={0.7} />
+                    <circle cx={hx} cy={hy} r={hr} fill="rgba(234,179,8,0.25)" stroke="#eab308" strokeWidth={2} />
+                    <text x={hx} y={hy + 6} textAnchor="middle" fontSize={Math.max(14, hr * 0.9)} fill="#eab308">⚡</text>
                   </g>
                 );
               })}

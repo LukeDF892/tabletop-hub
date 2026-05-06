@@ -255,6 +255,8 @@ function ArmyBuilderInner() {
   const [loadoutFor, setLoadoutFor] = useState<string | null>(null); // unit ID for weapon loadout popover
   const [saving, setSaving] = useState(false);
   const [loadingArmy, setLoadingArmy] = useState(!!editArmyId);
+  // Tracks the chosen size (min or max) per unit ID in the unit browser, before clicking "+ Add"
+  const [pendingSizes, setPendingSizes] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!editArmyId) return;
@@ -348,7 +350,12 @@ function ArmyBuilderInner() {
   }, [faction]);
 
   const totalPts = useMemo(
-    () => army.reduce((sum, e) => sum + e.unit.points * e.quantity, 0),
+    () => army.reduce((sum, e) => {
+      const pts = e.unit.pointsPerModel
+        ? e.unit.pointsPerModel * e.modelCount * e.quantity
+        : e.unit.points * e.quantity;
+      return sum + pts;
+    }, 0),
     [army]
   );
 
@@ -357,7 +364,8 @@ function ArmyBuilderInner() {
   const ptsColor =
     totalPts > pointsLimit ? "#ef4444" : totalPts > pointsLimit * 0.9 ? "#f59e0b" : accentColor;
 
-  function addUnit(unit: Unit) {
+  function addUnit(unit: Unit, chosenSize?: number) {
+    const modelCount = chosenSize ?? pendingSizes[unit.id] ?? unit.models.min;
     setArmy((prev) => {
       const existing = prev.find((e) => e.unit.id === unit.id);
       if (existing) {
@@ -365,7 +373,7 @@ function ArmyBuilderInner() {
           e.unit.id === unit.id ? { ...e, quantity: e.quantity + 1 } : e
         );
       }
-      return [...prev, { unit, modelCount: unit.models.min, quantity: 1 }];
+      return [...prev, { unit, modelCount, quantity: 1 }];
     });
   }
 
@@ -413,6 +421,11 @@ function ArmyBuilderInner() {
     setArmy((prev) =>
       prev.map((e) => {
         if (e.unit.id !== unitId) return e;
+        if (e.unit.pointsPerModel) {
+          // Snap between min and max only (binary choice)
+          const next = delta > 0 ? e.unit.models.max : e.unit.models.min;
+          return { ...e, modelCount: next };
+        }
         const next = Math.max(e.unit.models.min, Math.min(e.unit.models.max, e.modelCount + delta));
         return { ...e, modelCount: next };
       })
@@ -747,7 +760,9 @@ function ArmyBuilderInner() {
                 ) : (
                   visibleUnits.map((unit) => {
                     const alreadyInArmy = army.find((e) => e.unit.id === unit.id);
-                    const wouldExceed = totalPts + unit.points > pointsLimit;
+                    const pendingSize = pendingSizes[unit.id] ?? unit.models.min;
+                    const addCost = unit.pointsPerModel ? unit.pointsPerModel * pendingSize : unit.points;
+                    const wouldExceed = totalPts + addCost > pointsLimit;
                     return (
                       <div
                         key={unit.id}
@@ -818,8 +833,27 @@ function ArmyBuilderInner() {
                               className="font-cinzel font-bold text-sm"
                               style={{ color: accentColor }}
                             >
-                              {unit.points} pts
+                              {unit.pointsPerModel
+                                ? `${(pendingSizes[unit.id] ?? unit.models.min) * unit.pointsPerModel} pts`
+                                : `${unit.points} pts`}
                             </span>
+                            {unit.pointsPerModel && unit.models.min !== unit.models.max && (
+                              <div className="flex gap-1.5 items-center">
+                                {[unit.models.min, unit.models.max].map((sz) => (
+                                  <label key={sz} className="flex items-center gap-1 cursor-pointer text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                    <input
+                                      type="radio"
+                                      name={`size-${unit.id}`}
+                                      value={sz}
+                                      checked={(pendingSizes[unit.id] ?? unit.models.min) === sz}
+                                      onChange={() => setPendingSizes((p) => ({ ...p, [unit.id]: sz }))}
+                                      className="accent-current"
+                                    />
+                                    {sz}m
+                                  </label>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex gap-1">
                               <button
                                 onClick={() => setUnitModal(unit)}
@@ -921,7 +955,9 @@ function ArmyBuilderInner() {
                   army
                     .filter((e) => !attachedCharacterIds.has(e.unit.id))
                     .map((entry) => {
-                      const entryPts = entry.unit.points * entry.quantity;
+                      const entryPts = entry.unit.pointsPerModel
+                        ? entry.unit.pointsPerModel * entry.modelCount * entry.quantity
+                        : entry.unit.points * entry.quantity;
                       const eligibleLeaders = army.filter(
                         (e) => e.unit.canLeadUnits?.includes(entry.unit.id)
                       );
@@ -951,25 +987,43 @@ function ArmyBuilderInner() {
                                 {entry.unit.name}
                               </p>
                               {entry.unit.models.min !== entry.unit.models.max && (
-                                <div className="flex items-center gap-1 mt-1">
-                                  <button
-                                    onClick={() => changeModelCount(entry.unit.id, -1)}
-                                    className="w-4 h-4 rounded flex items-center justify-center"
-                                    style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
-                                  >
-                                    <Minus size={9} />
-                                  </button>
-                                  <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                                    {entry.modelCount} models
-                                  </span>
-                                  <button
-                                    onClick={() => changeModelCount(entry.unit.id, 1)}
-                                    className="w-4 h-4 rounded flex items-center justify-center"
-                                    style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
-                                  >
-                                    <Plus size={9} />
-                                  </button>
-                                </div>
+                                entry.unit.pointsPerModel ? (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {[entry.unit.models.min, entry.unit.models.max].map((sz) => (
+                                      <label key={sz} className="flex items-center gap-1 cursor-pointer text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                        <input
+                                          type="radio"
+                                          name={`list-size-${entry.unit.id}`}
+                                          value={sz}
+                                          checked={entry.modelCount === sz}
+                                          onChange={() => setArmy((prev) => prev.map((e) => e.unit.id === entry.unit.id ? { ...e, modelCount: sz } : e))}
+                                          className="accent-current"
+                                        />
+                                        {sz}m · {sz * (entry.unit.pointsPerModel ?? 0)}pts
+                                      </label>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <button
+                                      onClick={() => changeModelCount(entry.unit.id, -1)}
+                                      className="w-4 h-4 rounded flex items-center justify-center"
+                                      style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
+                                    >
+                                      <Minus size={9} />
+                                    </button>
+                                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                      {entry.modelCount} models
+                                    </span>
+                                    <button
+                                      onClick={() => changeModelCount(entry.unit.id, 1)}
+                                      className="w-4 h-4 rounded flex items-center justify-center"
+                                      style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
+                                    >
+                                      <Plus size={9} />
+                                    </button>
+                                  </div>
+                                )
                               )}
                             </div>
                             <div className="flex items-center gap-2">
