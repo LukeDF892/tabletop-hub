@@ -1006,8 +1006,10 @@ interface CombatState {
   targetId: string | null;
   hitRolls: number[];
   hits: number;
+  autoWounds: number;    // Lethal Hits: 6s to hit that skip wound roll
   woundRolls: number[];
   wounds: number;
+  mortalWounds: number;  // Devastating Wounds: 6s to wound that bypass saves
   saveRolls: number[];
   unsavedWounds: number;
   totalDamage: number;
@@ -1021,8 +1023,10 @@ const INIT_COMBAT: CombatState = {
   targetId: null,
   hitRolls: [],
   hits: 0,
+  autoWounds: 0,
   woundRolls: [],
   wounds: 0,
+  mortalWounds: 0,
   saveRolls: [],
   unsavedWounds: 0,
   totalDamage: 0,
@@ -2436,16 +2440,50 @@ export default function WarhammerGameRoom() {
   // ── Shooting resolution ──
   function resolveHitRolls() {
     const attacker = markers.find((m) => m.id === combat.attackerId);
+    const target = markers.find((m) => m.id === combat.targetId);
     if (!attacker || combat.weaponIdx === null) return;
     const weapon = attacker.weapons[combat.weaponIdx];
-    const attacksPerModel = parseDiceExpr(weapon.attacks);
-    const numAttacks = attacksPerModel * (attacker.modelCount ?? 1);
+    const kws = weapon.keywords ?? [];
+    const hasTorrent = kws.some((k) => k.toLowerCase() === "torrent");
+    const hasLethalHits = kws.some((k) => k.toLowerCase() === "lethal hits");
+    const sustainedHitsN = (() => {
+      const k = kws.find((k) => k.toLowerCase().startsWith("sustained hits"));
+      if (!k) return 0;
+      const n = parseInt(k.trim().split(/\s+/).pop() ?? "0");
+      return isNaN(n) ? 0 : n;
+    })();
+
     const isNecron = attacker.faction?.toLowerCase().includes("necron");
     const isSM = attacker.faction?.toLowerCase().includes("space marine") || attacker.faction?.toLowerCase().includes("dark angel");
-    // +1 to hit from Necron Conquering Tyrant protocol (active player's units only)
     const necronHitBonus = isNecron && necronProtocol === "Protocol of the Conquering Tyrant" && attacker.player === activePlayer;
     const rawSkill = parseSkill(weapon.skill);
     const skillTarget = necronHitBonus ? Math.max(2, rawSkill - 1) : rawSkill;
+
+    // Blast: +1 attack vs 6+ models; +D3 vs 11+ models
+    const targetModelCount = target?.modelCount ?? 1;
+    let attacksPerModel = parseDiceExpr(weapon.attacks);
+    const hasBlast = kws.some((k) => k.toLowerCase() === "blast");
+    if (hasBlast && targetModelCount >= 11) {
+      const bonus = Math.floor(Math.random() * 3) + 1;
+      attacksPerModel += bonus;
+      addLog(`💣 Blast: target has ${targetModelCount} models (+D3=${bonus} attacks).`, attacker.player);
+    } else if (hasBlast && targetModelCount >= 6) {
+      attacksPerModel += 1;
+      addLog(`💣 Blast: target has ${targetModelCount} models (+1 attack).`, attacker.player);
+    }
+    const numAttacks = attacksPerModel * (attacker.modelCount ?? 1);
+
+    // Torrent: auto-hit all attacks, skip roll entirely
+    if (hasTorrent) {
+      const modelNote = (attacker.modelCount ?? 1) > 1 ? ` (${attacker.modelCount} models × ${attacksPerModel})` : "";
+      addLog(`🌊 Torrent: ${weapon.name} auto-hits — ${numAttacks} hit(s)${modelNote}.`, attacker.player);
+      showRoll({ rolls: [], type: "hit", threshold: 0, label: `Torrent — ${numAttacks} auto-hits` });
+      setCombat((prev) => ({ ...prev, hitRolls: [], hits: numAttacks, autoWounds: 0, step: "woundRolls" }));
+      pushHistory();
+      if (gamePhase === "shooting" && combat.attackerId) setShotThisTurn((prev) => [...prev, combat.attackerId!]);
+      if (gamePhase === "fight" && combat.attackerId) setFoughtThisTurn((prev) => [...prev, combat.attackerId!]);
+      return;
+    }
 
     let rolls = rollDice(numAttacks);
 
@@ -2456,20 +2494,39 @@ export default function WarhammerGameRoom() {
       addLog(`Oath of Moment: re-rolling 1s against ${markers.find((m) => m.id === oathTarget)?.unitName ?? "oath target"}.`, attacker.player);
     }
 
-    const hits = rolls.filter((r) => r >= skillTarget).length;
-    const modelNote = (attacker.modelCount ?? 1) > 1 ? ` (${attacker.modelCount} models × ${attacksPerModel})` : "";
+    // Count hits and apply special rules on natural 6s
+    let normalHits = 0;
+    let autoWounds = 0;
+    let sustainedBonus = 0;
+    for (const r of rolls) {
+      const isHit = r >= skillTarget;
+      if (r === 6) {
+        if (hasLethalHits) { autoWounds++; } // 6 = hit that auto-wounds; remove from normal wound roll
+        else if (isHit) { normalHits++; }    // normal hit (not lethal)
+        if (sustainedHitsN > 0) {
+          sustainedBonus += sustainedHitsN;
+          addLog(`🔁 Sustained Hits ${sustainedHitsN}: natural 6 → +${sustainedHitsN} extra hit(s).`, attacker.player);
+        }
+      } else if (isHit) {
+        normalHits++;
+      }
+    }
+    const totalHits = normalHits + sustainedBonus; // hits going to wound roll
     const bonusNote = necronHitBonus ? ` [Conquering Tyrant +1]` : "";
-    addLog(`${gamePhase === "fight" ? "Fight" : "Shooting"}: ${numAttacks} attack(s)${modelNote} → ${rolls.join(", ")} → ${hits} hit(s) (needing ${skillTarget}+${bonusNote}).`, attacker.player);
+    const modelNote = (attacker.modelCount ?? 1) > 1 ? ` (${attacker.modelCount} models × ${attacksPerModel})` : "";
+    let specialNote = "";
+    if (autoWounds > 0) specialNote += ` ⚡ Lethal Hits: ${autoWounds} auto-wound(s)!`;
+    if (sustainedBonus > 0) specialNote += ` (+${sustainedBonus} sustained)`;
+    addLog(
+      `${gamePhase === "fight" ? "Fight" : "Shooting"}: ${numAttacks} attack(s)${modelNote} → ${rolls.join(", ")} → ${totalHits + autoWounds} hit(s) (needing ${skillTarget}+${bonusNote}).${specialNote}`,
+      attacker.player
+    );
     showRoll({ rolls, type: "hit", threshold: skillTarget, label: `Hit Rolls (${skillTarget}+)` });
-    setCombat((prev) => ({ ...prev, hitRolls: rolls, hits, step: "woundRolls" }));
+    if (autoWounds > 0) addLog(`⚡ Lethal Hit — ${autoWounds} auto-wound(s), bypassing wound rolls!`, attacker.player);
+    setCombat((prev) => ({ ...prev, hitRolls: rolls, hits: totalHits, autoWounds, step: "woundRolls" }));
     pushHistory();
-    // Track shooting action
-    if (gamePhase === "shooting" && combat.attackerId) {
-      setShotThisTurn((prev) => [...prev, combat.attackerId!]);
-    }
-    if (gamePhase === "fight" && combat.attackerId) {
-      setFoughtThisTurn((prev) => [...prev, combat.attackerId!]);
-    }
+    if (gamePhase === "shooting" && combat.attackerId) setShotThisTurn((prev) => [...prev, combat.attackerId!]);
+    if (gamePhase === "fight" && combat.attackerId) setFoughtThisTurn((prev) => [...prev, combat.attackerId!]);
   }
 
   function resolveWoundRolls() {
@@ -2477,14 +2534,33 @@ export default function WarhammerGameRoom() {
     const target = markers.find((m) => m.id === combat.targetId);
     if (!attacker || !target || combat.weaponIdx === null) return;
     const weapon = attacker.weapons[combat.weaponIdx];
+    const kws = weapon.keywords ?? [];
+    const hasDevastatingWounds = kws.some((k) => k.toLowerCase() === "devastating wounds");
     const S = parseInt(weapon.strength) || 4;
     const T = target.stats.toughness;
     const woundTarget = getWoundTarget(S, T);
-    const rolls = rollDice(combat.hits);
-    const wounds = rolls.filter((r) => r >= woundTarget).length;
-    addLog(`Wounding: S${S} vs T${T} (${woundTarget}+) → ${rolls.join(", ")} → ${wounds} wound(s).`, attacker.player);
+
+    // Roll only for normal hits (Lethal Hits auto-wounds bypass this step)
+    const rolls = combat.hits > 0 ? rollDice(combat.hits) : [];
+    let mortalWounds = 0;
+    let regularWounds = 0;
+    for (const r of rolls) {
+      if (r === 6 && hasDevastatingWounds) {
+        mortalWounds++;
+      } else if (r >= woundTarget) {
+        regularWounds++;
+      }
+    }
+    // Lethal Hits auto-wounds join the regular wound pool (they go to saves, not mortal)
+    const totalWoundsForSave = regularWounds + (combat.autoWounds ?? 0);
+
+    let logMsg = `Wounding: S${S} vs T${T} (${woundTarget}+) → ${rolls.length > 0 ? rolls.join(", ") : "no rolls"} → ${regularWounds} wound(s)`;
+    if (combat.autoWounds) logMsg += ` + ${combat.autoWounds} auto-wound(s) [Lethal Hits]`;
+    if (mortalWounds > 0) logMsg += ` + ${mortalWounds} mortal wound(s) [Devastating Wounds — saves bypassed!]`;
+    addLog(logMsg + `.`, attacker.player);
+    if (mortalWounds > 0) addLog(`💥 Devastating Wound — ${mortalWounds} mortal wound(s), saves ignored!`, attacker.player);
     showRoll({ rolls, type: "wound", threshold: woundTarget, label: `Wound Rolls (${woundTarget}+)` });
-    setCombat((prev) => ({ ...prev, woundRolls: rolls, wounds, step: "saveRolls" }));
+    setCombat((prev) => ({ ...prev, woundRolls: rolls, wounds: totalWoundsForSave, mortalWounds, step: "saveRolls" }));
   }
 
   function resolveSaveRolls() {
@@ -2518,15 +2594,22 @@ export default function WarhammerGameRoom() {
       : false;
     const effectiveFinalSave = tyranidSaveBonus ? Math.max(2, finalSave - 1) : finalSave;
 
-    const rolls = rollDice(combat.wounds);
+    // Mortal wounds (Devastating Wounds) bypass saves — deal 1 damage each directly
+    const mortalWoundDmg = combat.mortalWounds ?? 0;
+    if (mortalWoundDmg > 0) {
+      addLog(`💥 ${mortalWoundDmg} mortal wound(s) bypass saves — ${mortalWoundDmg} damage dealt directly!`, attacker.player);
+    }
+
+    const rolls = combat.wounds > 0 ? rollDice(combat.wounds) : [];
     const unsaved = rolls.filter((r) => r < effectiveFinalSave).length;
     // Roll damage per unsaved wound (correct for variable damage like D3/D6)
-    let totalDmg = 0;
+    let totalDmg = mortalWoundDmg;
     const dmgRolls: number[] = [];
     for (let i = 0; i < unsaved; i++) { const d = parseDiceExpr(weapon.damage); dmgRolls.push(d); totalDmg += d; }
     const dmgNote = dmgRolls.length > 1 ? ` [${dmgRolls.join("+")}]` : "";
     const saveBonusNote = necronSaveBonus ? " [Eternal Guardian +1]" : tyranidSaveBonus ? " [Lurk and Feed +1]" : "";
-    addLog(`Saves: ${effectiveFinalSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}${saveBonusNote}) → ${rolls.join(", ")} → ${unsaved} unsaved → ${totalDmg} damage${dmgNote}.`, target.player);
+    const mortalNote = mortalWoundDmg > 0 ? ` (+${mortalWoundDmg} mortal)` : "";
+    addLog(`Saves: ${effectiveFinalSave}+ needed (Sv${saveBase}, AP${ap}${targetInRuins ? ", +1 cover" : ""}${saveBonusNote}) → ${rolls.length > 0 ? rolls.join(", ") : "no rolls"} → ${unsaved} unsaved → ${totalDmg} damage${dmgNote}${mortalNote}.`, target.player);
     showRoll({ rolls, type: "save", threshold: effectiveFinalSave, label: `Save Rolls (${effectiveFinalSave}+)` });
 
     // Damage cascade: apply damage across models, killing models as wounds hit 0
@@ -2682,28 +2765,91 @@ export default function WarhammerGameRoom() {
     const meleeWeapon = attacker.weapons.find((w) => w.type === "Melee") ?? attacker.weapons[0];
     if (!meleeWeapon) { addLog("No weapons available.", "system"); return; }
 
-    const numAttacks = parseDiceExpr(meleeWeapon.attacks);
-    const wsTarget = parseSkill(meleeWeapon.skill);
-    const hitRolls = rollDice(numAttacks);
-    const hits = hitRolls.filter((r) => r >= wsTarget).length;
+    const kws = meleeWeapon.keywords ?? [];
+    const hasTorrent = kws.some((k) => k.toLowerCase() === "torrent");
+    const hasLethalHits = kws.some((k) => k.toLowerCase() === "lethal hits");
+    const hasDevastatingWounds = kws.some((k) => k.toLowerCase() === "devastating wounds");
+    const sustainedHitsN = (() => {
+      const k = kws.find((k) => k.toLowerCase().startsWith("sustained hits"));
+      if (!k) return 0;
+      const n = parseInt(k.trim().split(/\s+/).pop() ?? "0");
+      return isNaN(n) ? 0 : n;
+    })();
 
+    // Blast adjustment
+    const hasBlast = kws.some((k) => k.toLowerCase() === "blast");
+    let attacksBase = parseDiceExpr(meleeWeapon.attacks);
+    if (hasBlast && (target.modelCount ?? 1) >= 11) {
+      const bonus = Math.floor(Math.random() * 3) + 1;
+      attacksBase += bonus;
+      addLog(`💣 Blast: target has ${target.modelCount} models (+D3=${bonus} attacks).`, attacker.player);
+    } else if (hasBlast && (target.modelCount ?? 1) >= 6) {
+      attacksBase += 1;
+      addLog(`💣 Blast: target has ${target.modelCount} models (+1 attack).`, attacker.player);
+    }
+    const numAttacks = attacksBase;
+    const wsTarget = parseSkill(meleeWeapon.skill);
+
+    // Hit rolls (Torrent: auto-hit)
+    let normalHits = 0;
+    let autoWoundsFromHits = 0;
+    let sustainedBonus = 0;
+    let hitRolls: number[] = [];
+    if (hasTorrent) {
+      normalHits = numAttacks;
+      addLog(`🌊 Torrent: ${meleeWeapon.name} auto-hits — ${numAttacks} hit(s).`, attacker.player);
+    } else {
+      hitRolls = rollDice(numAttacks);
+      for (const r of hitRolls) {
+        const isHit = r >= wsTarget;
+        if (r === 6) {
+          if (hasLethalHits) { autoWoundsFromHits++; }
+          else if (isHit) { normalHits++; }
+          if (sustainedHitsN > 0) {
+            sustainedBonus += sustainedHitsN;
+            addLog(`🔁 Sustained Hits ${sustainedHitsN}: natural 6 → +${sustainedHitsN} extra hit(s).`, attacker.player);
+          }
+        } else if (isHit) {
+          normalHits++;
+        }
+      }
+    }
+    const hitsForWound = normalHits + sustainedBonus;
+    if (autoWoundsFromHits > 0) addLog(`⚡ Lethal Hit — ${autoWoundsFromHits} auto-wound(s), bypassing wound rolls!`, attacker.player);
+
+    // Wound rolls
     const S = parseInt(meleeWeapon.strength) || 4;
     const T = target.stats.toughness;
     const woundTarget = getWoundTarget(S, T);
-    const woundRolls = rollDice(hits);
-    const wounds = woundRolls.filter((r) => r >= woundTarget).length;
+    const woundRolls = hitsForWound > 0 ? rollDice(hitsForWound) : [];
+    let mortalWounds = 0;
+    let regularWounds = 0;
+    for (const r of woundRolls) {
+      if (r === 6 && hasDevastatingWounds) {
+        mortalWounds++;
+      } else if (r >= woundTarget) {
+        regularWounds++;
+      }
+    }
+    const woundsForSave = regularWounds + autoWoundsFromHits;
+    if (mortalWounds > 0) addLog(`💥 Devastating Wound — ${mortalWounds} mortal wound(s), saves ignored!`, attacker.player);
 
+    // Save rolls (mortal wounds bypass saves)
     const ap = parseAP(meleeWeapon.ap);
     const saveBase = parseSave(target.stats.save);
     const invSave = parseInvSave(target.stats.save);
     const effectiveSave = Math.min(saveBase - ap, invSave ?? 7);
-    const saveRolls = rollDice(wounds);
+    const saveRolls = woundsForSave > 0 ? rollDice(woundsForSave) : [];
     const unsaved = saveRolls.filter((r) => r < effectiveSave).length;
-    const dmgPer = parseDiceExpr(meleeWeapon.damage);
-    const totalDmg = unsaved * dmgPer;
+    const dmgRolls: number[] = [];
+    let totalDmg = mortalWounds; // mortal wounds deal 1 damage each
+    for (let i = 0; i < unsaved; i++) { const d = parseDiceExpr(meleeWeapon.damage); dmgRolls.push(d); totalDmg += d; }
 
+    const hitLog = hasTorrent ? `${numAttacks} auto-hits` : `${hitRolls.join(", ")} → ${hitsForWound + autoWoundsFromHits} hit(s)`;
+    const woundLog = woundRolls.length > 0 ? `${woundRolls.join(", ")} → ${woundsForSave} wound(s)` : `${autoWoundsFromHits} auto-wound(s)`;
+    const mortalLog = mortalWounds > 0 ? `, ${mortalWounds} mortal` : "";
     addLog(
-      `Fight: ${attacker.unitName} vs ${target.unitName} — ${hits} hit(s), ${wounds} wound(s), ${unsaved} unsaved → ${totalDmg} damage.`,
+      `Fight: ${attacker.unitName} vs ${target.unitName} — ${hitLog}, ${woundLog}${mortalLog}, ${unsaved} unsaved → ${totalDmg} damage.`,
       attacker.player
     );
 

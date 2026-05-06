@@ -127,7 +127,7 @@ export const TYRANID_UNITS: Unit[] = [
     points: 175,
     weapons: [
       { name: "Scything Talons", type: "Melee", attacks: "6", skill: "WS2+", strength: "10", ap: "-2", damage: "3", keywords: ["Sustained Hits 1"] },
-      { name: "Crushing Claws", type: "Melee", attacks: "4", skill: "WS2+", strength: "14", ap: "-3", damage: "D6+2" },
+      { name: "Crushing Claws", type: "Melee", attacks: "4", skill: "WS2+", strength: "14", ap: "-3", damage: "D6+2", keywords: ["Devastating Wounds"] },
     ],
     abilities: [
       { name: "Enraged Rampage", description: "Each time this model is hit by an attack in the Fight phase, for each hit that wounds it add 1 to all Attacks characteristics for this model until the end of the phase." },
@@ -570,7 +570,7 @@ export const TYRANID_UNITS: Unit[] = [
     weapons: [
       { name: "Bio-Plasma", type: "Heavy", range: '18"', attacks: "D3+3", skill: "BS3+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
       { name: "Scything Talons", type: "Melee", attacks: "6", skill: "WS3+", strength: "10", ap: "-2", damage: "3" },
-      { name: "Crushing Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "13", ap: "-3", damage: "D6+1" },
+      { name: "Crushing Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "13", ap: "-3", damage: "D6+1", keywords: ["Devastating Wounds"] },
     ],
     abilities: [
       { name: "Berserk Rampage", description: "After this unit consolidates, if it is within engagement range of an enemy unit, it can make 1 additional attack with one of its melee weapons." },
@@ -601,7 +601,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 1, max: 1 },
     points: 185,
     weapons: [
-      { name: "Bio-Plasmic Cannon", type: "Heavy", range: '36"', attacks: "6", skill: "BS3+", strength: "9", ap: "-3", damage: "2", keywords: ["Blast", "Hazardous"] },
+      { name: "Bio-Plasmic Cannon", type: "Heavy", range: '36"', attacks: "6", skill: "BS3+", strength: "9", ap: "-3", damage: "2", keywords: ["Blast", "Hazardous", "Lethal Hits"] },
       { name: "Powerful Limbs", type: "Melee", attacks: "4", skill: "WS4+", strength: "8", ap: "-1", damage: "2" },
     ],
     abilities: [

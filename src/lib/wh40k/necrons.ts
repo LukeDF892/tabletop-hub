@@ -60,6 +60,7 @@ export const NECRON_UNITS: Unit[] = [
       { name: "Staff of Light (Ranged)", type: "Assault", range: '18"', attacks: "3", skill: "BS2+", strength: "5", ap: "-2", damage: "1" },
       { name: "Staff of Light (Melee)", type: "Melee", attacks: "3", skill: "WS2+", strength: "5", ap: "-2", damage: "1" },
       { name: "Voidscythe", type: "Melee", attacks: "3", skill: "WS2+", strength: "10", ap: "-3", damage: "3" },
+      { name: "Voidreaper", type: "Melee", attacks: "5", skill: "WS2+", strength: "8", ap: "-4", damage: "2", keywords: ["Devastating Wounds"] },
     ],
     abilities: [
       { name: "My Will Be Done", description: "Re-roll hit rolls of 1 and wound rolls of 1 for one friendly Necron CORE unit within 6\" each Command Phase." },
@@ -68,7 +69,7 @@ export const NECRON_UNITS: Unit[] = [
     keywords: ["Infantry", "Character", "Necron Royalty", "Overlord"],
     factionKeywords: ["Necrons"],
     wargearOptions: [
-      { description: "May replace Staff of Light with a Voidscythe." },
+      { description: "May replace Staff of Light with a Voidscythe or Voidreaper." },
       { description: "May take a Resurrection Orb (+15pts): once per battle, at the end of any phase, a friendly Necron INFANTRY unit within 6\" immediately triggers Reanimation Protocols." },
     ],
     weaponOptions: [
@@ -76,6 +77,7 @@ export const NECRON_UNITS: Unit[] = [
         replaces: "Tachyon Arrow",
         options: [
           { name: "Voidscythe (Swap)", type: "Melee", attacks: "3", skill: "WS2+", strength: "10", ap: "-3", damage: "3" },
+          { name: "Voidreaper", type: "Melee", attacks: "5", skill: "WS2+", strength: "8", ap: "-4", damage: "2", keywords: ["Devastating Wounds"] },
         ],
       },
     ],
@@ -167,7 +169,7 @@ export const NECRON_UNITS: Unit[] = [
     models: { min: 10, max: 20 },
     points: 130,
     weapons: [
-      { name: "Gauss Reaper", type: "Assault", range: '18"', attacks: "2", skill: "BS3+", strength: "5", ap: "-2", damage: "1" },
+      { name: "Gauss Reaper", type: "Assault", range: '18"', attacks: "2", skill: "BS3+", strength: "5", ap: "-2", damage: "1", keywords: ["Lethal Hits"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
     ],
     abilities: [
