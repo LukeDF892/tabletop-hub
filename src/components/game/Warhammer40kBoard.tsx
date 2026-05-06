@@ -82,6 +82,7 @@ export interface Warhammer40kBoardProps {
   showMeasurementLine?: boolean;
   actedThisTurn?: string[];
   reservesHighlightCells?: Set<string>;
+  oathTargetId?: string;
 }
 
 export default function Warhammer40kBoard({
@@ -101,6 +102,7 @@ export default function Warhammer40kBoard({
   showMeasurementLine = false,
   actedThisTurn = [],
   reservesHighlightCells,
+  oathTargetId,
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -355,6 +357,7 @@ export default function Warhammer40kBoard({
             style={{ display: "block" }}
             onClick={handleSvgClick}
           >
+            <style>{`@keyframes oathPulse{0%,100%{stroke-opacity:0.9}50%{stroke-opacity:0.25}}.oath-ring{animation:oathPulse 1.5s ease-in-out infinite}`}</style>
             <defs>
               <radialGradient id="boardFelt" cx="50%" cy="50%" r="70%">
                 <stop offset="0%" stopColor="#1e4020" />
@@ -698,6 +701,10 @@ export default function Warhammer40kBoard({
                       onMouseLeave={() => setTooltip(null)}
                       style={{ cursor: "pointer", opacity: hasActed ? 0.5 : 1 }}
                     >
+                      {/* Oath of Moment target ring */}
+                      {oathTargetId === m.id && (
+                        <circle cx={cSvgX} cy={cSvgY} r={r + INCH_PX * 0.45} fill="none" stroke="#f59e0b" strokeWidth={2} className="oath-ring" />
+                      )}
                       {/* Selection ring around center model */}
                       {isSelected && (
                         <circle cx={cSvgX} cy={cSvgY} r={r + INCH_PX * 0.2} fill="none" stroke="white" strokeWidth={3} opacity={0.9} strokeDasharray="12 6" />
@@ -772,6 +779,11 @@ export default function Warhammer40kBoard({
                     onMouseLeave={() => setTooltip(null)}
                     style={{ cursor: "pointer", opacity: hasActed ? 0.5 : 1 }}
                   >
+                    {/* Oath of Moment target ring */}
+                    {oathTargetId === m.id && (
+                      <circle cx={cx} cy={cy} r={r + INCH_PX * 0.45} fill="none" stroke="#f59e0b" strokeWidth={2} className="oath-ring" />
+                    )}
+
                     {/* Selection ring */}
                     {isSelected && (
                       <circle cx={cx} cy={cy} r={r + INCH_PX * 0.2} fill="none" stroke="#fbbf24" strokeWidth={3} opacity={0.9} strokeDasharray="12 6" />
@@ -906,12 +918,22 @@ export default function Warhammer40kBoard({
           const hpColorTip = hpFracTip > 0.6 ? "#4ade80" : hpFracTip > 0.3 ? "#facc15" : "#f87171";
           const tooltipW = 210;
           const tooltipH = 210;
+          const containerW = containerRef.current?.clientWidth ?? 400;
+          const containerH = containerRef.current?.clientHeight ?? 300;
+          const showRight = tooltip.x < containerW / 2;
+          const showBelow = tooltip.y < containerH / 2;
+          const tooltipLeft = showRight
+            ? Math.min(tooltip.x + 14, containerW - tooltipW - 8)
+            : Math.max(8, tooltip.x - tooltipW - 14);
+          const tooltipTop = showBelow
+            ? Math.min(tooltip.y + 14, containerH - tooltipH - 8)
+            : Math.max(8, tooltip.y - tooltipH - 14);
           return (
             <div
               style={{
                 position: "absolute",
-                left: Math.min(tooltip.x + 14, (containerRef.current?.clientWidth ?? 400) - tooltipW - 8),
-                top: Math.min(tooltip.y + 14, (containerRef.current?.clientHeight ?? 300) - tooltipH - 8),
+                left: tooltipLeft,
+                top: tooltipTop,
                 zIndex: 20,
                 backgroundColor: "rgba(10,10,15,0.97)",
                 border: `1px solid ${borderColor}`,
