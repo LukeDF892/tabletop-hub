@@ -2643,10 +2643,12 @@ export default function WarhammerGameRoom() {
             addLog(`${m.unitName} is in ruins — will receive +1 cover save.`, "system");
           }
 
+          const weaponName =
+            combat.weaponIdx !== null ? (attacker.weapons[combat.weaponIdx]?.name ?? '') : '';
           pendingAnimationRef.current = () => {
             setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
           };
-          setActiveAnimation({ type: 'shoot', fromId: combat.attackerId!, toId: markerId });
+          setActiveAnimation({ type: 'shoot', fromId: combat.attackerId!, toId: markerId, weaponName });
           setSelectedMarkerId(markerId);
           return;
         }
