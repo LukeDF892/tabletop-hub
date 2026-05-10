@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navigation from "@/components/Navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Shield, Target, ChevronRight, Users, User, CheckCircle, Loader2, Map } from "lucide-react";
+import { Shield, Target, ChevronRight, Users, User, Bot, CheckCircle, Loader2, Map } from "lucide-react";
 import { MAP_PRESETS } from "@/lib/wh40k/mapPresets";
 import type { MapPreset } from "@/lib/wh40k/mapPresets";
 
@@ -20,7 +20,7 @@ const GAME_SYSTEMS = [
 
 const POINT_LIMITS = [500, 1000, 2000, 3000];
 
-type GameMode = "2player" | "solo";
+type GameMode = "2player" | "solo" | "vs-ai";
 
 interface WarhammerArmy {
   id: string;
@@ -103,7 +103,10 @@ export default function NewWarhammerGamePage() {
   const [armies, setArmies] = useState<WarhammerArmy[]>([]);
   const [p1ArmyId, setP1ArmyId] = useState<string | null>(null);
   const [p2ArmyId, setP2ArmyId] = useState<string | null>(null);
+  const [aiFaction, setAiFaction] = useState<string>("Space Marines");
   const [selectedPreset, setSelectedPreset] = useState<MapPreset>(MAP_PRESETS[0]);
+
+  const AI_FACTIONS = ["Space Marines", "Dark Angels", "Tyranids", "Necrons"];
 
   useEffect(() => {
     async function fetchArmies() {
@@ -173,7 +176,7 @@ export default function NewWarhammerGamePage() {
           map_preset: selectedPreset.id,
           game_state: {
             pointsLimit,
-            maxPlayers: gameMode === "solo" ? 1 : 2,
+            maxPlayers: gameMode === "solo" || gameMode === "vs-ai" ? 1 : 2,
             round: 1,
             phase: "rolloff",
             markers: [],
@@ -185,6 +188,7 @@ export default function NewWarhammerGamePage() {
             activePlayer: "P1",
             deployment: { p1UnitsPlaced: [], p2UnitsPlaced: [], currentDeployer: "P1" },
             mapPresetId: selectedPreset.id,
+            ...(gameMode === "vs-ai" ? { aiArmyFaction: aiFaction } : {}),
           },
         })
         .select()
@@ -286,7 +290,7 @@ export default function NewWarhammerGamePage() {
               >
                 Game Mode
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   onClick={() => setGameMode("2player")}
                   className="rounded-xl p-4 text-left transition-all"
@@ -336,42 +340,44 @@ export default function NewWarhammerGamePage() {
                   className="rounded-xl p-4 text-left transition-all"
                   style={
                     gameMode === "solo"
-                      ? {
-                          backgroundColor: "rgba(217,119,6,0.15)",
-                          border: "2px solid rgba(217,119,6,0.6)",
-                        }
-                      : {
-                          backgroundColor: "var(--bg-card)",
-                          border: "2px solid var(--border-card)",
-                        }
+                      ? { backgroundColor: "rgba(217,119,6,0.15)", border: "2px solid rgba(217,119,6,0.6)" }
+                      : { backgroundColor: "var(--bg-card)", border: "2px solid var(--border-card)" }
                   }
                 >
                   <div
                     className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
-                    style={{
-                      backgroundColor:
-                        gameMode === "solo"
-                          ? "rgba(217,119,6,0.2)"
-                          : "rgba(255,255,255,0.06)",
-                    }}
+                    style={{ backgroundColor: gameMode === "solo" ? "rgba(217,119,6,0.2)" : "rgba(255,255,255,0.06)" }}
                   >
-                    <User
-                      size={18}
-                      style={{
-                        color: gameMode === "solo" ? "#d97706" : "var(--text-muted)",
-                      }}
-                    />
+                    <User size={18} style={{ color: gameMode === "solo" ? "#d97706" : "var(--text-muted)" }} />
                   </div>
-                  <p
-                    className="text-sm font-semibold mb-1"
-                    style={{
-                      color: gameMode === "solo" ? "#d97706" : "var(--text-primary)",
-                    }}
-                  >
+                  <p className="text-sm font-semibold mb-1" style={{ color: gameMode === "solo" ? "#d97706" : "var(--text-primary)" }}>
                     Solo
                   </p>
                   <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    Control both sides yourself — no invite needed
+                    Control both sides yourself
+                  </p>
+                </button>
+
+                <button
+                  onClick={() => setGameMode("vs-ai")}
+                  className="rounded-xl p-4 text-left transition-all"
+                  style={
+                    gameMode === "vs-ai"
+                      ? { backgroundColor: "rgba(16,185,129,0.15)", border: "2px solid rgba(16,185,129,0.6)" }
+                      : { backgroundColor: "var(--bg-card)", border: "2px solid var(--border-card)" }
+                  }
+                >
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
+                    style={{ backgroundColor: gameMode === "vs-ai" ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.06)" }}
+                  >
+                    <Bot size={18} style={{ color: gameMode === "vs-ai" ? "#10b981" : "var(--text-muted)" }} />
+                  </div>
+                  <p className="text-sm font-semibold mb-1" style={{ color: gameMode === "vs-ai" ? "#10b981" : "var(--text-primary)" }}>
+                    vs AI
+                  </p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    Play against a rule-based AI opponent
                   </p>
                 </button>
               </div>
@@ -379,13 +385,42 @@ export default function NewWarhammerGamePage() {
               {gameMode === "solo" && (
                 <div
                   className="mt-3 px-4 py-2.5 rounded-lg text-xs"
-                  style={{
-                    backgroundColor: "rgba(217,119,6,0.08)",
-                    border: "1px solid rgba(217,119,6,0.25)",
-                    color: "#d97706",
-                  }}
+                  style={{ backgroundColor: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.25)", color: "#d97706" }}
                 >
-                  Solo mode: you switch between Player 1 and Player 2 perspectives using a toggle in the game room. Both sides are fully controllable.
+                  Solo mode: you switch between P1 and P2 perspectives using a toggle in the game room.
+                </div>
+              )}
+
+              {gameMode === "vs-ai" && (
+                <div className="mt-3 space-y-3">
+                  <div
+                    className="px-4 py-2.5 rounded-lg text-xs"
+                    style={{ backgroundColor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}
+                  >
+                    You play as P1. The AI controls P2 and plays automatically each turn.
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium mb-2 uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+                      AI Faction
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {AI_FACTIONS.map((faction) => (
+                        <button
+                          key={faction}
+                          onClick={() => setAiFaction(faction)}
+                          className="rounded-lg px-3 py-2 text-left transition-all text-xs font-medium"
+                          style={
+                            aiFaction === faction
+                              ? { backgroundColor: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.5)", color: "#10b981" }
+                              : { backgroundColor: "var(--bg-card)", border: "1px solid var(--border-card)", color: "var(--text-muted)" }
+                          }
+                        >
+                          {aiFaction === faction && <CheckCircle size={10} className="inline mr-1" />}
+                          {faction}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -396,7 +431,7 @@ export default function NewWarhammerGamePage() {
                 className="block text-xs font-medium uppercase tracking-widest mb-2"
                 style={{ color: "var(--text-muted)" }}
               >
-                {gameMode === "solo" ? "Armies" : "Your Army (P1)"}
+                {gameMode === "solo" ? "Armies" : gameMode === "vs-ai" ? "Your Army (P1)" : "Your Army (P1)"}
               </label>
 
               {loadingArmies ? (
@@ -446,7 +481,7 @@ export default function NewWarhammerGamePage() {
                     </div>
                   </div>
 
-                  {/* P2 Army (solo only) */}
+                  {/* P2 Army (solo only — vs-ai uses the faction picker above) */}
                   {gameMode === "solo" && (
                     <div>
                       <p

@@ -23,6 +23,16 @@ import type { TacticalMission } from "@/lib/wh40k/secondaryObjectives";
 import type { WeaponProfile } from "@/lib/wh40k/types";
 import { DiceRollerPopup, useDiceRoller } from "@/components/game/DiceRollerPopup";
 import {
+  computeAIMovements,
+  computeAIShooting,
+  computeAICharges,
+  computeAIFights,
+  resolveAIAttack,
+  chargeRoll2D6,
+  findChargePlacement,
+  buildDefaultAIArmySpec,
+} from "@/lib/wh40k/ai-opponent";
+import {
   Dice6,
   Plus,
   Minus,
@@ -1132,8 +1142,10 @@ export default function WarhammerGameRoom() {
   // ── Shared state ──
   const [roomPhase, setRoomPhase] = useState<RoomPhase>("loading");
   const [gameName, setGameName] = useState("Loading…");
-  const [gameMode, setGameMode] = useState<"solo" | "2player">("2player");
+  const [gameMode, setGameMode] = useState<"solo" | "2player" | "vs-ai">("2player");
   const [soloSide, setSoloSide] = useState<"P1" | "P2">("P1");
+  const [isAIGame, setIsAIGame] = useState(false);
+  const [aiThinking, setAiThinking] = useState(false);
   const [p1ArmyName, setP1ArmyName] = useState("Player 1");
   const [p2ArmyName, setP2ArmyName] = useState("Player 2");
 
@@ -1403,8 +1415,12 @@ export default function WarhammerGameRoom() {
       }
 
       setGameName(game.name ?? "Battle");
-      const mode = game.game_mode === "solo" ? "solo" : "2player";
+      const rawMode = game.game_mode as string;
+      const mode: "solo" | "2player" | "vs-ai" =
+        rawMode === "vs-ai" ? "vs-ai" : rawMode === "solo" ? "solo" : "2player";
       setGameMode(mode);
+      const isVsAI = mode === "vs-ai";
+      if (isVsAI) setIsAIGame(true);
 
       const savedState = game.game_state as Record<string, unknown> | null;
       if (savedState) {
@@ -1468,6 +1484,22 @@ export default function WarhammerGameRoom() {
           armyMarkers.push(...p2Markers);
           setP2FactionRules(getFactionRules(a2.faction));
           addLog(`P2 army loaded: ${a2.name} (${p2Markers.length} units)`, "system");
+        } else if (isVsAI) {
+          // Build the AI's default army from the chosen faction
+          const aiFaction = (savedState?.aiArmyFaction as string | undefined) ?? "Space Marines";
+          const spec = buildDefaultAIArmySpec(aiFaction);
+          const aiRow: ArmyRow = {
+            id: "ai-army",
+            name: `AI — ${aiFaction}`,
+            faction: aiFaction,
+            subfaction: null,
+            units: { entries: spec.entries },
+          };
+          const p2Markers = buildMarkers(aiRow, "P2");
+          armyMarkers.push(...p2Markers);
+          setP2ArmyName(`AI · ${aiFaction}`);
+          setP2FactionRules(getFactionRules(aiFaction));
+          addLog(`AI army built: ${aiFaction} (${p2Markers.length} units)`, "system");
         }
         // Initialize tactical mission decks
         setP1Deck(shuffleDeck());
@@ -2533,7 +2565,7 @@ export default function WarhammerGameRoom() {
 
     // Oath of Moment board-click targeting: if selection mode is active, designate enemy unit
     if (oathSelectionMode) {
-      const activeSide = gameMode === "solo" ? soloSide : activePlayer;
+      const activeSide = isAIGame ? "P1" : gameMode === "solo" ? soloSide : activePlayer;
       if (m.player !== activeSide) {
         setOathTarget(markerId);
         setOathSelectionMode(false);
@@ -2560,7 +2592,7 @@ export default function WarhammerGameRoom() {
 
     if (roomPhase === "game") {
       if (gamePhase === "movement") {
-        const activeSide = gameMode === "solo" ? soloSide : activePlayer;
+        const activeSide = isAIGame ? "P1" : gameMode === "solo" ? soloSide : activePlayer;
         if (m.player !== activeSide) return;
         if (movedThisTurn.includes(markerId)) {
           addLog(`${m.unitName} has already moved this phase.`, "system");
@@ -2572,7 +2604,7 @@ export default function WarhammerGameRoom() {
       }
       if (gamePhase === "shooting") {
         if (combat.step === "idle" || combat.step === "selectAttacker") {
-          const activeSide = gameMode === "solo" ? soloSide : activePlayer;
+          const activeSide = isAIGame ? "P1" : gameMode === "solo" ? soloSide : activePlayer;
           if (m.player !== activeSide) return;
           if (shotThisTurn.includes(markerId)) {
             addLog(`${m.unitName} has already shot this phase.`, "system");
@@ -2636,7 +2668,7 @@ export default function WarhammerGameRoom() {
         }
       }
       if (gamePhase === "charge") {
-        const activeSide = gameMode === "solo" ? soloSide : activePlayer;
+        const activeSide = isAIGame ? "P1" : gameMode === "solo" ? soloSide : activePlayer;
         if (combat.step === "idle" && m.player === activeSide) {
           if (chargedThisTurn.includes(markerId)) {
             addLog(`${m.unitName} has already charged this phase.`, "system");
@@ -2654,7 +2686,7 @@ export default function WarhammerGameRoom() {
         }
       }
       if (gamePhase === "fight") {
-        const activeSide = gameMode === "solo" ? soloSide : activePlayer;
+        const activeSide = isAIGame ? "P1" : gameMode === "solo" ? soloSide : activePlayer;
         // Start attacker selection — in fight-back mode the DEFENDING player can select
         if (combat.step === "idle" && !foughtThisPhase.has(markerId)) {
           const fightingPlayer = fightBackMode
@@ -3318,9 +3350,244 @@ export default function WarhammerGameRoom() {
     }
   }
 
+  // ─── AI opponent turn execution ────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!isAIGame || activePlayer !== "P2" || roomPhase !== "game") return;
+    if (gamePhase === "scoring") return;
+
+    let cancelled = false;
+    const pendingTimers: ReturnType<typeof setTimeout>[] = [];
+
+    function delay(ms: number): Promise<void> {
+      return new Promise((resolve) => {
+        const t = setTimeout(() => { if (!cancelled) resolve(); }, ms);
+        pendingTimers.push(t);
+      });
+    }
+
+    setAiThinking(true);
+
+    async function runAIPhase() {
+      try {
+        // Capture a local mutable copy of markers for this AI phase
+        // (avoids stale closure issues between async delays)
+        let local = [...markers];
+
+        if (gamePhase === "command") {
+          addLog("🤖 AI Command Phase — generating CP.", "system");
+          await delay(600);
+          // CP is granted by giveCommandPhaseCP in finishAfterBattleShock when it's P2's turn
+          // Just advance to movement
+          if (!cancelled) setGamePhase("movement");
+
+        } else if (gamePhase === "movement") {
+          addLog("🤖 AI Movement Phase.", "system");
+          await delay(400);
+
+          const moves = computeAIMovements("P2", local, mapPreset, movedThisTurn);
+          for (const action of moves) {
+            if (cancelled) break;
+            if (action.type !== "move") continue;
+            await delay(350);
+            if (cancelled) break;
+
+            const marker = local.find((m) => m.id === action.markerId);
+            if (!marker) continue;
+            const isOccupied = local.some(
+              (m) => m.id !== action.markerId && m.x === action.targetX && m.y === action.targetY && !m.isDestroyed && !m.isInReserve
+            );
+            if (isOccupied) continue;
+
+            const newInCover = mapPreset.terrain.some(
+              (t) => action.targetX >= t.x && action.targetX < t.x + t.w && action.targetY >= t.y && action.targetY < t.y + t.h
+            );
+            const oldX = marker.x, oldY = marker.y;
+            local = local.map((m) => {
+              if (m.id === action.markerId) return { ...m, x: action.targetX, y: action.targetY, hasAdvanced: false, inCover: newInCover };
+              if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
+                const nx = Math.max(0, Math.min(59, m.x + (action.targetX - oldX)));
+                const ny = Math.max(0, Math.min(43, m.y + (action.targetY - oldY)));
+                return { ...m, x: nx, y: ny, inCover: mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h) };
+              }
+              return m;
+            });
+            setMarkers([...local]);
+            setMovedThisTurn((prev) => [...prev, action.markerId]);
+            addLog(`AI moved ${marker.unitName} to (${action.targetX},${action.targetY})${newInCover ? " [cover]" : ""}.`, "P2");
+          }
+
+          if (!cancelled) {
+            setMovedThisTurn([]);
+            setGamePhase("shooting");
+          }
+
+        } else if (gamePhase === "shooting") {
+          addLog("🤖 AI Shooting Phase.", "system");
+          await delay(400);
+
+          const shots = computeAIShooting("P2", local, mapPreset, shotThisTurn);
+          for (const action of shots) {
+            if (cancelled) break;
+            if (action.type !== "shoot") continue;
+            await delay(400);
+            if (cancelled) break;
+
+            const attacker = local.find((m) => m.id === action.attackerId);
+            const target = local.find((m) => m.id === action.targetId);
+            if (!attacker || !target || target.isDestroyed) continue;
+
+            const result = resolveAIAttack(attacker, action.weaponIdx, target);
+            const weaponName = attacker.weapons[action.weaponIdx]?.name ?? "weapon";
+
+            local = local.map((m) => {
+              if (m.id === action.targetId) {
+                const destroyed = result.targetDestroyed;
+                if (destroyed) {
+                  setDestroyedThisTurn((p) => [...p, m.id]);
+                  setDestroyedThisPhase((p) => [...p, m.id]);
+                }
+                return { ...m, currentWounds: result.newTargetWounds, modelCount: result.newModelCount, isDestroyed: destroyed };
+              }
+              if (m.id === action.attackerId) return { ...m, hasShotThisTurn: true };
+              return m;
+            });
+            setMarkers([...local]);
+            setShotThisTurn((prev) => [...prev, action.attackerId]);
+            addLog(
+              `AI: ${attacker.unitName} shoots ${target.unitName} with ${weaponName} — ${result.hits} hits, ${result.unsavedWounds} unsaved, ${result.totalDamage} damage.${result.targetDestroyed ? ` ${target.unitName} destroyed!` : ""}`,
+              "P2"
+            );
+          }
+
+          if (!cancelled) {
+            setShotThisTurn([]);
+            setWeaponsFiredThisShot(new Set());
+            setGamePhase("charge");
+          }
+
+        } else if (gamePhase === "charge") {
+          addLog("🤖 AI Charge Phase.", "system");
+          await delay(400);
+
+          const charges = computeAICharges("P2", local, chargedThisTurn);
+          for (const action of charges) {
+            if (cancelled) break;
+            if (action.type !== "charge") continue;
+            await delay(400);
+            if (cancelled) break;
+
+            const attacker = local.find((m) => m.id === action.attackerId);
+            const target = local.find((m) => m.id === action.targetId);
+            if (!attacker || !target || target.isDestroyed) continue;
+
+            const ap = { x: attacker.x + 0.5, y: attacker.y + 0.5 };
+            const tp = { x: target.x + 0.5, y: target.y + 0.5 };
+            const chargeDistInches = Math.sqrt((ap.x - tp.x) ** 2 + (ap.y - tp.y) ** 2);
+            const needed = Math.ceil(chargeDistInches);
+
+            const roll = chargeRoll2D6();
+            addLog(`AI: ${attacker.unitName} charges ${target.unitName} (${chargeDistInches.toFixed(1)}\") — rolled ${roll} (need ${needed}+).`, "P2");
+
+            if (roll >= needed) {
+              const placement = findChargePlacement(attacker, target, roll, local);
+              if (placement) {
+                const dx = placement.x - attacker.x;
+                const dy = placement.y - attacker.y;
+                const charInCover = mapPreset.terrain.some((t) => placement.x >= t.x && placement.x < t.x + t.w && placement.y >= t.y && placement.y < t.y + t.h);
+                local = local.map((m) => {
+                  if (m.id === action.attackerId) return { ...m, x: placement.x, y: placement.y, hasCharged: true, inCover: charInCover };
+                  if (attacker.attachedCharacterId && m.id === attacker.attachedCharacterId) {
+                    const nx = Math.max(0, Math.min(59, m.x + dx));
+                    const ny = Math.max(0, Math.min(43, m.y + dy));
+                    return { ...m, x: nx, y: ny };
+                  }
+                  return m;
+                });
+                setMarkers([...local]);
+                addLog(`Charge succeeds! ${attacker.unitName} moves adjacent to ${target.unitName}.`, "P2");
+              } else {
+                addLog(`Charge roll sufficient but no valid placement found for ${attacker.unitName}.`, "system");
+              }
+            } else {
+              addLog(`Charge fails — ${attacker.unitName} stays put.`, "P2");
+            }
+            setChargedThisTurn((prev) => [...prev, action.attackerId]);
+          }
+
+          if (!cancelled) {
+            setChargedThisTurn([]);
+            setGamePhase("fight");
+          }
+
+        } else if (gamePhase === "fight") {
+          addLog("🤖 AI Fight Phase.", "system");
+          await delay(400);
+
+          const fights = computeAIFights("P2", local, foughtThisTurn);
+          for (const action of fights) {
+            if (cancelled) break;
+            if (action.type !== "fight") continue;
+            await delay(400);
+            if (cancelled) break;
+
+            const attacker = local.find((m) => m.id === action.attackerId);
+            const target = local.find((m) => m.id === action.targetId);
+            if (!attacker || !target || target.isDestroyed) continue;
+
+            const result = resolveAIAttack(attacker, action.weaponIdx, target);
+            const weaponName = attacker.weapons[action.weaponIdx]?.name ?? "melee";
+
+            local = local.map((m) => {
+              if (m.id === action.targetId) {
+                const destroyed = result.targetDestroyed;
+                if (destroyed) {
+                  setDestroyedThisTurn((p) => [...p, m.id]);
+                  setDestroyedThisPhase((p) => [...p, m.id]);
+                }
+                return { ...m, currentWounds: result.newTargetWounds, modelCount: result.newModelCount, isDestroyed: destroyed };
+              }
+              if (m.id === action.attackerId) return { ...m, hasFought: true };
+              return m;
+            });
+            setMarkers([...local]);
+            setFoughtThisTurn((prev) => [...prev, action.attackerId]);
+            addLog(
+              `AI: ${attacker.unitName} fights ${target.unitName} with ${weaponName} — ${result.hits} hits, ${result.unsavedWounds} unsaved, ${result.totalDamage} damage.${result.targetDestroyed ? ` ${target.unitName} destroyed!` : ""}`,
+              "P2"
+            );
+          }
+
+          if (!cancelled) {
+            // Auto-resolve battle-shock and end AI turn
+            setFoughtThisTurn([]);
+            setFoughtThisPhase(new Set());
+            setFightBackMode(false);
+            setFightPhaseStep("active");
+            setDestroyedThisPhase([]);
+            const afterShock = resolveBattleShock("P2", local);
+            setMarkers(afterShock);
+            finishAfterBattleShock(afterShock);
+          }
+        }
+      } finally {
+        if (!cancelled) setAiThinking(false);
+      }
+    }
+
+    runAIPhase();
+
+    return () => {
+      cancelled = true;
+      pendingTimers.forEach(clearTimeout);
+      setAiThinking(false);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAIGame, activePlayer, gamePhase, roomPhase]);
+
   // ─── Phase action panel ───────────────────────────────────────────────────
 
-  const activeSide = gameMode === "solo" ? soloSide : activePlayer;
+  const activeSide = isAIGame ? "P1" : gameMode === "solo" ? soloSide : activePlayer;
   const selectedMarker = markers.find((m) => m.id === selectedMarkerId);
   const combatAttacker = markers.find((m) => m.id === combat.attackerId);
   const combatTarget = markers.find((m) => m.id === combat.targetId);
@@ -4281,6 +4548,24 @@ export default function WarhammerGameRoom() {
                 <span>📏</span>
               </button>
             </>
+          )}
+          {/* AI thinking indicator */}
+          {isAIGame && activePlayer === "P2" && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full" style={{ backgroundColor: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.35)" }}>
+              {aiThinking && (
+                <svg className="animate-spin" width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth={2.5}>
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+              )}
+              <span className="text-xs font-medium" style={{ color: "#60a5fa" }}>
+                {aiThinking ? "AI thinking…" : "AI's turn"}
+              </span>
+            </div>
+          )}
+          {isAIGame && activePlayer === "P1" && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#f87171", border: "1px solid rgba(220,38,38,0.3)" }}>
+              vs AI
+            </span>
           )}
           {/* Solo side toggle */}
           {gameMode === "solo" && (
