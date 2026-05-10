@@ -58,6 +58,325 @@ function getUnitAbbr(name: string): string {
   return words.slice(0, 3).map((w) => w[0]).join("").toUpperCase();
 }
 
+export interface AnimationEvent {
+  type: 'shoot' | 'melee';
+  fromId: string;
+  toId: string;
+  weaponName?: string;
+}
+
+type ProjectileStyle =
+  | 'bolter' | 'plasma' | 'las' | 'melta' | 'flamer'
+  | 'missile' | 'autocannon' | 'sniper' | 'bio' | 'gauss' | 'default';
+
+function getProjectileStyle(weaponName: string): ProjectileStyle {
+  const n = weaponName.toLowerCase();
+  if (/plasma/.test(n))                         return 'plasma';
+  if (/\blas/.test(n))                          return 'las';      // lascannon, lasgun; NOT plasma
+  if (/melta/.test(n))                          return 'melta';
+  if (/flam/.test(n))                           return 'flamer';
+  if (/missile|krak|frag/.test(n))              return 'missile';
+  if (/autocannon|stubber/.test(n))             return 'autocannon';
+  if (/sniper|eliminator|marksman/.test(n))     return 'sniper';
+  if (/devourer|strangleweb|barbed|venom/.test(n)) return 'bio';
+  if (/gauss/.test(n))                          return 'gauss';
+  if (/bolt/.test(n))                           return 'bolter';
+  return 'default';
+}
+
+function shootEffect(
+  fx: number, fy: number, tx: number, ty: number,
+  style: ProjectileStyle, ak: number,
+) {
+  const ps = { pointerEvents: 'none' as const };
+
+  if (style === 'bolter') {
+    return (
+      <g key={ak} style={ps}>
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#f97316" strokeWidth={1.5}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.5;0.3;0"
+            keyTimes="0;0.1;0.65;1" dur="0.52s" fill="freeze" />
+        </line>
+        {[0.30, 0.38, 0.46].map((d, i) => (
+          <circle key={i} cx={fx} cy={fy} r={4} fill="#fb923c">
+            <animate attributeName="cx" from={fx} to={tx} dur={`${d}s`} fill="freeze" />
+            <animate attributeName="cy" from={fy} to={ty} dur={`${d}s`} fill="freeze" />
+            <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.72;1"
+              dur={`${d + 0.07}s`} fill="freeze" />
+          </circle>
+        ))}
+        <circle cx={tx} cy={ty} r={1} fill="#fb923c" fillOpacity={0}>
+          <animate attributeName="r" values="1;1;14;22" keyTimes="0;0.86;0.94;1" dur="0.52s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.9;0" keyTimes="0;0.86;0.94;1" dur="0.52s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'plasma') {
+    return (
+      <g key={ak} style={ps}>
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#22d3ee" strokeWidth={2}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.4;0.25;0"
+            keyTimes="0;0.1;0.8;1" dur="0.5s" fill="freeze" />
+        </line>
+        {/* outer glow */}
+        <circle cx={fx} cy={fy} r={10} fill="#0ea5e9" fillOpacity={0.3}
+          style={{ filter: 'drop-shadow(0 0 14px #22d3ee)' }}>
+          <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
+          <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0.3;0.3;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
+        </circle>
+        {/* core orb */}
+        <circle cx={fx} cy={fy} r={5} fill="#bae6fd">
+          <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
+          <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
+          <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
+        </circle>
+        <circle cx={tx} cy={ty} r={1} fill="#bae6fd" fillOpacity={0}
+          style={{ filter: 'drop-shadow(0 0 18px #22d3ee)' }}>
+          <animate attributeName="r" values="1;1;24;42" keyTimes="0;0.76;0.89;1" dur="0.5s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.85;0" keyTimes="0;0.76;0.89;1" dur="0.5s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'las') {
+    return (
+      <g key={ak} style={ps}>
+        {/* glow halo */}
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#ef4444" strokeWidth={5}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.28;0.14;0"
+            keyTimes="0;0.04;0.5;1" dur="0.30s" fill="freeze" />
+        </line>
+        {/* core beam */}
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#fca5a5" strokeWidth={1.5}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.95;0.8;0"
+            keyTimes="0;0.04;0.5;1" dur="0.30s" fill="freeze" />
+        </line>
+        <circle cx={tx} cy={ty} r={1} fill="#fca5a5" fillOpacity={0}
+          style={{ filter: 'drop-shadow(0 0 10px #ef4444)' }}>
+          <animate attributeName="r" values="1;1;14;22" keyTimes="0;0.7;0.85;1" dur="0.30s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.95;0" keyTimes="0;0.7;0.85;1" dur="0.30s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'melta') {
+    return (
+      <g key={ak} style={ps}>
+        {/* broad orange heat blast */}
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#f97316" strokeWidth={11}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.65;0.45;0"
+            keyTimes="0;0.1;0.55;1" dur="0.42s" fill="freeze" />
+        </line>
+        {/* white-hot core filaments */}
+        <line x1={fx} y1={fy - 4} x2={tx} y2={ty - 4} stroke="white" strokeWidth={2.5}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.55;0.28;0"
+            keyTimes="0;0.1;0.55;1" dur="0.42s" fill="freeze" />
+        </line>
+        <line x1={fx} y1={fy + 4} x2={tx} y2={ty + 4} stroke="white" strokeWidth={2.5}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.5;0.22;0"
+            keyTimes="0;0.15;0.55;1" dur="0.42s" fill="freeze" />
+        </line>
+        <circle cx={tx} cy={ty} r={1} fill="white" fillOpacity={0}
+          style={{ filter: 'drop-shadow(0 0 22px #f97316)' }}>
+          <animate attributeName="r" values="1;1;34;54" keyTimes="0;0.5;0.68;1" dur="0.42s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.95;0" keyTimes="0;0.5;0.68;1" dur="0.42s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'flamer') {
+    const dx = tx - fx, dy = ty - fy;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const px = -dy / len, py = dx / len;  // perpendicular unit vector
+    const spread = 30;
+    const rays = [-2, -1, 0, 1, 2].map((o) => ({
+      ex: tx + px * o * spread,
+      ey: ty + py * o * spread,
+    }));
+    const colors = ['#f97316', '#f97316', '#fbbf24', '#f97316', '#f97316'] as const;
+    const widths = [2, 3.5, 6, 3.5, 2] as const;
+    return (
+      <g key={ak} style={ps}>
+        {rays.map((ray, i) => (
+          <line key={i} x1={fx} y1={fy} x2={ray.ex} y2={ray.ey}
+            stroke={colors[i]} strokeWidth={widths[i]}
+            strokeLinecap="round" strokeOpacity={0}>
+            <animate attributeName="stroke-opacity" values="0;0.85;0.55;0"
+              keyTimes="0;0.12;0.55;1"
+              dur={`${0.45 + Math.abs(i - 2) * 0.04}s`}
+              fill="freeze" />
+          </line>
+        ))}
+        <circle cx={tx} cy={ty} r={1} fill="#fbbf24" fillOpacity={0}>
+          <animate attributeName="r" values="1;1;24;40" keyTimes="0;0.68;0.84;1" dur="0.5s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.7;0" keyTimes="0;0.68;0.84;1" dur="0.5s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'missile') {
+    const midX = (fx + tx) / 2;
+    const midY = (fy + ty) / 2 - Math.max(30, Math.abs(ty - fy) * 0.28);
+    const arcPath = `M ${fx},${fy} Q ${midX},${midY} ${tx},${ty}`;
+    return (
+      <g key={ak} style={ps}>
+        <circle r={5} fill="#9ca3af" style={{ filter: 'drop-shadow(0 0 4px #6b7280)' }}>
+          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
+          {/* @ts-ignore — animateMotion path/rotate are valid SVG but not in all @types/react versions */}
+          <animateMotion path={arcPath} dur="0.45s" fill="freeze" rotate="auto" />
+          <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
+        </circle>
+        {/* explosion ring */}
+        <circle cx={tx} cy={ty} r={1} fill="#d1d5db" fillOpacity={0}>
+          <animate attributeName="r" values="1;1;22;38" keyTimes="0;0.8;0.9;1" dur="0.5s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.8;0" keyTimes="0;0.8;0.9;1" dur="0.5s" fill="freeze" />
+        </circle>
+        {/* fireball core */}
+        <circle cx={tx} cy={ty} r={1} fill="#f97316" fillOpacity={0}>
+          <animate attributeName="r" values="1;1;14;8" keyTimes="0;0.8;0.88;1" dur="0.5s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.9;0.3" keyTimes="0;0.8;0.88;1" dur="0.5s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'autocannon') {
+    return (
+      <g key={ak} style={ps}>
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#6b7280" strokeWidth={1}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.4;0.25;0"
+            keyTimes="0;0.1;0.6;1" dur="0.5s" fill="freeze" />
+        </line>
+        {[0.24, 0.30, 0.36, 0.42].map((d, i) => (
+          <circle key={i} cx={fx} cy={fy} r={3} fill="#9ca3af">
+            <animate attributeName="cx" from={fx} to={tx} dur={`${d}s`} fill="freeze" />
+            <animate attributeName="cy" from={fy} to={ty} dur={`${d}s`} fill="freeze" />
+            <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.72;1"
+              dur={`${d + 0.07}s`} fill="freeze" />
+          </circle>
+        ))}
+        <circle cx={tx} cy={ty} r={1} fill="#9ca3af" fillOpacity={0}>
+          <animate attributeName="r" values="1;1;12;20" keyTimes="0;0.88;0.95;1" dur="0.5s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.8;0" keyTimes="0;0.88;0.95;1" dur="0.5s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'sniper') {
+    return (
+      <g key={ak} style={ps}>
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#e2e8f0" strokeWidth={0.8}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.22;0.1;0"
+            keyTimes="0;0.05;0.5;1" dur="0.40s" fill="freeze" />
+        </line>
+        <circle cx={tx} cy={ty} r={1} fill="white" fillOpacity={0}>
+          <animate attributeName="r" values="1;1;7;11" keyTimes="0;0.72;0.86;1" dur="0.40s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.95;0" keyTimes="0;0.72;0.86;1" dur="0.40s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'bio') {
+    return (
+      <g key={ak} style={ps}>
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#4ade80" strokeWidth={3}
+          strokeLinecap="round" strokeOpacity={0}>
+          <animate attributeName="stroke-opacity" values="0;0.5;0.3;0"
+            keyTimes="0;0.1;0.62;1" dur="0.5s" fill="freeze" />
+        </line>
+        {/* outer glow blob */}
+        <circle cx={fx} cy={fy} r={8} fill="#16a34a" fillOpacity={0.4}>
+          <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
+          <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0.4;0.4;0" keyTimes="0;0.78;1" dur="0.5s" fill="freeze" />
+        </circle>
+        {/* pulsing core */}
+        <circle cx={fx} cy={fy} r={5} fill="#86efac">
+          <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
+          <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
+          <animate attributeName="r" values="5;6;5;7;5" dur="0.4s" fill="freeze" />
+          <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.78;1" dur="0.5s" fill="freeze" />
+        </circle>
+        <circle cx={tx} cy={ty} r={1} fill="#86efac" fillOpacity={0}>
+          <animate attributeName="r" values="1;1;18;30" keyTimes="0;0.76;0.88;1" dur="0.5s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.8;0" keyTimes="0;0.76;0.88;1" dur="0.5s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  if (style === 'gauss') {
+    return (
+      <g key={ak} style={ps}>
+        {/* main beam */}
+        <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#4ade80" strokeWidth={3}
+          strokeLinecap="round" strokeOpacity={0}
+          style={{ filter: 'drop-shadow(0 0 6px #4ade80)' }}>
+          <animate attributeName="stroke-opacity" values="0;0.9;0.7;0"
+            keyTimes="0;0.05;0.62;1" dur="0.40s" fill="freeze" />
+        </line>
+        {/* crackle filament 1 */}
+        <line x1={fx} y1={fy + 4} x2={tx} y2={ty + 4} stroke="#86efac" strokeWidth={1}
+          strokeLinecap="round" strokeOpacity={0} strokeDasharray="8 5">
+          <animate attributeName="stroke-opacity" values="0;0.6;0.35;0"
+            keyTimes="0;0.05;0.62;1" dur="0.40s" fill="freeze" />
+        </line>
+        {/* crackle filament 2 */}
+        <line x1={fx} y1={fy - 4} x2={tx} y2={ty - 4} stroke="#86efac" strokeWidth={1}
+          strokeLinecap="round" strokeOpacity={0} strokeDasharray="5 8">
+          <animate attributeName="stroke-opacity" values="0;0.5;0.28;0"
+            keyTimes="0;0.08;0.62;1" dur="0.40s" fill="freeze" />
+        </line>
+        <circle cx={tx} cy={ty} r={1} fill="#4ade80" fillOpacity={0}
+          style={{ filter: 'drop-shadow(0 0 12px #4ade80)' }}>
+          <animate attributeName="r" values="1;1;18;28" keyTimes="0;0.72;0.86;1" dur="0.40s" fill="freeze" />
+          <animate attributeName="fill-opacity" values="0;0;0.85;0" keyTimes="0;0.72;0.86;1" dur="0.40s" fill="freeze" />
+        </circle>
+      </g>
+    );
+  }
+
+  // default: amber tracer
+  return (
+    <g key={ak} style={ps}>
+      <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#f59e0b" strokeWidth={2}
+        strokeLinecap="round" strokeOpacity={0}>
+        <animate attributeName="stroke-opacity" values="0;0.7;0.5;0"
+          keyTimes="0;0.1;0.8;1" dur="0.5s" fill="freeze" />
+      </line>
+      <circle cx={fx} cy={fy} r={6} fill="#fbbf24"
+        style={{ filter: 'drop-shadow(0 0 8px #f59e0b)' }}>
+        <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
+        <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
+        <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
+      </circle>
+      <circle cx={tx} cy={ty} r={1} fill="#fbbf24" fillOpacity={0}
+        style={{ filter: 'drop-shadow(0 0 12px #f59e0b)' }}>
+        <animate attributeName="r" values="1;1;22;36" keyTimes="0;0.74;0.87;1" dur="0.5s" fill="freeze" />
+        <animate attributeName="fill-opacity" values="0;0;0.85;0" keyTimes="0;0.74;0.87;1" dur="0.5s" fill="freeze" />
+      </circle>
+    </g>
+  );
+}
+
 interface TooltipData {
   marker: UnitMarker;
   x: number;
@@ -91,6 +410,8 @@ export interface Warhammer40kBoardProps {
     homerX?: number;
     homerY?: number;
   };
+  activeAnimation?: AnimationEvent;
+  onAnimationComplete?: () => void;
 }
 
 export default function Warhammer40kBoard({
@@ -113,6 +434,8 @@ export default function Warhammer40kBoard({
   oathTargetId,
   teleportHomers = [],
   reservesHighlight,
+  activeAnimation,
+  onAnimationComplete,
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -123,6 +446,17 @@ export default function Warhammer40kBoard({
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   // Hover position in board inches for distance line
   const [hoverBoardPos, setHoverBoardPos] = useState<{ x: number; y: number } | null>(null);
+
+  const [animKey, setAnimKey] = useState(0);
+  const onAnimCompleteRef = useRef(onAnimationComplete);
+  useEffect(() => { onAnimCompleteRef.current = onAnimationComplete; });
+  useEffect(() => {
+    if (!activeAnimation) return;
+    setAnimKey((k) => k + 1);
+    const duration = activeAnimation.type === 'shoot' ? 500 : 600;
+    const timer = setTimeout(() => { onAnimCompleteRef.current?.(); }, duration);
+    return () => clearTimeout(timer);
+  }, [activeAnimation]);
 
   const displayedObjectives: MapObjective[] = objectives ?? [
     { x: 30, y: 22 },
@@ -952,6 +1286,61 @@ export default function Warhammer40kBoard({
                   </g>
                 );
               })}
+
+              {/* Combat animations */}
+              {activeAnimation && (() => {
+                const fromM = markers.find((m) => m.id === activeAnimation.fromId);
+                const toM = markers.find((m) => m.id === activeAnimation.toId);
+                if (!fromM || !toM) return null;
+                const getCenter = (m: UnitMarker) => {
+                  if ((m.modelCount ?? 1) > 1) {
+                    const positions = m.modelPositions ?? hexPackPositions(m.x + 0.5, m.y + 0.5, m.modelCount ?? 1);
+                    return { x: positions[0].x * INCH_PX, y: positions[0].y * INCH_PX };
+                  }
+                  return { x: (m.x + 0.5) * INCH_PX, y: (m.y + 0.5) * INCH_PX };
+                };
+                const from = getCenter(fromM);
+                const to = getCenter(toM);
+                const fx = from.x, fy = from.y, tx = to.x, ty = to.y;
+
+                if (activeAnimation.type === 'shoot') {
+                  const pStyle = getProjectileStyle(activeAnimation.weaponName ?? '');
+                  return shootEffect(fx, fy, tx, ty, pStyle, animKey);
+                }
+
+                if (activeAnimation.type === 'melee') {
+                  const midX = (fx + tx) / 2;
+                  const midY = (fy + ty) / 2;
+                  const size = 32;
+                  const slashLen = Math.round(2 * size * Math.SQRT2);
+                  return (
+                    <g key={animKey} style={{ pointerEvents: 'none' }}>
+                      {/* Slash 1: top-left to bottom-right */}
+                      <line x1={midX - size} y1={midY - size} x2={midX + size} y2={midY + size}
+                        stroke="rgba(255,255,255,0.9)" strokeWidth={6} strokeLinecap="round"
+                        strokeDasharray={slashLen} strokeDashoffset={slashLen}>
+                        <animate attributeName="stroke-dashoffset" from={slashLen} to={0} dur="0.2s" fill="freeze" />
+                        <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.48;1" dur="0.6s" fill="freeze" />
+                      </line>
+                      {/* Slash 2: top-right to bottom-left */}
+                      <line x1={midX + size} y1={midY - size} x2={midX - size} y2={midY + size}
+                        stroke="rgba(255,255,255,0.9)" strokeWidth={6} strokeLinecap="round"
+                        strokeDasharray={slashLen} strokeDashoffset={slashLen}>
+                        <animate attributeName="stroke-dashoffset" from={slashLen} to={0} begin="0.08s" dur="0.2s" fill="freeze" />
+                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.48;1" dur="0.6s" fill="freeze" />
+                      </line>
+                      {/* Expanding impact ring */}
+                      <circle cx={midX} cy={midY} r={size * 0.55} fill="none"
+                        stroke="rgba(255,255,255,0.35)" strokeWidth={3} opacity={0}>
+                        <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.18;1" dur="0.6s" fill="freeze" />
+                        <animate attributeName="r" from={size * 0.55} to={size * 1.5} dur="0.6s" fill="freeze" />
+                      </circle>
+                    </g>
+                  );
+                }
+
+                return null;
+              })()}
             </g>
 
             {/* Axis labels */}

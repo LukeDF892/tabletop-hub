@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Navigation from "@/components/Navigation";
-import Warhammer40kBoard from "@/components/game/Warhammer40kBoard";
+import Warhammer40kBoard, { type AnimationEvent } from "@/components/game/Warhammer40kBoard";
 import { createClient } from "@/lib/supabase/client";
 import { SPACE_MARINES_FACTION } from "@/lib/wh40k/space-marines";
 import { DARK_ANGELS_FACTION } from "@/lib/wh40k/dark-angels";
@@ -1268,6 +1268,18 @@ export default function WarhammerGameRoom() {
   const [fightBackMode, setFightBackMode] = useState(false);
   const [fightPhaseStep, setFightPhaseStep] = useState<'active' | 'fightback'>('active');
 
+  // ── Combat animations ──
+  const [activeAnimation, setActiveAnimation] = useState<AnimationEvent | null>(null);
+  const pendingAnimationRef = useRef<(() => void) | null>(null);
+
+  function handleAnimationComplete() {
+    setActiveAnimation(null);
+    if (pendingAnimationRef.current) {
+      pendingAnimationRef.current();
+      pendingAnimationRef.current = null;
+    }
+  }
+
   // ── Per-phase action tracking (one action per unit per phase) ──
   const [movedThisTurn, setMovedThisTurn] = useState<string[]>([]);
   const [shotThisTurn, setShotThisTurn] = useState<string[]>([]);
@@ -2527,6 +2539,7 @@ export default function WarhammerGameRoom() {
 
   // ── Unit click handler (context-sensitive) ──
   function handleUnitClick(markerId: string) {
+    if (activeAnimation) return;
     const m = markers.find((mk) => mk.id === markerId);
     if (!m) return;
     if (m.isInReserve) return; // in-reserve units are not interactive during normal gameplay
@@ -2630,7 +2643,12 @@ export default function WarhammerGameRoom() {
             addLog(`${m.unitName} is in ruins — will receive +1 cover save.`, "system");
           }
 
-          setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
+          const weaponName =
+            combat.weaponIdx !== null ? (attacker.weapons[combat.weaponIdx]?.name ?? '') : '';
+          pendingAnimationRef.current = () => {
+            setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
+          };
+          setActiveAnimation({ type: 'shoot', fromId: combat.attackerId!, toId: markerId, weaponName });
           setSelectedMarkerId(markerId);
           return;
         }
@@ -2682,7 +2700,10 @@ export default function WarhammerGameRoom() {
             addLog(`${m.unitName} not in engagement range (within 1").`, "system");
             return;
           }
-          setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
+          pendingAnimationRef.current = () => {
+            setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
+          };
+          setActiveAnimation({ type: 'melee', fromId: combat.attackerId!, toId: markerId });
           setSelectedMarkerId(markerId);
           return;
         }
@@ -5049,6 +5070,8 @@ export default function WarhammerGameRoom() {
                     ? (() => { const h = teleportHomers.find((th) => th.forMarkerId === reservesUnitId); return h ? { type: 'homer' as const, player: (h.placedBy) as 'P1' | 'P2', homerX: h.x, homerY: h.y } : undefined; })()
                     : undefined
                 }
+                activeAnimation={activeAnimation ?? undefined}
+                onAnimationComplete={handleAnimationComplete}
               />
             );
           })()}
