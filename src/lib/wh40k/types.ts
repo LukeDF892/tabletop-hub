@@ -50,14 +50,13 @@ export interface Unit {
   weaponOptions?: WeaponOption[];  // swappable weapon loadouts
   isEpicHero?: boolean;
   isTitanic?: boolean;
-  chapterKeyword?: string;  // e.g. 'ULTRAMARINES', 'IMPERIAL_FISTS'; absent = generic unit
+  chapterKeyword?: string;   // e.g. 'ULTRAMARINES', 'DARK_ANGELS' — restricts unit to that chapter only
   canFly?: boolean;
   canDeepStrike?: boolean;
   canLeadUnits?: string[];   // unit IDs this character can lead
   canBeLeadBy?: string[];    // character IDs that can lead this unit
   pointsPerModel?: number;   // when set, cost = pointsPerModel × modelCount (overrides flat points)
   teleportHomer?: boolean;   // Ravenwing units that can deploy Teleport Homers
-  chapterKeyword?: string;   // e.g. 'ULTRAMARINES', 'DARK_ANGELS' — restricts unit to that chapter only
 }
 
 export interface Stratagem {
