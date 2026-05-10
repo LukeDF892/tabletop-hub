@@ -52,6 +52,11 @@ import {
   RotateCw,
   BookOpen,
   Scroll,
+  Copy,
+  Check,
+  Wifi,
+  Clock,
+  Users,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1139,6 +1144,21 @@ const INIT_COMBAT: CombatState = {
 export default function WarhammerGameRoom() {
   const { id } = useParams<{ id: string }>();
 
+  // ── Multiplayer identity ──
+  // "loading" means we haven't yet determined which player this browser is.
+  const [localRole, setLocalRole] = useState<"P1" | "P2" | "spectator" | "loading">("loading");
+  const [gameCode, setGameCode] = useState<string | null>(null);
+  const [p1UserId, setP1UserId] = useState<string | null>(null);
+  const [p2UserId, setP2UserId] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  // Ref to the realtime channel so we can .send() from action handlers
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef = useRef<any>(null);
+  // Prevents the receiver side from triggering another save when applying remote state
+  const isApplyingRemote = useRef(false);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Shared state ──
   const [roomPhase, setRoomPhase] = useState<RoomPhase>("loading");
   const [gameName, setGameName] = useState("Loading…");
@@ -1338,6 +1358,31 @@ export default function WarhammerGameRoom() {
   // ── Transport mechanics ──
   const [transportContents, setTransportContents] = useState<Record<string, string[]>>({});
 
+  // ── Always-current state snapshot for the sync timer ──
+  // We assign directly (not in useEffect) so it's updated synchronously before any setTimeout fires.
+  const stateRef = useRef({
+    markers, round, gamePhase, activePlayer,
+    p1Cp, p2Cp, p1Vp, p2Vp, roomPhase, deployDeployer, rolloffResults,
+    movedThisTurn, shotThisTurn, chargedThisTurn, foughtThisTurn,
+    fightPhaseStep, oathTarget, synapticImperative, firstPlayerThisRound,
+    transportContents, destroyedThisTurn, destroyedThisPhase,
+    p1Deck, p2Deck, p1Hand, p2Hand, p1Scored, p2Scored,
+    p1SecondaryVp, p2SecondaryVp,
+    foughtThisPhase, battleShockPhase, battleShockQueue,
+    battleShockTested, battleShockResults, teleportHomers,
+  });
+  stateRef.current = {
+    markers, round, gamePhase, activePlayer,
+    p1Cp, p2Cp, p1Vp, p2Vp, roomPhase, deployDeployer, rolloffResults,
+    movedThisTurn, shotThisTurn, chargedThisTurn, foughtThisTurn,
+    fightPhaseStep, oathTarget, synapticImperative, firstPlayerThisRound,
+    transportContents, destroyedThisTurn, destroyedThisPhase,
+    p1Deck, p2Deck, p1Hand, p2Hand, p1Scored, p2Scored,
+    p1SecondaryVp, p2SecondaryVp,
+    foughtThisPhase, battleShockPhase, battleShockQueue,
+    battleShockTested, battleShockResults, teleportHomers,
+  };
+
   function addLog(text: string, player?: "P1" | "P2" | "system") {
     setActLog((prev) => [...prev, { time: nowTime(), text, player }]);
     setTimeout(() => logRef.current?.scrollTo({ top: 9999, behavior: "smooth" }), 50);
@@ -1349,6 +1394,80 @@ export default function WarhammerGameRoom() {
       const snap = { markers, p1Cp, p2Cp, p1Vp, p2Vp, movedThisTurn, shotThisTurn, chargedThisTurn, foughtThisTurn };
       return [...prev, snap].slice(-20);
     });
+    // Schedule a state sync so the other player receives this action
+    scheduleSync();
+  }
+
+  function scheduleSync() {
+    if (!id || gameMode !== "2player" || isApplyingRemote.current) return;
+    setIsSyncing(true);
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(async () => {
+      const s = stateRef.current;
+      // Broadcast to the other player via the realtime channel (fast path)
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "state_sync",
+          payload: {
+            markers: s.markers, round: s.round, gamePhase: s.gamePhase,
+            activePlayer: s.activePlayer, p1Cp: s.p1Cp, p2Cp: s.p2Cp,
+            p1Vp: s.p1Vp, p2Vp: s.p2Vp, roomPhase: s.roomPhase,
+            deployDeployer: s.deployDeployer, rolloffResults: s.rolloffResults,
+            movedThisTurn: s.movedThisTurn, shotThisTurn: s.shotThisTurn,
+            chargedThisTurn: s.chargedThisTurn, foughtThisTurn: s.foughtThisTurn,
+            fightPhaseStep: s.fightPhaseStep, oathTarget: s.oathTarget,
+            synapticImperative: s.synapticImperative,
+            firstPlayerThisRound: s.firstPlayerThisRound,
+            transportContents: s.transportContents,
+            destroyedThisTurn: s.destroyedThisTurn, destroyedThisPhase: s.destroyedThisPhase,
+            p1Deck: s.p1Deck, p2Deck: s.p2Deck,
+            p1Hand: s.p1Hand, p2Hand: s.p2Hand,
+            p1Scored: s.p1Scored, p2Scored: s.p2Scored,
+            p1SecondaryVp: s.p1SecondaryVp, p2SecondaryVp: s.p2SecondaryVp,
+            foughtThisPhase: s.foughtThisPhase,
+            battleShockPhase: s.battleShockPhase, battleShockQueue: s.battleShockQueue,
+            battleShockTested: s.battleShockTested, battleShockResults: s.battleShockResults,
+            teleportHomers: s.teleportHomers,
+          },
+        });
+      }
+      // Also persist to DB via the API route (works for both P1 and P2)
+      if (gameCode) {
+        try {
+          await fetch(`/api/warhammer/games/${id}/state`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              invite_code: gameCode,
+              current_phase: s.roomPhase === "game" ? s.gamePhase : s.roomPhase,
+              game_state: {
+                markers: s.markers, round: s.round, gamePhase: s.gamePhase,
+                activePlayer: s.activePlayer, p1Cp: s.p1Cp, p2Cp: s.p2Cp,
+                p1Vp: s.p1Vp, p2Vp: s.p2Vp, roomPhase: s.roomPhase,
+                deployDeployer: s.deployDeployer, rolloffResults: s.rolloffResults,
+                movedThisTurn: s.movedThisTurn, shotThisTurn: s.shotThisTurn,
+                chargedThisTurn: s.chargedThisTurn, foughtThisTurn: s.foughtThisTurn,
+                fightPhaseStep: s.fightPhaseStep, oathTarget: s.oathTarget,
+                synapticImperative: s.synapticImperative,
+                firstPlayerThisRound: s.firstPlayerThisRound,
+                transportContents: s.transportContents,
+                destroyedThisTurn: s.destroyedThisTurn, destroyedThisPhase: s.destroyedThisPhase,
+                p1Deck: s.p1Deck, p2Deck: s.p2Deck,
+                p1Hand: s.p1Hand, p2Hand: s.p2Hand,
+                p1Scored: s.p1Scored, p2Scored: s.p2Scored,
+                p1SecondaryVp: s.p1SecondaryVp, p2SecondaryVp: s.p2SecondaryVp,
+                foughtThisPhase: s.foughtThisPhase,
+                battleShockPhase: s.battleShockPhase, battleShockQueue: s.battleShockQueue,
+                battleShockTested: s.battleShockTested, battleShockResults: s.battleShockResults,
+                teleportHomers: s.teleportHomers,
+              },
+            }),
+          });
+        } catch { /* non-critical — broadcast is the primary sync path */ }
+      }
+      setIsSyncing(false);
+    }, 400);
   }
 
   function undoAction() {
@@ -1434,6 +1553,43 @@ export default function WarhammerGameRoom() {
       const isVsAI = mode === "vs-ai";
       if (isVsAI) setIsAIGame(true);
 
+      // ── Determine local player role ──
+      const code = (game.invite_code as string | null) ?? null;
+      setGameCode(code);
+      const storedP1 = (game.p1_user_id as string | null) ?? null;
+      const storedP2 = (game.p2_user_id as string | null) ?? null;
+      setP1UserId(storedP1);
+      setP2UserId(storedP2);
+
+      if (mode === "solo") {
+        setLocalRole("P1"); // solo: player controls both sides
+      } else {
+        const sessionId = (() => {
+          if (typeof window === "undefined") return null;
+          let sid = localStorage.getItem("wh40k_session_id");
+          if (!sid) { sid = crypto.randomUUID(); localStorage.setItem("wh40k_session_id", sid); }
+          return sid;
+        })();
+        if (sessionId === storedP1) setLocalRole("P1");
+        else if (storedP2 && sessionId === storedP2) setLocalRole("P2");
+        else if (!storedP2) {
+          // No P2 yet — claim the P2 seat
+          setLocalRole("P2");
+          const p2Id = sessionId!;
+          setP2UserId(p2Id);
+          // Register as P2 via API (invite_code as auth)
+          if (code) {
+            fetch(`/api/warhammer/games/${id}/state`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ invite_code: code, p2_user_id: p2Id }),
+            }).catch(() => {});
+          }
+        } else {
+          setLocalRole("spectator");
+        }
+      }
+
       const savedState = game.game_state as Record<string, unknown> | null;
       if (savedState) {
         if (typeof savedState.round === "number") setRound(savedState.round);
@@ -1461,9 +1617,28 @@ export default function WarhammerGameRoom() {
           const dep = savedState.deployment as { currentDeployer?: "P1" | "P2" };
           if (dep.currentDeployer) setDeployDeployer(dep.currentDeployer);
         }
+        if (typeof savedState.deployDeployer === "string") setDeployDeployer(savedState.deployDeployer as "P1" | "P2");
         if (typeof savedState.mapPresetId === "string") {
           setMapPreset(getPresetById(savedState.mapPresetId));
         }
+        if (Array.isArray(savedState.movedThisTurn)) setMovedThisTurn(savedState.movedThisTurn as string[]);
+        if (Array.isArray(savedState.shotThisTurn)) setShotThisTurn(savedState.shotThisTurn as string[]);
+        if (Array.isArray(savedState.chargedThisTurn)) setChargedThisTurn(savedState.chargedThisTurn as string[]);
+        if (Array.isArray(savedState.foughtThisTurn)) setFoughtThisTurn(savedState.foughtThisTurn as string[]);
+        if (savedState.oathTarget !== undefined) setOathTarget(savedState.oathTarget as string | null);
+        if (savedState.synapticImperative !== undefined) setSynapticImperative(savedState.synapticImperative as string | null);
+        if (savedState.firstPlayerThisRound) setFirstPlayerThisRound(savedState.firstPlayerThisRound as "P1" | "P2");
+        if (savedState.transportContents) setTransportContents(savedState.transportContents as Record<string, string[]>);
+        if (Array.isArray(savedState.teleportHomers)) setTeleportHomers(savedState.teleportHomers as typeof teleportHomers);
+        if (typeof savedState.fightPhaseStep === "string") setFightPhaseStep(savedState.fightPhaseStep as "active" | "fightback");
+        if (typeof savedState.p1SecondaryVp === "number") setP1SecondaryVp(savedState.p1SecondaryVp);
+        if (typeof savedState.p2SecondaryVp === "number") setP2SecondaryVp(savedState.p2SecondaryVp);
+        if (Array.isArray(savedState.p1Hand)) setP1Hand(savedState.p1Hand as TacticalMission[]);
+        if (Array.isArray(savedState.p2Hand)) setP2Hand(savedState.p2Hand as TacticalMission[]);
+        if (Array.isArray(savedState.p1Scored)) setP1Scored(savedState.p1Scored as TacticalMission[]);
+        if (Array.isArray(savedState.p2Scored)) setP2Scored(savedState.p2Scored as TacticalMission[]);
+        if (Array.isArray(savedState.p1Deck)) setP1Deck(savedState.p1Deck as TacticalMission[]);
+        if (Array.isArray(savedState.p2Deck)) setP2Deck(savedState.p2Deck as TacticalMission[]);
       }
       // Also check top-level map_preset column
       if (game.map_preset && typeof game.map_preset === "string") {
@@ -1547,34 +1722,58 @@ export default function WarhammerGameRoom() {
   useEffect(() => {
     if (gameMode !== "2player" || !id) return;
     const supabase = createClient();
-    const channel = supabase.channel(`game:${id}`);
+    const channel = supabase.channel(`game:${id}`, {
+      config: { broadcast: { self: false } }, // don't receive own broadcasts
+    });
+
+    channelRef.current = channel;
 
     channel
       .on("broadcast", { event: "state_sync" }, (payload) => {
-        const s = payload.payload as {
-          markers?: UnitMarker[];
-          round?: number;
-          gamePhase?: GamePhase;
-          activePlayer?: "P1" | "P2";
-          p1Cp?: number;
-          p2Cp?: number;
-          p1Vp?: number;
-          p2Vp?: number;
-          roomPhase?: RoomPhase;
-        };
-        if (s.markers) setMarkers(s.markers);
-        if (s.round) setRound(s.round);
-        if (s.gamePhase) setGamePhase(s.gamePhase);
-        if (s.activePlayer) setActivePlayer(s.activePlayer);
-        if (s.p1Cp !== undefined) setP1Cp(s.p1Cp);
-        if (s.p2Cp !== undefined) setP2Cp(s.p2Cp);
-        if (s.p1Vp !== undefined) setP1Vp(s.p1Vp);
-        if (s.p2Vp !== undefined) setP2Vp(s.p2Vp);
-        if (s.roomPhase) setRoomPhase(s.roomPhase);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s = payload.payload as Record<string, any>;
+        isApplyingRemote.current = true;
+        if (s.markers) setMarkers(s.markers as UnitMarker[]);
+        if (typeof s.round === "number") setRound(s.round);
+        if (s.gamePhase) setGamePhase(s.gamePhase as GamePhase);
+        if (s.activePlayer) setActivePlayer(s.activePlayer as "P1" | "P2");
+        if (s.p1Cp !== undefined) setP1Cp(s.p1Cp as number);
+        if (s.p2Cp !== undefined) setP2Cp(s.p2Cp as number);
+        if (s.p1Vp !== undefined) setP1Vp(s.p1Vp as number);
+        if (s.p2Vp !== undefined) setP2Vp(s.p2Vp as number);
+        if (s.roomPhase) setRoomPhase(s.roomPhase as RoomPhase);
+        if (s.deployDeployer) setDeployDeployer(s.deployDeployer as "P1" | "P2");
+        if (s.rolloffResults) setRolloffResults(s.rolloffResults as RolloffResult);
+        if (Array.isArray(s.movedThisTurn)) setMovedThisTurn(s.movedThisTurn as string[]);
+        if (Array.isArray(s.shotThisTurn)) setShotThisTurn(s.shotThisTurn as string[]);
+        if (Array.isArray(s.chargedThisTurn)) setChargedThisTurn(s.chargedThisTurn as string[]);
+        if (Array.isArray(s.foughtThisTurn)) setFoughtThisTurn(s.foughtThisTurn as string[]);
+        if (s.fightPhaseStep) setFightPhaseStep(s.fightPhaseStep as "active" | "fightback");
+        if (s.oathTarget !== undefined) setOathTarget(s.oathTarget as string | null);
+        if (s.synapticImperative !== undefined) setSynapticImperative(s.synapticImperative as string | null);
+        if (s.firstPlayerThisRound) setFirstPlayerThisRound(s.firstPlayerThisRound as "P1" | "P2");
+        if (s.transportContents) setTransportContents(s.transportContents as Record<string, string[]>);
+        if (Array.isArray(s.teleportHomers)) setTeleportHomers(s.teleportHomers as typeof teleportHomers);
+        if (typeof s.p1SecondaryVp === "number") setP1SecondaryVp(s.p1SecondaryVp);
+        if (typeof s.p2SecondaryVp === "number") setP2SecondaryVp(s.p2SecondaryVp);
+        if (Array.isArray(s.p1Hand)) setP1Hand(s.p1Hand as TacticalMission[]);
+        if (Array.isArray(s.p2Hand)) setP2Hand(s.p2Hand as TacticalMission[]);
+        if (Array.isArray(s.p1Scored)) setP1Scored(s.p1Scored as TacticalMission[]);
+        if (Array.isArray(s.p2Scored)) setP2Scored(s.p2Scored as TacticalMission[]);
+        if (typeof s.battleShockPhase === "boolean") setBattleShockPhase(s.battleShockPhase);
+        if (Array.isArray(s.battleShockQueue)) setBattleShockQueue(s.battleShockQueue as string[]);
+        if (s.battleShockResults) setBattleShockResults(s.battleShockResults as Record<string, boolean>);
+        if (Array.isArray(s.destroyedThisTurn)) setDestroyedThisTurn(s.destroyedThisTurn as string[]);
+        if (Array.isArray(s.destroyedThisPhase)) setDestroyedThisPhase(s.destroyedThisPhase as string[]);
+        // Clear the flag after this synchronous batch of state updates
+        setTimeout(() => { isApplyingRemote.current = false; }, 0);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      channelRef.current = null;
+      supabase.removeChannel(channel);
+    };
   }, [gameMode, id]);
 
   // ── Persist state to Supabase ──
@@ -1618,6 +1817,7 @@ export default function WarhammerGameRoom() {
       `Roll-offs complete: Attacker=${results.attacker}, First Deploy=${results.firstDeployer}, First Turn=${results.firstTurn}`,
       "system"
     );
+    scheduleSync();
   }
 
   // ── Deployment ──
@@ -1695,12 +1895,13 @@ export default function WarhammerGameRoom() {
     const stillUndeployedP1 = updatedMarkers.filter((m) => m.player === "P1" && m.isInReserve).length;
     const stillUndeployedP2 = updatedMarkers.filter((m) => m.player === "P2" && m.isInReserve).length;
 
-    if (stillUndeployedP1 === 0 && stillUndeployedP2 === 0) return;
+    if (stillUndeployedP1 === 0 && stillUndeployedP2 === 0) { scheduleSync(); return; }
 
     if (deployDeployer === "P1" && stillUndeployedP2 > 0) setDeployDeployer("P2");
     else if (deployDeployer === "P2" && stillUndeployedP1 > 0) setDeployDeployer("P1");
     else if (deployDeployer === "P1" && stillUndeployedP1 > 0) setDeployDeployer("P1");
     else setDeployDeployer("P2");
+    scheduleSync();
   }
 
   function handleReserve(markerId: string) {
@@ -1744,6 +1945,7 @@ export default function WarhammerGameRoom() {
     giveCommandPhaseCP(firstPlayer, markers);
     // Draw starting tactical mission for first player
     drawMission(firstPlayer);
+    scheduleSync();
   }
 
   // ── Game phase logic ──
@@ -4380,6 +4582,18 @@ export default function WarhammerGameRoom() {
     return null;
   }
 
+  // ── Multiplayer: can the current browser take actions? ───────────────────────
+  // In solo mode, always yes. In 2player: yes only when it's your turn.
+  const canAct =
+    gameMode === "solo" ||
+    localRole === "loading" || // before role is determined, optimistically allow
+    (localRole === "P1" &&
+      (roomPhase !== "game" || activePlayer === "P1") &&
+      (roomPhase !== "deployment" || deployDeployer === "P1")) ||
+    (localRole === "P2" &&
+      (roomPhase !== "game" || activePlayer === "P2") &&
+      (roomPhase !== "deployment" || deployDeployer === "P2"));
+
   // ── Render: Loading ──────────────────────────────────────────────────────────
 
   if (roomPhase === "loading") {
@@ -4453,6 +4667,43 @@ export default function WarhammerGameRoom() {
         style={{ backgroundColor: "var(--bg-primary)" }}
       >
         <Navigation />
+        {/* Game code banner — shown in rolloff so P1 can share and P2 can see they joined */}
+        {gameMode === "2player" && gameCode && (
+          <div
+            className="flex items-center justify-center gap-3 py-2 px-4 text-sm"
+            style={{ backgroundColor: "rgba(124,58,237,0.12)", borderBottom: "1px solid rgba(124,58,237,0.25)" }}
+          >
+            <Users size={14} style={{ color: "#a78bfa" }} />
+            <span style={{ color: "var(--text-muted)" }}>Game Code:</span>
+            <span className="font-mono font-bold tracking-widest text-base" style={{ color: "#a78bfa" }}>
+              {gameCode}
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(gameCode);
+                setCodeCopied(true);
+                setTimeout(() => setCodeCopied(false), 2000);
+              }}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-all"
+              style={{ color: codeCopied ? "#4ade80" : "#a78bfa", backgroundColor: "rgba(124,58,237,0.15)", border: "1px solid rgba(124,58,237,0.3)" }}
+            >
+              {codeCopied ? <Check size={11} /> : <Copy size={11} />}
+              {codeCopied ? "Copied!" : "Copy"}
+            </button>
+            {!p2UserId && localRole === "P1" && (
+              <span className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                <Clock size={12} />
+                Waiting for Player 2…
+              </span>
+            )}
+            {p2UserId && (
+              <span className="flex items-center gap-1 text-xs" style={{ color: "#4ade80" }}>
+                <Wifi size={12} />
+                Player 2 connected
+              </span>
+            )}
+          </div>
+        )}
         <RolloffPhase gameName={gameName} onComplete={handleRolloffComplete} />
       </div>
     );
@@ -4588,6 +4839,27 @@ export default function WarhammerGameRoom() {
               vs AI
             </span>
           )}
+          {/* Multiplayer: role badge + syncing indicator */}
+          {gameMode === "2player" && localRole !== "loading" && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span
+                className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: localRole === "P1" ? "rgba(220,38,38,0.15)" : localRole === "P2" ? "rgba(37,99,235,0.15)" : "rgba(255,255,255,0.06)",
+                  color: localRole === "P1" ? "#f87171" : localRole === "P2" ? "#60a5fa" : "var(--text-muted)",
+                  border: `1px solid ${localRole === "P1" ? "rgba(220,38,38,0.4)" : localRole === "P2" ? "rgba(37,99,235,0.4)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              >
+                {localRole === "P1" ? "You: P1" : localRole === "P2" ? "You: P2" : "Spectator"}
+              </span>
+              {isSyncing && (
+                <span className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                  <Loader2 size={10} className="animate-spin" />
+                  syncing…
+                </span>
+              )}
+            </div>
+          )}
           {/* Solo side toggle */}
           {gameMode === "solo" && (
             <div className="flex items-center gap-2">
@@ -4615,6 +4887,42 @@ export default function WarhammerGameRoom() {
           )}
         </div>
       </div>
+
+      {/* ── Waiting for opponent overlay (2-player only, non-active player) ── */}
+      {gameMode === "2player" && !canAct && roomPhase === "game" && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center pb-8 pointer-events-none"
+          aria-live="polite"
+        >
+          <div
+            className="flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl"
+            style={{
+              backgroundColor: "rgba(15,15,20,0.92)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            <Clock size={16} style={{ color: "#a78bfa" }} />
+            <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+              Waiting for {activePlayer === "P1" ? "Player 1" : "Player 2"}…
+            </span>
+            <span className="flex gap-1">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="inline-block w-1.5 h-1.5 rounded-full animate-bounce"
+                  style={{ backgroundColor: "#a78bfa", animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Transparent interaction blocker when it's not your turn ── */}
+      {gameMode === "2player" && !canAct && (
+        <div className="fixed inset-0 z-30 pointer-events-auto" aria-hidden />
+      )}
 
       {/* ── Main columns ── */}
       <div className="flex flex-1 overflow-hidden">

@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navigation from "@/components/Navigation";
-import { Crosshair, Swords, Target, BookOpen, Shield } from "lucide-react";
+import { Crosshair, Swords, Target, BookOpen, Shield, Users, Loader2 } from "lucide-react";
 
 const tiles = [
   {
@@ -54,6 +56,107 @@ const tiles = [
     comingSoon: true,
   },
 ];
+
+function JoinGameSection() {
+  const router = useRouter();
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleJoin(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = code.trim().toUpperCase();
+    if (trimmed.length < 6) {
+      setError("Enter the full 6–8 character game code.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/warhammer/games/lookup?code=${encodeURIComponent(trimmed)}`);
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        setError(body.error ?? "Game not found. Check the code and try again.");
+        return;
+      }
+      const game = await res.json() as { id: string; p2_user_id: string | null; current_phase: string };
+      if (game.current_phase === "finished") {
+        setError("That game has already ended.");
+        return;
+      }
+      router.push(`/warhammer/games/${game.id}`);
+    } catch {
+      setError("Failed to look up game. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="max-w-6xl mx-auto w-full px-6 pb-12">
+      <div
+        className="rounded-xl p-6"
+        style={{
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid rgba(124,58,237,0.3)",
+        }}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "rgba(124,58,237,0.15)", border: "1px solid rgba(124,58,237,0.35)" }}
+          >
+            <Users size={18} style={{ color: "#a78bfa" }} />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-widest" style={{ color: "#a78bfa" }}>
+              Join a Battle
+            </p>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Enter your opponent&apos;s game code to join their session
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleJoin} className="flex gap-3 flex-wrap">
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => { setCode(e.target.value.toUpperCase()); setError(null); }}
+            placeholder="Game code (e.g. A3F9B2)"
+            maxLength={8}
+            className="flex-1 min-w-48 px-4 py-2.5 rounded-lg text-sm font-mono tracking-widest outline-none transition-all"
+            style={{
+              backgroundColor: "var(--bg-primary)",
+              border: "1px solid rgba(124,58,237,0.3)",
+              color: "var(--text-primary)",
+              letterSpacing: "0.15em",
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(124,58,237,0.7)")}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(124,58,237,0.3)")}
+          />
+          <button
+            type="submit"
+            disabled={loading || code.trim().length < 4}
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all disabled:opacity-50"
+            style={{
+              backgroundColor: "rgba(124,58,237,0.18)",
+              border: "1px solid rgba(124,58,237,0.45)",
+              color: "#a78bfa",
+            }}
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+            {loading ? "Joining…" : "Join Game"}
+          </button>
+        </form>
+
+        {error && (
+          <p className="mt-2 text-xs" style={{ color: "#f87171" }}>{error}</p>
+        )}
+      </div>
+    </section>
+  );
+}
 
 export default function WarhammerPage() {
   return (
@@ -158,6 +261,9 @@ export default function WarhammerPage() {
               </span>
             </div>
           </section>
+
+          {/* Join Game */}
+          <JoinGameSection />
 
           {/* Tiles */}
           <section className="max-w-6xl mx-auto w-full px-6 pb-24">
