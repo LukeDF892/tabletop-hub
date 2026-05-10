@@ -50,6 +50,7 @@ export interface Unit {
   weaponOptions?: WeaponOption[];  // swappable weapon loadouts
   isEpicHero?: boolean;
   isTitanic?: boolean;
+  chapterKeyword?: string;  // e.g. 'ULTRAMARINES', 'IMPERIAL_FISTS'; absent = generic unit
   canFly?: boolean;
   canDeepStrike?: boolean;
   canLeadUnits?: string[];   // unit IDs this character can lead
