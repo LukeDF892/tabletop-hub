@@ -58,6 +58,12 @@ function getUnitAbbr(name: string): string {
   return words.slice(0, 3).map((w) => w[0]).join("").toUpperCase();
 }
 
+export interface AnimationEvent {
+  type: 'shoot' | 'melee';
+  fromId: string;
+  toId: string;
+}
+
 interface TooltipData {
   marker: UnitMarker;
   x: number;
@@ -91,6 +97,8 @@ export interface Warhammer40kBoardProps {
     homerX?: number;
     homerY?: number;
   };
+  activeAnimation?: AnimationEvent;
+  onAnimationComplete?: () => void;
 }
 
 export default function Warhammer40kBoard({
@@ -113,6 +121,8 @@ export default function Warhammer40kBoard({
   oathTargetId,
   teleportHomers = [],
   reservesHighlight,
+  activeAnimation,
+  onAnimationComplete,
 }: Warhammer40kBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -123,6 +133,17 @@ export default function Warhammer40kBoard({
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   // Hover position in board inches for distance line
   const [hoverBoardPos, setHoverBoardPos] = useState<{ x: number; y: number } | null>(null);
+
+  const [animKey, setAnimKey] = useState(0);
+  const onAnimCompleteRef = useRef(onAnimationComplete);
+  useEffect(() => { onAnimCompleteRef.current = onAnimationComplete; });
+  useEffect(() => {
+    if (!activeAnimation) return;
+    setAnimKey((k) => k + 1);
+    const duration = activeAnimation.type === 'shoot' ? 500 : 600;
+    const timer = setTimeout(() => { onAnimCompleteRef.current?.(); }, duration);
+    return () => clearTimeout(timer);
+  }, [activeAnimation]);
 
   const displayedObjectives: MapObjective[] = objectives ?? [
     { x: 30, y: 22 },
@@ -952,6 +973,81 @@ export default function Warhammer40kBoard({
                   </g>
                 );
               })}
+
+              {/* Combat animations */}
+              {activeAnimation && (() => {
+                const fromM = markers.find((m) => m.id === activeAnimation.fromId);
+                const toM = markers.find((m) => m.id === activeAnimation.toId);
+                if (!fromM || !toM) return null;
+                const getCenter = (m: UnitMarker) => {
+                  if ((m.modelCount ?? 1) > 1) {
+                    const positions = m.modelPositions ?? hexPackPositions(m.x + 0.5, m.y + 0.5, m.modelCount ?? 1);
+                    return { x: positions[0].x * INCH_PX, y: positions[0].y * INCH_PX };
+                  }
+                  return { x: (m.x + 0.5) * INCH_PX, y: (m.y + 0.5) * INCH_PX };
+                };
+                const from = getCenter(fromM);
+                const to = getCenter(toM);
+                const fx = from.x, fy = from.y, tx = to.x, ty = to.y;
+
+                if (activeAnimation.type === 'shoot') {
+                  return (
+                    <g key={animKey} style={{ pointerEvents: 'none' }}>
+                      {/* Tracer glow line */}
+                      <line x1={fx} y1={fy} x2={tx} y2={ty}
+                        stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeOpacity={0}>
+                        <animate attributeName="stroke-opacity" values="0;0.7;0.5;0" keyTimes="0;0.1;0.8;1" dur="0.5s" fill="freeze" />
+                      </line>
+                      {/* Tracer dot */}
+                      <circle cx={fx} cy={fy} r={6} fill="#fbbf24"
+                        style={{ filter: 'drop-shadow(0 0 8px #f59e0b)' }}>
+                        <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
+                        <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
+                        <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
+                      </circle>
+                      {/* Impact flash */}
+                      <circle cx={tx} cy={ty} r={1} fill="#fbbf24" fillOpacity={0}
+                        style={{ filter: 'drop-shadow(0 0 12px #f59e0b)' }}>
+                        <animate attributeName="r" values="1;1;22;36" keyTimes="0;0.74;0.87;1" dur="0.5s" fill="freeze" />
+                        <animate attributeName="fill-opacity" values="0;0;0.85;0" keyTimes="0;0.74;0.87;1" dur="0.5s" fill="freeze" />
+                      </circle>
+                    </g>
+                  );
+                }
+
+                if (activeAnimation.type === 'melee') {
+                  const midX = (fx + tx) / 2;
+                  const midY = (fy + ty) / 2;
+                  const size = 32;
+                  const slashLen = Math.round(2 * size * Math.SQRT2);
+                  return (
+                    <g key={animKey} style={{ pointerEvents: 'none' }}>
+                      {/* Slash 1: top-left to bottom-right */}
+                      <line x1={midX - size} y1={midY - size} x2={midX + size} y2={midY + size}
+                        stroke="rgba(255,255,255,0.9)" strokeWidth={6} strokeLinecap="round"
+                        strokeDasharray={slashLen} strokeDashoffset={slashLen}>
+                        <animate attributeName="stroke-dashoffset" from={slashLen} to={0} dur="0.2s" fill="freeze" />
+                        <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.48;1" dur="0.6s" fill="freeze" />
+                      </line>
+                      {/* Slash 2: top-right to bottom-left */}
+                      <line x1={midX + size} y1={midY - size} x2={midX - size} y2={midY + size}
+                        stroke="rgba(255,255,255,0.9)" strokeWidth={6} strokeLinecap="round"
+                        strokeDasharray={slashLen} strokeDashoffset={slashLen}>
+                        <animate attributeName="stroke-dashoffset" from={slashLen} to={0} begin="0.08s" dur="0.2s" fill="freeze" />
+                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.48;1" dur="0.6s" fill="freeze" />
+                      </line>
+                      {/* Expanding impact ring */}
+                      <circle cx={midX} cy={midY} r={size * 0.55} fill="none"
+                        stroke="rgba(255,255,255,0.35)" strokeWidth={3} opacity={0}>
+                        <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.18;1" dur="0.6s" fill="freeze" />
+                        <animate attributeName="r" from={size * 0.55} to={size * 1.5} dur="0.6s" fill="freeze" />
+                      </circle>
+                    </g>
+                  );
+                }
+
+                return null;
+              })()}
             </g>
 
             {/* Axis labels */}
