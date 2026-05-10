@@ -388,11 +388,14 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
   },
 ];
 
-// Merge inherited SM units with DA exclusives; DA-specific units are tagged
-const DA_SM_INHERITED = SM_UNITS.map((u) => ({
-  ...u,
-  factionKeywords: [...u.factionKeywords, "Dark Angels"],
-}));
+// Inherit generic SM units (no chapterKeyword, or chapterKeyword matches Dark Angels)
+// Ultramarines-specific heroes and any other chapter-exclusive units are intentionally excluded.
+const DA_SM_INHERITED = SM_UNITS
+  .filter((u) => !u.chapterKeyword || u.chapterKeyword === "DARK_ANGELS")
+  .map((u) => ({
+    ...u,
+    factionKeywords: [...u.factionKeywords, "Dark Angels"],
+  }));
 
 export const DA_UNITS: Unit[] = [...DA_EXCLUSIVE_UNITS, ...DA_SM_INHERITED];
 

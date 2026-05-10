@@ -21,7 +21,12 @@ import {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
-const FACTIONS: (Faction & { icon: string; subfactionOf?: string })[] = [
+// chapterKeyword: the SM subfaction chapter this faction represents.
+// Units whose chapterKeyword does NOT match will be hidden in the unit browser.
+// Factions without chapterKeyword (e.g. Tyranids, Necrons) are unaffected.
+// Generic SM ('space-marines') has no chapterKeyword so it shows all SM units
+// (Ultramarines heroes remain playable there until a dedicated Ultramarines faction is added).
+const FACTIONS: (Faction & { icon: string; subfactionOf?: string; chapterKeyword?: string })[] = [
   {
     ...SPACE_MARINES_FACTION,
     icon: "🛡️",
@@ -30,6 +35,7 @@ const FACTIONS: (Faction & { icon: string; subfactionOf?: string })[] = [
     ...DARK_ANGELS_FACTION,
     icon: "⚔️",
     subfactionOf: "Space Marines",
+    chapterKeyword: "DARK_ANGELS",
   },
   {
     ...TYRANIDS_FACTION,
@@ -432,10 +438,21 @@ function ArmyBuilderInner() {
     );
   }
 
+  const armyChapterKeyword = useMemo(
+    () => FACTIONS.find((f) => f.id === faction?.id)?.chapterKeyword,
+    [faction]
+  );
+
   const visibleUnits = useMemo(() => {
     if (!faction) return [];
-    return faction.units.filter((u) => u.category === activeCategory);
-  }, [faction, activeCategory]);
+    return faction.units.filter((u) => {
+      if (u.category !== activeCategory) return false;
+      // Hide chapter-specific units that don't belong to this army's chapter.
+      // Units with no chapterKeyword are generic and always visible.
+      if (u.chapterKeyword && armyChapterKeyword !== undefined && u.chapterKeyword !== armyChapterKeyword) return false;
+      return true;
+    });
+  }, [faction, activeCategory, armyChapterKeyword]);
 
   const attachedCharacterIds = useMemo(
     () => new Set(army.map((e) => e.attachedLeaderId).filter(Boolean) as string[]),
@@ -723,32 +740,43 @@ function ArmyBuilderInner() {
 
                 <div className="flex gap-1 mt-3 overflow-x-auto pb-1">
                   {CATEGORIES.filter((cat) =>
-                    faction.units.some((u) => u.category === cat)
-                  ).map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setActiveCategory(cat)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all"
-                      style={
-                        activeCategory === cat
-                          ? {
-                              backgroundColor: `${accentColor}25`,
-                              border: `1px solid ${accentColor}60`,
-                              color: accentColor,
-                            }
-                          : {
-                              backgroundColor: "rgba(255,255,255,0.04)",
-                              border: "1px solid rgba(255,255,255,0.08)",
-                              color: "var(--text-muted)",
-                            }
-                      }
-                    >
-                      {cat}
-                      <span className="ml-1.5 opacity-60">
-                        ({faction.units.filter((u) => u.category === cat).length})
-                      </span>
-                    </button>
-                  ))}
+                    faction.units.some(
+                      (u) =>
+                        u.category === cat &&
+                        (!u.chapterKeyword || armyChapterKeyword === undefined || u.chapterKeyword === armyChapterKeyword)
+                    )
+                  ).map((cat) => {
+                    const count = faction.units.filter(
+                      (u) =>
+                        u.category === cat &&
+                        (!u.chapterKeyword || armyChapterKeyword === undefined || u.chapterKeyword === armyChapterKeyword)
+                    ).length;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setActiveCategory(cat)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all"
+                        style={
+                          activeCategory === cat
+                            ? {
+                                backgroundColor: `${accentColor}25`,
+                                border: `1px solid ${accentColor}60`,
+                                color: accentColor,
+                              }
+                            : {
+                                backgroundColor: "rgba(255,255,255,0.04)",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                                color: "var(--text-muted)",
+                              }
+                        }
+                      >
+                        {cat}
+                        <span className="ml-1.5 opacity-60">
+                          ({count})
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

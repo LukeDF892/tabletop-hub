@@ -21,6 +21,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Terminator", "Chapter Master", "Marneus Calgar"],
     factionKeywords: ["Adeptus Astartes", "Ultramarines"],
+    chapterKeyword: "ULTRAMARINES",
     canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-bladeguard", "sm-sternguard", "sm-terminators", "sm-eradicators", "sm-hellblasters"],
   },
   {
@@ -42,6 +43,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Psyker", "Librarian"],
     factionKeywords: ["Adeptus Astartes", "Ultramarines"],
+    chapterKeyword: "ULTRAMARINES",
     canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-hellblasters"],
   },
   {
@@ -1146,6 +1148,7 @@ export const SM_UNITS: Unit[] = [
     ],
     keywords: ["Infantry", "Character", "Epic Hero", "Primarch", "Roboute Guilliman"],
     factionKeywords: ["Adeptus Astartes", "Ultramarines"],
+    chapterKeyword: "ULTRAMARINES",
     canLeadUnits: ["sm-intercessors", "sm-tactical-squad", "sm-heavy-intercessors", "sm-bladeguard", "sm-sternguard", "sm-terminators", "sm-eradicators", "sm-hellblasters", "sm-devastator-squad", "sm-assault-marines", "sm-bike-squad", "sm-inceptors"],
   },
 

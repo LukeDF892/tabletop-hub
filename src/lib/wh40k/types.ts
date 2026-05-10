@@ -57,6 +57,7 @@ export interface Unit {
   canBeLeadBy?: string[];    // character IDs that can lead this unit
   pointsPerModel?: number;   // when set, cost = pointsPerModel × modelCount (overrides flat points)
   teleportHomer?: boolean;   // Ravenwing units that can deploy Teleport Homers
+  chapterKeyword?: string;   // e.g. 'ULTRAMARINES', 'DARK_ANGELS' — restricts unit to that chapter only
 }
 
 export interface Stratagem {
