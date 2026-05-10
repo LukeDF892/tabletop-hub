@@ -159,6 +159,14 @@ export default function NewWarhammerGamePage() {
           .insert({ id: user.id, username: user.email?.split("@")[0] || "player" });
       }
 
+      // Session UUID — stored in localStorage so it persists across page reloads
+      // and works for guests who aren't authenticated via Supabase Auth.
+      let sessionId = localStorage.getItem("wh40k_session_id");
+      if (!sessionId) {
+        sessionId = crypto.randomUUID();
+        localStorage.setItem("wh40k_session_id", sessionId);
+      }
+
       const { data, error: dbErr } = await supabase
         .from("warhammer_games")
         .insert({
@@ -171,6 +179,7 @@ export default function NewWarhammerGamePage() {
           current_round: 1,
           current_phase: "rolloff",
           map_preset: selectedPreset.id,
+          p1_user_id: sessionId,
           game_state: {
             pointsLimit,
             maxPlayers: gameMode === "solo" ? 1 : 2,
