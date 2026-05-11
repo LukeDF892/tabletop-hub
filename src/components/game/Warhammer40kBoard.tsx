@@ -453,7 +453,7 @@ export default function Warhammer40kBoard({
   useEffect(() => {
     if (!activeAnimation) return;
     setAnimKey((k) => k + 1);
-    const duration = activeAnimation.type === 'shoot' ? 500 : 600;
+    const duration = activeAnimation.type === 'shoot' ? 750 : 900;
     const timer = setTimeout(() => { onAnimCompleteRef.current?.(); }, duration);
     return () => clearTimeout(timer);
   }, [activeAnimation]);

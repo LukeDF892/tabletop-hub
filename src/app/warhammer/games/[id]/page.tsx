@@ -533,6 +533,31 @@ function lineIntersectsRect(
   return tMin < tMax;
 }
 
+// Move each model up to maxMove inches toward the nearest position in targetPositions.
+// Used for pile-in consolidation after a charge (models wrap around the target squad).
+function applyPileIn(
+  positions: { x: number; y: number }[],
+  targetPositions: { x: number; y: number }[],
+  maxMove: number = 3
+): { x: number; y: number }[] {
+  const tgt = targetPositions.length > 0 ? targetPositions : [{ x: 0, y: 0 }];
+  return positions.map((pos) => {
+    let nearestDist = Infinity;
+    let nearest = tgt[0];
+    for (const tp of tgt) {
+      const d = Math.sqrt((tp.x - pos.x) ** 2 + (tp.y - pos.y) ** 2);
+      if (d < nearestDist) { nearestDist = d; nearest = tp; }
+    }
+    const stopAt = 0.55; // stay just outside base contact
+    if (nearestDist <= stopAt) return pos;
+    const move = Math.min(maxMove, nearestDist - stopAt);
+    return {
+      x: pos.x + (nearest.x - pos.x) * (move / nearestDist),
+      y: pos.y + (nearest.y - pos.y) * (move / nearestDist),
+    };
+  });
+}
+
 // Returns the effective center of a unit for range/distance calculations.
 // Uses first model position (absolute board inches) when available.
 function markerPos(unit: UnitMarker): { x: number; y: number } {
@@ -2188,6 +2213,10 @@ export default function WarhammerGameRoom() {
 
   // Called after all battle-shock tests complete — finishes what advancePhase was doing
   function finishAfterBattleShock(afterShock: UnitMarker[]) {
+    // Use stateRef for always-fresh values — avoids stale closure when called from AI async functions
+    const activePlayer = stateRef.current.activePlayer;
+    const firstPlayerThisRound = stateRef.current.firstPlayerThisRound;
+    console.log(`[finishAfterBattleShock] round=${stateRef.current.round} activePlayer=${activePlayer} firstPlayerThisRound=${firstPlayerThisRound}`);
     // Score objectives for the player who just finished their turn
     scoreObjectivesForPlayer(activePlayer, afterShock);
 
@@ -2342,6 +2371,7 @@ export default function WarhammerGameRoom() {
     const idx = PLAYER_PHASES.indexOf(gamePhase);
     if (idx >= 0 && idx < PLAYER_PHASES.length - 1) {
       const next = PLAYER_PHASES[idx + 1];
+      console.log(`[advancePhase] round=${round} ${gamePhase}→${next} activePlayer=${activePlayer}`);
       setGamePhase(next);
       addLog(`→ ${activePlayer}'s ${PHASE_LABELS[next]} Phase`, "system");
     }
@@ -3317,11 +3347,41 @@ export default function WarhammerGameRoom() {
     setOverwatchPrompt(null);
 
     if (total >= needed) {
-      // Charge succeeds — player manually positions the charger (click on board)
-      addLog(`Charge roll ${total} ≥ ${needed}. Click a cell within ${total}" to place ${attacker.unitName} in base contact with ${target.unitName}.`, attacker.player);
-      setChargeMove({ unitId: attackerId, targetId, maxDist: total });
-      // Keep combat state so the charger stays highlighted
-      setCombat((prev) => ({ ...prev, step: "idle" }));
+      const placement = findChargePlacement(attacker, target, total, markers);
+      if (placement) {
+        const dx = placement.x - attacker.x;
+        const dy = placement.y - attacker.y;
+        const chargeInCover = mapPreset.terrain.some(
+          (t) => placement.x >= t.x && placement.x < t.x + t.w && placement.y >= t.y && placement.y < t.y + t.h
+        );
+        const charId = attacker.attachedCharacterId;
+        // Pile-in target positions
+        const tgtPositions = target.modelPositions && target.modelPositions.length > 0
+          ? target.modelPositions
+          : [{ x: target.x + 0.5, y: target.y + 0.5 }];
+        setMarkers((prev) =>
+          prev.map((m) => {
+            if (m.id === attackerId) {
+              const shifted = m.modelPositions?.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+              const piled = shifted ? applyPileIn(shifted, tgtPositions) : undefined;
+              return { ...m, x: placement.x, y: placement.y, hasCharged: true, inCover: chargeInCover, modelPositions: piled };
+            }
+            if (charId && m.id === charId) {
+              const nx = Math.max(0, Math.min(59, m.x + dx));
+              const ny = Math.max(0, Math.min(43, m.y + dy));
+              const charInCover = mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h);
+              return { ...m, x: nx, y: ny, inCover: charInCover, modelPositions: m.modelPositions?.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
+            }
+            return m;
+          })
+        );
+        addLog(`Charge succeeds! ${attacker.unitName} moves adjacent to ${target.unitName} (rolled ${total}, needed ${needed}).`, attacker.player);
+      } else {
+        addLog(`Charge roll sufficient but no adjacent cell available for ${attacker.unitName}.`, "system");
+      }
+      setChargedThisTurn((prev) => [...prev, attackerId]);
+      setCombat(INIT_COMBAT);
+      setSelectedMarkerId(null);
     } else {
       addLog(`Charge fails! ${attacker.unitName} stays in place (rolled ${total}, needed ${needed}).`, attacker.player);
       setChargedThisTurn((prev) => [...prev, attackerId]);
@@ -3602,6 +3662,7 @@ export default function WarhammerGameRoom() {
   useEffect(() => {
     if (!isAIGame || activePlayer !== "P2" || roomPhase !== "game") return;
     if (gamePhase === "scoring") return;
+    if (fightPhaseStep === "fightback") return; // P1 is fighting back — don't auto-run AI
 
     let cancelled = false;
     const pendingTimers: ReturnType<typeof setTimeout>[] = [];
@@ -3830,7 +3891,74 @@ export default function WarhammerGameRoom() {
       setAiThinking(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAIGame, activePlayer, gamePhase, roomPhase]);
+  }, [isAIGame, activePlayer, gamePhase, roomPhase, fightPhaseStep]);
+
+  // ─── AI auto-deployment ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isAIGame || roomPhase !== "deployment" || deployDeployer !== "P2") return;
+
+    const { p2Zone } = mapPreset;
+    let currentMarkers = [...markers];
+
+    // How many P1 units still need to deploy
+    const p1Remaining = currentMarkers.filter(
+      (m) => m.player === "P1" && m.isInReserve && !m.isStrategicReserve
+    ).length;
+
+    // Deploy one unit if P1 still has units to alternate with; otherwise deploy all remaining P2 units
+    const p2Undeployed = currentMarkers.filter(
+      (m) => m.player === "P2" && m.isInReserve && !m.isStrategicReserve
+    );
+    const batch = p1Remaining === 0 ? p2Undeployed : p2Undeployed.slice(0, 1);
+
+    for (const unit of batch) {
+      // Find a free cell in the P2 zone
+      let placed = false;
+      for (let attempt = 0; attempt < 200 && !placed; attempt++) {
+        const x = p2Zone.x + Math.floor(Math.random() * p2Zone.w);
+        const y = p2Zone.y + Math.floor(Math.random() * p2Zone.h);
+        const occupied = currentMarkers.some(
+          (m) => m.x === x && m.y === y && !m.isInReserve && !m.isDestroyed
+        );
+        if (occupied) continue;
+
+        const inCover = mapPreset.terrain.some(
+          (t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h
+        );
+        let modelPositions: { x: number; y: number }[] | undefined;
+        if ((unit.modelCount ?? 1) > 1) {
+          const rings = Math.ceil((unit.modelCount - 1) / 6);
+          const radius = rings * 1.5;
+          const cx = Math.max(p2Zone.x + radius, Math.min(p2Zone.x + p2Zone.w - radius, x + 0.5));
+          const cy = Math.max(p2Zone.y + radius, Math.min(p2Zone.y + p2Zone.h - radius, y + 0.5));
+          modelPositions = hexPackPositions(cx, cy, unit.modelCount).map((pos) => ({
+            x: Math.max(p2Zone.x, Math.min(p2Zone.x + p2Zone.w, pos.x)),
+            y: Math.max(p2Zone.y, Math.min(p2Zone.y + p2Zone.h, pos.y)),
+          }));
+        }
+
+        currentMarkers = currentMarkers.map((m) =>
+          m.id === unit.id ? { ...m, x, y, isInReserve: false, inCover, modelPositions } : m
+        );
+        addLog(`AI deploys ${unit.unitName} at (${x}, ${y}).`, "P2");
+        placed = true;
+      }
+      if (!placed) addLog(`AI could not find space for ${unit.unitName}.`, "system");
+    }
+
+    setMarkers(currentMarkers);
+
+    const stillP1 = currentMarkers.filter((m) => m.player === "P1" && m.isInReserve && !m.isStrategicReserve).length;
+    const stillP2 = currentMarkers.filter((m) => m.player === "P2" && m.isInReserve && !m.isStrategicReserve).length;
+
+    if (stillP1 === 0 && stillP2 === 0) {
+      scheduleSync();
+    } else if (stillP1 > 0) {
+      setDeployDeployer("P1");
+    }
+    // If stillP2 > 0 && stillP1 === 0 the batch above already deployed them all
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAIGame, roomPhase, deployDeployer]);
 
   // ─── Phase action panel ───────────────────────────────────────────────────
 

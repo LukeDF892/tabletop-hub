@@ -348,8 +348,34 @@ export function computeAIMovements(
   if (enemies.length === 0) return [];
 
   const actions: AIAction[] = [];
+  // Track cells claimed during this movement batch to avoid collisions
+  const claimedCells = new Set<string>();
+  const cellKey = (x: number, y: number) => `${x},${y}`;
+
+  // Find the nearest free cell to (rawX, rawY) within `radius` grid steps.
+  function findFreeCell(
+    rawX: number, rawY: number, radius: number, unitId: string
+  ): { x: number; y: number } | null {
+    const cx = Math.max(0, Math.min(59, Math.round(rawX)));
+    const cy = Math.max(0, Math.min(43, Math.round(rawY)));
+    const candidates: { x: number; y: number; d2: number }[] = [];
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        const x = Math.max(0, Math.min(59, cx + dx));
+        const y = Math.max(0, Math.min(43, cy + dy));
+        const blocked =
+          markers.some((m) => m.id !== unitId && m.x === x && m.y === y && !m.isDestroyed && !m.isInReserve) ||
+          claimedCells.has(cellKey(x, y));
+        if (!blocked) candidates.push({ x, y, d2: dx * dx + dy * dy });
+      }
+    }
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => a.d2 - b.d2);
+    return candidates[0];
+  }
 
   for (const unit of myUnits) {
+    // Units already in engagement range stay put
     const inCombat = enemies.some((e) => unitDist(unit, e) <= 1.5);
     if (inCombat) continue;
 
@@ -363,19 +389,20 @@ export function computeAIMovements(
       );
       const tp = markerCenter(target);
       const d = unitDist(unit, target);
-      if (d <= 1.5) continue;
+      if (d <= 1.5) continue; // already touching
 
-      const moveDist = Math.min(movement, Math.max(0, d - 1));
+      // Use Advance (average +3") for melee units that can't reach in normal movement
+      const needsAdvance = d - 0.5 > movement;
+      const effectiveMove = needsAdvance ? movement + 3 : movement;
+      const moveDist = Math.min(effectiveMove, Math.max(0, d - 0.5));
       const ratio = d > 0 ? moveDist / d : 0;
-      const nx = Math.max(0, Math.min(59, Math.round(pos.x + (tp.x - pos.x) * ratio - 0.5)));
-      const ny = Math.max(0, Math.min(43, Math.round(pos.y + (tp.y - pos.y) * ratio - 0.5)));
+      const rawX = pos.x + (tp.x - pos.x) * ratio - 0.5;
+      const rawY = pos.y + (tp.y - pos.y) * ratio - 0.5;
 
-      if (nx !== unit.x || ny !== unit.y) {
-        // Skip if occupied
-        const occupied = markers.some((m) => m.id !== unit.id && m.x === nx && m.y === ny && !m.isDestroyed && !m.isInReserve);
-        if (!occupied) {
-          actions.push({ type: "move", markerId: unit.id, targetX: nx, targetY: ny, advance: false });
-        }
+      const cell = findFreeCell(rawX, rawY, 2, unit.id);
+      if (cell && (cell.x !== unit.x || cell.y !== unit.y)) {
+        claimedCells.add(cellKey(cell.x, cell.y));
+        actions.push({ type: "move", markerId: unit.id, targetX: cell.x, targetY: cell.y, advance: needsAdvance });
       }
     } else {
       const ranged = rangedWeapons(unit);
@@ -385,7 +412,7 @@ export function computeAIMovements(
         getWeaponMaxRange(r.weapon) > getWeaponMaxRange(best.weapon) ? r : best
       );
       const maxRange = getWeaponMaxRange(bestWeapon.weapon);
-      const optimalRange = maxRange > 0 ? maxRange * 0.5 : 12;
+      const optimalRange = maxRange > 0 ? maxRange * 0.65 : 12;
 
       const target = enemies.reduce((best, e) => {
         const de = unitDist(unit, e);
@@ -396,41 +423,47 @@ export function computeAIMovements(
 
       const tp = markerCenter(target);
       const d = unitDist(unit, target);
-      if (d <= optimalRange) continue;
 
-      const moveDist = Math.min(movement, Math.max(0, d - optimalRange));
-      const ratio = d > 0 ? moveDist / d : 0;
+      let rawX: number;
+      let rawY: number;
 
-      // Try a cover position first
-      let nx = Math.round(pos.x + (tp.x - pos.x) * ratio - 0.5);
-      let ny = Math.round(pos.y + (tp.y - pos.y) * ratio - 0.5);
+      if (d <= optimalRange) {
+        // Already in range — move to cover if not there yet
+        if (unit.inCover) continue;
 
-      const coverPos = mapPreset.terrain
-        .flatMap((t) => [
-          { x: t.x, y: t.y },
-          { x: t.x + Math.floor(t.w / 2), y: t.y },
-          { x: t.x, y: t.y + Math.floor(t.h / 2) },
-          { x: t.x + t.w - 1, y: t.y + t.h - 1 },
-        ])
-        .find((c) => {
-          const coverDist = Math.sqrt((c.x - pos.x) ** 2 + (c.y - pos.y) ** 2);
-          if (coverDist > movement) return false;
-          const distToTarget = Math.sqrt((c.x - tp.x) ** 2 + (c.y - tp.y) ** 2);
-          if (maxRange > 0 && distToTarget > maxRange) return false;
-          const occupied = markers.some((m) => m.id !== unit.id && m.x === c.x && m.y === c.y && !m.isDestroyed && !m.isInReserve);
-          return !occupied;
-        });
+        const coverCandidates = mapPreset.terrain
+          .flatMap((t) => [
+            { x: t.x,                      y: t.y                       },
+            { x: t.x + Math.floor(t.w / 2), y: t.y                       },
+            { x: t.x,                      y: t.y + Math.floor(t.h / 2) },
+            { x: t.x + t.w - 1,            y: t.y + t.h - 1             },
+          ])
+          .filter((c) => {
+            const coverDist = Math.sqrt((c.x - pos.x) ** 2 + (c.y - pos.y) ** 2);
+            if (coverDist > movement) return false;
+            const dToTgt = Math.sqrt((c.x - tp.x) ** 2 + (c.y - tp.y) ** 2);
+            return maxRange === 0 || dToTgt <= maxRange;
+          })
+          .sort((a, b) => {
+            const da = Math.sqrt((a.x - pos.x) ** 2 + (a.y - pos.y) ** 2);
+            const db2 = Math.sqrt((b.x - pos.x) ** 2 + (b.y - pos.y) ** 2);
+            return da - db2;
+          });
 
-      if (coverPos) { nx = coverPos.x; ny = coverPos.y; }
+        if (coverCandidates.length === 0) continue;
+        rawX = coverCandidates[0].x;
+        rawY = coverCandidates[0].y;
+      } else {
+        const moveDist = Math.min(movement, Math.max(0, d - optimalRange));
+        const ratio = d > 0 ? moveDist / d : 0;
+        rawX = pos.x + (tp.x - pos.x) * ratio - 0.5;
+        rawY = pos.y + (tp.y - pos.y) * ratio - 0.5;
+      }
 
-      nx = Math.max(0, Math.min(59, nx));
-      ny = Math.max(0, Math.min(43, ny));
-
-      if (nx !== unit.x || ny !== unit.y) {
-        const occupied = markers.some((m) => m.id !== unit.id && m.x === nx && m.y === ny && !m.isDestroyed && !m.isInReserve);
-        if (!occupied) {
-          actions.push({ type: "move", markerId: unit.id, targetX: nx, targetY: ny, advance: false });
-        }
+      const cell = findFreeCell(rawX, rawY, 2, unit.id);
+      if (cell && (cell.x !== unit.x || cell.y !== unit.y)) {
+        claimedCells.add(cellKey(cell.x, cell.y));
+        actions.push({ type: "move", markerId: unit.id, targetX: cell.x, targetY: cell.y, advance: false });
       }
     }
   }
