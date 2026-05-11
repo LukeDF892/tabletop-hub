@@ -176,7 +176,7 @@ export default function NewWarhammerGamePage() {
           name: gameName.trim(),
           game_system: gameSystem,
           host_id: user.id,
-          game_mode: gameMode,
+          game_mode: gameMode === "vs-ai" ? "solo" : gameMode,
           player1_army_id: p1ArmyId,
           player2_army_id: gameMode === "solo" ? p2ArmyId : null,
           current_round: 1,
@@ -197,7 +197,7 @@ export default function NewWarhammerGamePage() {
             activePlayer: "P1",
             deployment: { p1UnitsPlaced: [], p2UnitsPlaced: [], currentDeployer: "P1" },
             mapPresetId: selectedPreset.id,
-            ...(gameMode === "vs-ai" ? { aiArmyFaction: aiFaction } : {}),
+            ...(gameMode === "vs-ai" ? { aiArmyFaction: aiFaction, isVsAI: true } : {}),
           },
         })
         .select()

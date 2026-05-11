@@ -1399,13 +1399,13 @@ export default function WarhammerGameRoom() {
   }
 
   function scheduleSync() {
-    if (!id || gameMode !== "2player" || isApplyingRemote.current) return;
+    if (!id || isApplyingRemote.current) return;
     setIsSyncing(true);
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(async () => {
       const s = stateRef.current;
-      // Broadcast to the other player via the realtime channel (fast path)
-      if (channelRef.current) {
+      // Broadcast to the other player via the realtime channel (fast path, 2player only)
+      if (gameMode === "2player" && channelRef.current) {
         channelRef.current.send({
           type: "broadcast",
           event: "state_sync",
@@ -1547,8 +1547,10 @@ export default function WarhammerGameRoom() {
 
       setGameName(game.name ?? "Battle");
       const rawMode = game.game_mode as string;
+      const rawGameState = game.game_state as Record<string, unknown> | null;
       const mode: "solo" | "2player" | "vs-ai" =
-        rawMode === "vs-ai" ? "vs-ai" : rawMode === "solo" ? "solo" : "2player";
+        rawMode === "solo" && rawGameState?.isVsAI === true ? "vs-ai" :
+        rawMode === "solo" ? "solo" : "2player";
       setGameMode(mode);
       const isVsAI = mode === "vs-ai";
       if (isVsAI) setIsAIGame(true);
@@ -1821,7 +1823,7 @@ export default function WarhammerGameRoom() {
   }
 
   // ── Deployment ──
-  const undeployedMarkers = markers.filter((m) => m.isInReserve && !m.isDestroyed);
+  const undeployedMarkers = markers.filter((m) => m.isInReserve && !m.isDestroyed && !m.isStrategicReserve);
   const undeployedP1 = undeployedMarkers.filter((m) => m.player === "P1");
   const undeployedP2 = undeployedMarkers.filter((m) => m.player === "P2");
   const deployAllDone = undeployedP1.length === 0 && undeployedP2.length === 0;
@@ -1892,8 +1894,8 @@ export default function WarhammerGameRoom() {
     setDeploySelectedId(null);
 
     // Alternate deployer
-    const stillUndeployedP1 = updatedMarkers.filter((m) => m.player === "P1" && m.isInReserve).length;
-    const stillUndeployedP2 = updatedMarkers.filter((m) => m.player === "P2" && m.isInReserve).length;
+    const stillUndeployedP1 = updatedMarkers.filter((m) => m.player === "P1" && m.isInReserve && !m.isStrategicReserve).length;
+    const stillUndeployedP2 = updatedMarkers.filter((m) => m.player === "P2" && m.isInReserve && !m.isStrategicReserve).length;
 
     if (stillUndeployedP1 === 0 && stillUndeployedP2 === 0) { scheduleSync(); return; }
 
@@ -1916,7 +1918,7 @@ export default function WarhammerGameRoom() {
     setDeploySelectedId(null);
 
     const updatedMarkers = markers.map((m) =>
-      m.id === markerId ? { ...m, isInReserve: true } : m
+      m.id === markerId ? { ...m, isInReserve: true, isStrategicReserve: true } : m
     );
     setMarkers(updatedMarkers);
 
@@ -1926,8 +1928,8 @@ export default function WarhammerGameRoom() {
       return;
     }
 
-    const stillP1 = updatedMarkers.filter((m) => m.player === "P1" && m.isInReserve).length;
-    const stillP2 = updatedMarkers.filter((m) => m.player === "P2" && m.isInReserve).length;
+    const stillP1 = updatedMarkers.filter((m) => m.player === "P1" && m.isInReserve && !m.isStrategicReserve).length;
+    const stillP2 = updatedMarkers.filter((m) => m.player === "P2" && m.isInReserve && !m.isStrategicReserve).length;
 
     if (stillP1 === 0 && stillP2 === 0) return;
     if (deployDeployer === "P1") setDeployDeployer(stillP2 > 0 ? "P2" : "P1");
@@ -1936,13 +1938,15 @@ export default function WarhammerGameRoom() {
 
   function startGame() {
     const firstPlayer = rolloffResults.firstTurn ?? "P1";
+    const secondPlayer: "P1" | "P2" = firstPlayer === "P1" ? "P2" : "P1";
     setActivePlayer(firstPlayer);
     setFirstPlayerThisRound(firstPlayer);
     setRoomPhase("game");
     setGamePhase("command");
-    persistState({ current_phase: "command", game_state: { markers, round: 1, gamePhase: "command", activePlayer: firstPlayer, p1Cp: 0, p2Cp: 0, p1Vp, p2Vp } });
+    persistState({ current_phase: "command", game_state: { markers, round: 1, gamePhase: "command", activePlayer: firstPlayer, firstPlayerThisRound: firstPlayer, p1Cp: 0, p2Cp: 0, p1Vp, p2Vp } });
     addLog(`Deployment complete. ${firstPlayer} goes first. Round 1 — Command Phase.`, "system");
     giveCommandPhaseCP(firstPlayer, markers);
+    giveCommandPhaseCP(secondPlayer, markers);
     // Draw starting tactical mission for first player
     drawMission(firstPlayer);
     scheduleSync();
@@ -2236,7 +2240,6 @@ export default function WarhammerGameRoom() {
       );
       if (gameMode === "solo") setSoloSide(secondPlayer);
       addLog(`${firstPlayerThisRound}'s turn complete. Round ${round} — ${secondPlayer}'s Turn: Command Phase.`, "system");
-      giveCommandPhaseCP(secondPlayer, afterShock);
       const secondPlayerHand = secondPlayer === "P2" ? p2Hand : p1Hand;
       if (secondPlayerHand.length < 3) drawMission(secondPlayer);
     } else {
@@ -2244,6 +2247,10 @@ export default function WarhammerGameRoom() {
       setDestroyedThisTurn([]);
       setDestroyedThisPhase([]);
       setAdvancedThisTurn([]);
+      setNecronProtocol(null);
+      setSynapticImperative(null);
+      setOathTarget(null);
+      setCommandAbilityUsed(false);
       // Clear second player's turn-scoped effects
       setMarkers((prev) =>
         prev.map((m) => m.player === activePlayer ? { ...m, feelNoPain: undefined } : m)
@@ -2421,9 +2428,16 @@ export default function WarhammerGameRoom() {
     setFoughtThisTurn([]);
     if (gameMode === "solo") setSoloSide(newFirstPlayer);
     addLog(`Round ${nextRound} begins. ${newFirstPlayer}'s Turn — Command Phase.`, "system");
+    const newSecondPlayer: "P1" | "P2" = newFirstPlayer === "P1" ? "P2" : "P1";
     giveCommandPhaseCP(newFirstPlayer, markers);
+    giveCommandPhaseCP(newSecondPlayer, markers);
+    setCommandAbilityUsed(false);
+    setOathTarget(null);
+    setNecronProtocol(null);
+    setSynapticImperative(null);
     const newFirstPlayerHand = newFirstPlayer === "P1" ? p1Hand : p2Hand;
     if (newFirstPlayerHand.length < 3) drawMission(newFirstPlayer);
+    scheduleSync();
   }
 
   // ── Transport: embark / disembark ──
@@ -2703,17 +2717,21 @@ export default function WarhammerGameRoom() {
       pushHistory();
       const oldX = marker.x;
       const oldY = marker.y;
+      const dx = x - oldX;
+      const dy = y - oldY;
       const newInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
       setMarkers((prev) =>
         prev.map((m) => {
-          if (m.id === moveUnit) return { ...m, x, y, hasAdvanced: moveAdvance, inCover: newInCover };
+          if (m.id === moveUnit) {
+            const newModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
+            return { ...m, x, y, hasAdvanced: moveAdvance, inCover: newInCover, modelPositions: newModelPositions };
+          }
           if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
-            const dx = x - oldX;
-            const dy = y - oldY;
             const nx = Math.max(0, Math.min(59, m.x + dx));
             const ny = Math.max(0, Math.min(43, m.y + dy));
             const charInCover = mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h);
-            return { ...m, x: nx, y: ny, hasAdvanced: moveAdvance, inCover: charInCover };
+            const newCharModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
+            return { ...m, x: nx, y: ny, hasAdvanced: moveAdvance, inCover: charInCover, modelPositions: newCharModelPositions };
           }
           return m;
         })
@@ -2753,11 +2771,15 @@ export default function WarhammerGameRoom() {
       const chargeInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
       setMarkers((prev) =>
         prev.map((m) => {
-          if (m.id === chargeMove.unitId) return { ...m, x, y, hasCharged: true, inCover: chargeInCover };
+          if (m.id === chargeMove.unitId) {
+            const newModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
+            return { ...m, x, y, hasCharged: true, inCover: chargeInCover, modelPositions: newModelPositions };
+          }
           if (charId && m.id === charId) {
             const nx = Math.max(0, Math.min(59, m.x + dx));
             const ny = Math.max(0, Math.min(43, m.y + dy));
-            return { ...m, x: nx, y: ny, inCover: mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h) };
+            const newCharModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
+            return { ...m, x: nx, y: ny, inCover: mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h), modelPositions: newCharModelPositions };
           }
           return m;
         })
@@ -2809,12 +2831,14 @@ export default function WarhammerGameRoom() {
       if (gamePhase === "movement") {
         const activeSide = isAIGame ? "P1" : gameMode === "solo" ? soloSide : activePlayer;
         if (m.player !== activeSide) return;
-        if (movedThisTurn.includes(markerId)) {
+        // Attached characters move with their parent unit — redirect click to parent
+        const effectiveId = m.isAttached && m.attachedToMarkerId ? m.attachedToMarkerId : markerId;
+        if (movedThisTurn.includes(effectiveId)) {
           addLog(`${m.unitName} has already moved this phase.`, "system");
           return;
         }
-        setMoveUnit((prev) => (prev === markerId ? null : markerId));
-        setSelectedMarkerId(markerId);
+        setMoveUnit((prev) => (prev === effectiveId ? null : effectiveId));
+        setSelectedMarkerId(effectiveId);
         return;
       }
       if (gamePhase === "shooting") {
@@ -4991,11 +5015,11 @@ export default function WarhammerGameRoom() {
               </div>
 
               {/* P1 Command Phase Abilities */}
-              {gamePhase === "command" && activePlayer === "P1" && p1FactionRules.some(r => r.id === "sm-oath-of-moment" || r.id === "tyr-synaptic-imperative" || r.id === "nec-awakened-dynasty") && (
+              {gamePhase === "command" && activePlayer === "P1" && p1FactionRules.some(r => r.id === "sm-oath-of-moment" || r.id === "da-oath-of-moment" || r.id === "tyr-synaptic-imperative" || r.id === "nec-awakened-dynasty") && (
                 <div className="mb-2 p-2 rounded-lg" style={{ backgroundColor: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.2)" }}>
                   <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: "#d97706" }}>⚔️ Command Abilities</p>
 
-                  {p1FactionRules.some(r => r.id === "sm-oath-of-moment") && (
+                  {p1FactionRules.some(r => r.id === "sm-oath-of-moment" || r.id === "da-oath-of-moment") && (
                     <div className="mb-2">
                       <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Oath of Moment</p>
                       {oathTarget ? (
@@ -5124,7 +5148,7 @@ export default function WarhammerGameRoom() {
                             </span>
                           </div>
                           <p className="leading-relaxed mb-1" style={{ color: "var(--text-muted)" }}>{rule.description}</p>
-                          {rule.id === "sm-oath-of-moment" && gamePhase === "command" && activePlayer === "P1" && (
+                          {(rule.id === "sm-oath-of-moment" || rule.id === "da-oath-of-moment") && gamePhase === "command" && activePlayer === "P1" && (
                             <div className="pt-1 mt-0.5" style={{ borderTop: "1px solid rgba(59,130,246,0.15)" }}>
                               <p className="text-[9px] mb-1" style={{ color: "#93c5fd" }}>
                                 Target: {oathTarget ? (markers.find((m) => m.id === oathTarget)?.unitName ?? "—") : "None set"}
@@ -5242,11 +5266,11 @@ export default function WarhammerGameRoom() {
               </div>
 
               {/* P2 Command Phase Abilities */}
-              {gamePhase === "command" && activePlayer === "P2" && p2FactionRules.some(r => r.id === "sm-oath-of-moment" || r.id === "tyr-synaptic-imperative" || r.id === "nec-awakened-dynasty") && (
+              {gamePhase === "command" && activePlayer === "P2" && p2FactionRules.some(r => r.id === "sm-oath-of-moment" || r.id === "da-oath-of-moment" || r.id === "tyr-synaptic-imperative" || r.id === "nec-awakened-dynasty") && (
                 <div className="mb-2 p-2 rounded-lg" style={{ backgroundColor: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.2)" }}>
                   <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: "#d97706" }}>⚔️ Command Abilities</p>
 
-                  {p2FactionRules.some(r => r.id === "sm-oath-of-moment") && (
+                  {p2FactionRules.some(r => r.id === "sm-oath-of-moment" || r.id === "da-oath-of-moment") && (
                     <div className="mb-2">
                       <p className="text-[10px] font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Oath of Moment</p>
                       {oathTarget ? (
@@ -5374,7 +5398,7 @@ export default function WarhammerGameRoom() {
                             </span>
                           </div>
                           <p className="leading-relaxed mb-1" style={{ color: "var(--text-muted)" }}>{rule.description}</p>
-                          {rule.id === "sm-oath-of-moment" && gamePhase === "command" && activePlayer === "P2" && (
+                          {(rule.id === "sm-oath-of-moment" || rule.id === "da-oath-of-moment") && gamePhase === "command" && activePlayer === "P2" && (
                             <div className="pt-1 mt-0.5" style={{ borderTop: "1px solid rgba(239,68,68,0.15)" }}>
                               <p className="text-[9px] mb-1" style={{ color: "#fca5a5" }}>
                                 Target: {oathTarget ? (markers.find((m) => m.id === oathTarget)?.unitName ?? "—") : "None set"}

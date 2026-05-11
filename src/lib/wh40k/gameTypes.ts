@@ -47,6 +47,7 @@ export interface UnitMarker {
   hasFought: boolean;
   hasShotThisTurn: boolean;
   isInReserve: boolean;
+  isStrategicReserve?: boolean;   // true = deliberately held in Strategic Reserves (not undeployed)
   isDestroyed: boolean;
   baseSize: BaseSize;
   faction: string;
