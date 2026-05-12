@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import type { UnitMarker, RangeIndicator } from "@/lib/wh40k/gameTypes";
 import type { TerrainPiece, MapObjective, DeploymentZone } from "@/lib/wh40k/mapPresets";
 import { getUnitIcon, getSilhouettePath, silhouetteTypeForUnit, BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
@@ -84,6 +84,74 @@ function getProjectileStyle(weaponName: string): ProjectileStyle {
   return 'default';
 }
 
+// CSS keyframes for combat animations — injected once into document head
+const COMBAT_CSS = `
+@keyframes wh-beam-orange{0%{stroke-opacity:0}10%{stroke-opacity:.5}65%{stroke-opacity:.3}100%{stroke-opacity:0}}
+@keyframes wh-beam-cyan{0%{stroke-opacity:0}10%{stroke-opacity:.4}80%{stroke-opacity:.25}100%{stroke-opacity:0}}
+@keyframes wh-beam-red{0%{stroke-opacity:0}4%{stroke-opacity:.28}50%{stroke-opacity:.14}100%{stroke-opacity:0}}
+@keyframes wh-beam-red-core{0%{stroke-opacity:0}4%{stroke-opacity:.95}50%{stroke-opacity:.8}100%{stroke-opacity:0}}
+@keyframes wh-beam-heat{0%{stroke-opacity:0}10%{stroke-opacity:.65}55%{stroke-opacity:.45}100%{stroke-opacity:0}}
+@keyframes wh-beam-heat2{0%{stroke-opacity:0}10%{stroke-opacity:.55}55%{stroke-opacity:.28}100%{stroke-opacity:0}}
+@keyframes wh-beam-heat3{0%{stroke-opacity:0}15%{stroke-opacity:.5}55%{stroke-opacity:.22}100%{stroke-opacity:0}}
+@keyframes wh-beam-gray{0%{stroke-opacity:0}10%{stroke-opacity:.4}60%{stroke-opacity:.25}100%{stroke-opacity:0}}
+@keyframes wh-beam-white{0%{stroke-opacity:0}5%{stroke-opacity:.22}50%{stroke-opacity:.1}100%{stroke-opacity:0}}
+@keyframes wh-beam-bio{0%{stroke-opacity:0}10%{stroke-opacity:.5}62%{stroke-opacity:.3}100%{stroke-opacity:0}}
+@keyframes wh-beam-gauss{0%{stroke-opacity:0}5%{stroke-opacity:.9}62%{stroke-opacity:.7}100%{stroke-opacity:0}}
+@keyframes wh-beam-gauss2{0%{stroke-opacity:0}5%{stroke-opacity:.6}62%{stroke-opacity:.35}100%{stroke-opacity:0}}
+@keyframes wh-beam-gauss3{0%{stroke-opacity:0}8%{stroke-opacity:.5}62%{stroke-opacity:.28}100%{stroke-opacity:0}}
+@keyframes wh-beam-amber{0%{stroke-opacity:0}10%{stroke-opacity:.7}80%{stroke-opacity:.5}100%{stroke-opacity:0}}
+@keyframes wh-beam-flamer{0%{stroke-opacity:0}12%{stroke-opacity:.85}55%{stroke-opacity:.55}100%{stroke-opacity:0}}
+@keyframes wh-proj-travel{from{transform:translate(0px,0px)}to{transform:translate(var(--wh-dx),var(--wh-dy))}}
+@keyframes wh-proj-fade{0%,72%{opacity:1}100%{opacity:0}}
+@keyframes wh-proj-fade-plasma{0%,80%{opacity:1}100%{opacity:0}}
+@keyframes wh-proj-fill-plasma{0%,80%{fill-opacity:.3}100%{fill-opacity:0}}
+@keyframes wh-impact-bolt{0%,86%{r:1;fill-opacity:0}94%{r:14;fill-opacity:.9}100%{r:22;fill-opacity:0}}
+@keyframes wh-impact-plasma{0%,76%{r:1;fill-opacity:0}89%{r:24;fill-opacity:.85}100%{r:42;fill-opacity:0}}
+@keyframes wh-impact-las{0%,70%{r:1;fill-opacity:0}85%{r:14;fill-opacity:.95}100%{r:22;fill-opacity:0}}
+@keyframes wh-impact-melta{0%,50%{r:1;fill-opacity:0}68%{r:34;fill-opacity:.95}100%{r:54;fill-opacity:0}}
+@keyframes wh-impact-cannon{0%,88%{r:1;fill-opacity:0}95%{r:12;fill-opacity:.8}100%{r:20;fill-opacity:0}}
+@keyframes wh-impact-sniper{0%,72%{r:1;fill-opacity:0}86%{r:7;fill-opacity:.95}100%{r:11;fill-opacity:0}}
+@keyframes wh-impact-bio{0%,76%{r:1;fill-opacity:0}88%{r:18;fill-opacity:.8}100%{r:30;fill-opacity:0}}
+@keyframes wh-impact-gauss{0%,72%{r:1;fill-opacity:0}86%{r:18;fill-opacity:.85}100%{r:28;fill-opacity:0}}
+@keyframes wh-impact-amber{0%,74%{r:1;fill-opacity:0}87%{r:22;fill-opacity:.85}100%{r:36;fill-opacity:0}}
+@keyframes wh-impact-flamer{0%,68%{r:1;fill-opacity:0}84%{r:24;fill-opacity:.7}100%{r:40;fill-opacity:0}}
+@keyframes wh-impact-missile-ring{0%,80%{r:1;fill-opacity:0}90%{r:22;fill-opacity:.8}100%{r:38;fill-opacity:0}}
+@keyframes wh-impact-missile-fire{0%,80%{r:1;fill-opacity:0}88%{r:14;fill-opacity:.9}100%{r:8;fill-opacity:.3}}
+@keyframes wh-missile-fade{0%,80%{opacity:1}100%{opacity:0}}
+@keyframes wh-slash1{0%{stroke-dashoffset:9999;opacity:1}20%{stroke-dashoffset:0;opacity:1}48%,100%{opacity:0}}
+@keyframes wh-slash2{0%,8%{opacity:0;stroke-dashoffset:9999}20%{opacity:1;stroke-dashoffset:0}48%,100%{opacity:0}}
+@keyframes wh-slash-ring{0%,18%{opacity:0}20%{opacity:.9}100%{opacity:0;r:99}}
+`;
+
+// Inject combat CSS once
+if (typeof document !== 'undefined') {
+  const styleId = 'wh40k-combat-anim';
+  if (!document.getElementById(styleId)) {
+    const s = document.createElement('style');
+    s.id = styleId;
+    s.textContent = COMBAT_CSS;
+    document.head.appendChild(s);
+  }
+}
+
+// Helper: travel wrapper with CSS custom props for dx/dy
+function TravelGroup({ fx, fy, tx, ty, dur, children }: {
+  fx: number; fy: number; tx: number; ty: number; dur: string; children: React.ReactNode;
+}) {
+  return (
+    <g
+      transform={`translate(${fx},${fy})`}
+      style={{
+        '--wh-dx': `${tx - fx}px`,
+        '--wh-dy': `${ty - fy}px`,
+        animation: `wh-proj-travel ${dur} forwards`,
+      } as React.CSSProperties}
+    >
+      {children}
+    </g>
+  );
+}
+
 function shootEffect(
   fx: number, fy: number, tx: number, ty: number,
   style: ProjectileStyle, ak: number,
@@ -94,22 +162,13 @@ function shootEffect(
     return (
       <g key={ak} style={ps}>
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#f97316" strokeWidth={1.5}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.5;0.3;0"
-            keyTimes="0;0.1;0.65;1" dur="0.52s" fill="freeze" />
-        </line>
+          strokeLinecap="round" style={{ animation: 'wh-beam-orange 0.52s forwards', strokeOpacity: 0 }} />
         {[0.30, 0.38, 0.46].map((d, i) => (
-          <circle key={i} cx={fx} cy={fy} r={4} fill="#fb923c">
-            <animate attributeName="cx" from={fx} to={tx} dur={`${d}s`} fill="freeze" />
-            <animate attributeName="cy" from={fy} to={ty} dur={`${d}s`} fill="freeze" />
-            <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.72;1"
-              dur={`${d + 0.07}s`} fill="freeze" />
-          </circle>
+          <TravelGroup key={i} fx={fx} fy={fy} tx={tx} ty={ty} dur={`${d}s`}>
+            <circle r={4} fill="#fb923c" style={{ animation: `wh-proj-fade ${d + 0.07}s forwards` }} />
+          </TravelGroup>
         ))}
-        <circle cx={tx} cy={ty} r={1} fill="#fb923c" fillOpacity={0}>
-          <animate attributeName="r" values="1;1;14;22" keyTimes="0;0.86;0.94;1" dur="0.52s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.9;0" keyTimes="0;0.86;0.94;1" dur="0.52s" fill="freeze" />
-        </circle>
+        <circle cx={tx} cy={ty} r={1} fill="#fb923c" style={{ animation: 'wh-impact-bolt 0.52s forwards' }} />
       </g>
     );
   }
@@ -118,28 +177,13 @@ function shootEffect(
     return (
       <g key={ak} style={ps}>
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#22d3ee" strokeWidth={2}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.4;0.25;0"
-            keyTimes="0;0.1;0.8;1" dur="0.5s" fill="freeze" />
-        </line>
-        {/* outer glow */}
-        <circle cx={fx} cy={fy} r={10} fill="#0ea5e9" fillOpacity={0.3}
-          style={{ filter: 'drop-shadow(0 0 14px #22d3ee)' }}>
-          <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
-          <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0.3;0.3;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
-        </circle>
-        {/* core orb */}
-        <circle cx={fx} cy={fy} r={5} fill="#bae6fd">
-          <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
-          <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
-          <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
-        </circle>
-        <circle cx={tx} cy={ty} r={1} fill="#bae6fd" fillOpacity={0}
-          style={{ filter: 'drop-shadow(0 0 18px #22d3ee)' }}>
-          <animate attributeName="r" values="1;1;24;42" keyTimes="0;0.76;0.89;1" dur="0.5s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.85;0" keyTimes="0;0.76;0.89;1" dur="0.5s" fill="freeze" />
-        </circle>
+          strokeLinecap="round" style={{ animation: 'wh-beam-cyan 0.5s forwards', strokeOpacity: 0 }} />
+        <TravelGroup fx={fx} fy={fy} tx={tx} ty={ty} dur="0.4s">
+          <circle r={10} fill="#0ea5e9" style={{ filter: 'drop-shadow(0 0 14px #22d3ee)', animation: 'wh-proj-fill-plasma 0.5s forwards', fillOpacity: 0.3 }} />
+          <circle r={5} fill="#bae6fd" style={{ animation: 'wh-proj-fade-plasma 0.5s forwards' }} />
+        </TravelGroup>
+        <circle cx={tx} cy={ty} r={1} fill="#bae6fd"
+          style={{ filter: 'drop-shadow(0 0 18px #22d3ee)', animation: 'wh-impact-plasma 0.5s forwards' }} />
       </g>
     );
   }
@@ -147,23 +191,12 @@ function shootEffect(
   if (style === 'las') {
     return (
       <g key={ak} style={ps}>
-        {/* glow halo */}
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#ef4444" strokeWidth={5}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.28;0.14;0"
-            keyTimes="0;0.04;0.5;1" dur="0.30s" fill="freeze" />
-        </line>
-        {/* core beam */}
+          strokeLinecap="round" style={{ animation: 'wh-beam-red 0.30s forwards', strokeOpacity: 0 }} />
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#fca5a5" strokeWidth={1.5}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.95;0.8;0"
-            keyTimes="0;0.04;0.5;1" dur="0.30s" fill="freeze" />
-        </line>
-        <circle cx={tx} cy={ty} r={1} fill="#fca5a5" fillOpacity={0}
-          style={{ filter: 'drop-shadow(0 0 10px #ef4444)' }}>
-          <animate attributeName="r" values="1;1;14;22" keyTimes="0;0.7;0.85;1" dur="0.30s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.95;0" keyTimes="0;0.7;0.85;1" dur="0.30s" fill="freeze" />
-        </circle>
+          strokeLinecap="round" style={{ animation: 'wh-beam-red-core 0.30s forwards', strokeOpacity: 0 }} />
+        <circle cx={tx} cy={ty} r={1} fill="#fca5a5"
+          style={{ filter: 'drop-shadow(0 0 10px #ef4444)', animation: 'wh-impact-las 0.30s forwards' }} />
       </g>
     );
   }
@@ -171,36 +204,22 @@ function shootEffect(
   if (style === 'melta') {
     return (
       <g key={ak} style={ps}>
-        {/* broad orange heat blast */}
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#f97316" strokeWidth={11}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.65;0.45;0"
-            keyTimes="0;0.1;0.55;1" dur="0.42s" fill="freeze" />
-        </line>
-        {/* white-hot core filaments */}
+          strokeLinecap="round" style={{ animation: 'wh-beam-heat 0.42s forwards', strokeOpacity: 0 }} />
         <line x1={fx} y1={fy - 4} x2={tx} y2={ty - 4} stroke="white" strokeWidth={2.5}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.55;0.28;0"
-            keyTimes="0;0.1;0.55;1" dur="0.42s" fill="freeze" />
-        </line>
+          strokeLinecap="round" style={{ animation: 'wh-beam-heat2 0.42s forwards', strokeOpacity: 0 }} />
         <line x1={fx} y1={fy + 4} x2={tx} y2={ty + 4} stroke="white" strokeWidth={2.5}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.5;0.22;0"
-            keyTimes="0;0.15;0.55;1" dur="0.42s" fill="freeze" />
-        </line>
-        <circle cx={tx} cy={ty} r={1} fill="white" fillOpacity={0}
-          style={{ filter: 'drop-shadow(0 0 22px #f97316)' }}>
-          <animate attributeName="r" values="1;1;34;54" keyTimes="0;0.5;0.68;1" dur="0.42s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.95;0" keyTimes="0;0.5;0.68;1" dur="0.42s" fill="freeze" />
-        </circle>
+          strokeLinecap="round" style={{ animation: 'wh-beam-heat3 0.42s forwards', strokeOpacity: 0 }} />
+        <circle cx={tx} cy={ty} r={1} fill="white"
+          style={{ filter: 'drop-shadow(0 0 22px #f97316)', animation: 'wh-impact-melta 0.42s forwards' }} />
       </g>
     );
   }
 
   if (style === 'flamer') {
-    const dx = tx - fx, dy = ty - fy;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    const px = -dy / len, py = dx / len;  // perpendicular unit vector
+    const ddx = tx - fx, ddy = ty - fy;
+    const len = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+    const px = -ddy / len, py = ddx / len;
     const spread = 30;
     const rays = [-2, -1, 0, 1, 2].map((o) => ({
       ex: tx + px * o * spread,
@@ -212,18 +231,10 @@ function shootEffect(
       <g key={ak} style={ps}>
         {rays.map((ray, i) => (
           <line key={i} x1={fx} y1={fy} x2={ray.ex} y2={ray.ey}
-            stroke={colors[i]} strokeWidth={widths[i]}
-            strokeLinecap="round" strokeOpacity={0}>
-            <animate attributeName="stroke-opacity" values="0;0.85;0.55;0"
-              keyTimes="0;0.12;0.55;1"
-              dur={`${0.45 + Math.abs(i - 2) * 0.04}s`}
-              fill="freeze" />
-          </line>
+            stroke={colors[i]} strokeWidth={widths[i]} strokeLinecap="round"
+            style={{ animation: `wh-beam-flamer ${0.45 + Math.abs(i - 2) * 0.04}s forwards`, strokeOpacity: 0 }} />
         ))}
-        <circle cx={tx} cy={ty} r={1} fill="#fbbf24" fillOpacity={0}>
-          <animate attributeName="r" values="1;1;24;40" keyTimes="0;0.68;0.84;1" dur="0.5s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.7;0" keyTimes="0;0.68;0.84;1" dur="0.5s" fill="freeze" />
-        </circle>
+        <circle cx={tx} cy={ty} r={1} fill="#fbbf24" style={{ animation: 'wh-impact-flamer 0.5s forwards' }} />
       </g>
     );
   }
@@ -234,22 +245,13 @@ function shootEffect(
     const arcPath = `M ${fx},${fy} Q ${midX},${midY} ${tx},${ty}`;
     return (
       <g key={ak} style={ps}>
-        <circle r={5} fill="#9ca3af" style={{ filter: 'drop-shadow(0 0 4px #6b7280)' }}>
+        <circle r={5} fill="#9ca3af" style={{ filter: 'drop-shadow(0 0 4px #6b7280)', animation: 'wh-missile-fade 0.5s forwards' }}>
           {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-          {/* @ts-ignore — animateMotion path/rotate are valid SVG but not in all @types/react versions */}
+          {/* @ts-ignore — animateMotion is valid SVG */}
           <animateMotion path={arcPath} dur="0.45s" fill="freeze" rotate="auto" />
-          <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
         </circle>
-        {/* explosion ring */}
-        <circle cx={tx} cy={ty} r={1} fill="#d1d5db" fillOpacity={0}>
-          <animate attributeName="r" values="1;1;22;38" keyTimes="0;0.8;0.9;1" dur="0.5s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.8;0" keyTimes="0;0.8;0.9;1" dur="0.5s" fill="freeze" />
-        </circle>
-        {/* fireball core */}
-        <circle cx={tx} cy={ty} r={1} fill="#f97316" fillOpacity={0}>
-          <animate attributeName="r" values="1;1;14;8" keyTimes="0;0.8;0.88;1" dur="0.5s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.9;0.3" keyTimes="0;0.8;0.88;1" dur="0.5s" fill="freeze" />
-        </circle>
+        <circle cx={tx} cy={ty} r={1} fill="#d1d5db" style={{ animation: 'wh-impact-missile-ring 0.5s forwards' }} />
+        <circle cx={tx} cy={ty} r={1} fill="#f97316" style={{ animation: 'wh-impact-missile-fire 0.5s forwards' }} />
       </g>
     );
   }
@@ -258,22 +260,13 @@ function shootEffect(
     return (
       <g key={ak} style={ps}>
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#6b7280" strokeWidth={1}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.4;0.25;0"
-            keyTimes="0;0.1;0.6;1" dur="0.5s" fill="freeze" />
-        </line>
+          strokeLinecap="round" style={{ animation: 'wh-beam-gray 0.5s forwards', strokeOpacity: 0 }} />
         {[0.24, 0.30, 0.36, 0.42].map((d, i) => (
-          <circle key={i} cx={fx} cy={fy} r={3} fill="#9ca3af">
-            <animate attributeName="cx" from={fx} to={tx} dur={`${d}s`} fill="freeze" />
-            <animate attributeName="cy" from={fy} to={ty} dur={`${d}s`} fill="freeze" />
-            <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.72;1"
-              dur={`${d + 0.07}s`} fill="freeze" />
-          </circle>
+          <TravelGroup key={i} fx={fx} fy={fy} tx={tx} ty={ty} dur={`${d}s`}>
+            <circle r={3} fill="#9ca3af" style={{ animation: `wh-proj-fade ${d + 0.07}s forwards` }} />
+          </TravelGroup>
         ))}
-        <circle cx={tx} cy={ty} r={1} fill="#9ca3af" fillOpacity={0}>
-          <animate attributeName="r" values="1;1;12;20" keyTimes="0;0.88;0.95;1" dur="0.5s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.8;0" keyTimes="0;0.88;0.95;1" dur="0.5s" fill="freeze" />
-        </circle>
+        <circle cx={tx} cy={ty} r={1} fill="#9ca3af" style={{ animation: 'wh-impact-cannon 0.5s forwards' }} />
       </g>
     );
   }
@@ -282,14 +275,8 @@ function shootEffect(
     return (
       <g key={ak} style={ps}>
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#e2e8f0" strokeWidth={0.8}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.22;0.1;0"
-            keyTimes="0;0.05;0.5;1" dur="0.40s" fill="freeze" />
-        </line>
-        <circle cx={tx} cy={ty} r={1} fill="white" fillOpacity={0}>
-          <animate attributeName="r" values="1;1;7;11" keyTimes="0;0.72;0.86;1" dur="0.40s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.95;0" keyTimes="0;0.72;0.86;1" dur="0.40s" fill="freeze" />
-        </circle>
+          strokeLinecap="round" style={{ animation: 'wh-beam-white 0.40s forwards', strokeOpacity: 0 }} />
+        <circle cx={tx} cy={ty} r={1} fill="white" style={{ animation: 'wh-impact-sniper 0.40s forwards' }} />
       </g>
     );
   }
@@ -298,27 +285,12 @@ function shootEffect(
     return (
       <g key={ak} style={ps}>
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#4ade80" strokeWidth={3}
-          strokeLinecap="round" strokeOpacity={0}>
-          <animate attributeName="stroke-opacity" values="0;0.5;0.3;0"
-            keyTimes="0;0.1;0.62;1" dur="0.5s" fill="freeze" />
-        </line>
-        {/* outer glow blob */}
-        <circle cx={fx} cy={fy} r={8} fill="#16a34a" fillOpacity={0.4}>
-          <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
-          <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0.4;0.4;0" keyTimes="0;0.78;1" dur="0.5s" fill="freeze" />
-        </circle>
-        {/* pulsing core */}
-        <circle cx={fx} cy={fy} r={5} fill="#86efac">
-          <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
-          <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
-          <animate attributeName="r" values="5;6;5;7;5" dur="0.4s" fill="freeze" />
-          <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.78;1" dur="0.5s" fill="freeze" />
-        </circle>
-        <circle cx={tx} cy={ty} r={1} fill="#86efac" fillOpacity={0}>
-          <animate attributeName="r" values="1;1;18;30" keyTimes="0;0.76;0.88;1" dur="0.5s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.8;0" keyTimes="0;0.76;0.88;1" dur="0.5s" fill="freeze" />
-        </circle>
+          strokeLinecap="round" style={{ animation: 'wh-beam-bio 0.5s forwards', strokeOpacity: 0 }} />
+        <TravelGroup fx={fx} fy={fy} tx={tx} ty={ty} dur="0.4s">
+          <circle r={8} fill="#16a34a" style={{ animation: 'wh-proj-fill-plasma 0.5s forwards', fillOpacity: 0.4 }} />
+          <circle r={5} fill="#86efac" style={{ animation: 'wh-proj-fade 0.5s forwards' }} />
+        </TravelGroup>
+        <circle cx={tx} cy={ty} r={1} fill="#86efac" style={{ animation: 'wh-impact-bio 0.5s forwards' }} />
       </g>
     );
   }
@@ -326,30 +298,14 @@ function shootEffect(
   if (style === 'gauss') {
     return (
       <g key={ak} style={ps}>
-        {/* main beam */}
         <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#4ade80" strokeWidth={3}
-          strokeLinecap="round" strokeOpacity={0}
-          style={{ filter: 'drop-shadow(0 0 6px #4ade80)' }}>
-          <animate attributeName="stroke-opacity" values="0;0.9;0.7;0"
-            keyTimes="0;0.05;0.62;1" dur="0.40s" fill="freeze" />
-        </line>
-        {/* crackle filament 1 */}
+          strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 6px #4ade80)', animation: 'wh-beam-gauss 0.40s forwards', strokeOpacity: 0 }} />
         <line x1={fx} y1={fy + 4} x2={tx} y2={ty + 4} stroke="#86efac" strokeWidth={1}
-          strokeLinecap="round" strokeOpacity={0} strokeDasharray="8 5">
-          <animate attributeName="stroke-opacity" values="0;0.6;0.35;0"
-            keyTimes="0;0.05;0.62;1" dur="0.40s" fill="freeze" />
-        </line>
-        {/* crackle filament 2 */}
+          strokeLinecap="round" strokeDasharray="8 5" style={{ animation: 'wh-beam-gauss2 0.40s forwards', strokeOpacity: 0 }} />
         <line x1={fx} y1={fy - 4} x2={tx} y2={ty - 4} stroke="#86efac" strokeWidth={1}
-          strokeLinecap="round" strokeOpacity={0} strokeDasharray="5 8">
-          <animate attributeName="stroke-opacity" values="0;0.5;0.28;0"
-            keyTimes="0;0.08;0.62;1" dur="0.40s" fill="freeze" />
-        </line>
-        <circle cx={tx} cy={ty} r={1} fill="#4ade80" fillOpacity={0}
-          style={{ filter: 'drop-shadow(0 0 12px #4ade80)' }}>
-          <animate attributeName="r" values="1;1;18;28" keyTimes="0;0.72;0.86;1" dur="0.40s" fill="freeze" />
-          <animate attributeName="fill-opacity" values="0;0;0.85;0" keyTimes="0;0.72;0.86;1" dur="0.40s" fill="freeze" />
-        </circle>
+          strokeLinecap="round" strokeDasharray="5 8" style={{ animation: 'wh-beam-gauss3 0.40s forwards', strokeOpacity: 0 }} />
+        <circle cx={tx} cy={ty} r={1} fill="#4ade80"
+          style={{ filter: 'drop-shadow(0 0 12px #4ade80)', animation: 'wh-impact-gauss 0.40s forwards' }} />
       </g>
     );
   }
@@ -358,21 +314,12 @@ function shootEffect(
   return (
     <g key={ak} style={ps}>
       <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#f59e0b" strokeWidth={2}
-        strokeLinecap="round" strokeOpacity={0}>
-        <animate attributeName="stroke-opacity" values="0;0.7;0.5;0"
-          keyTimes="0;0.1;0.8;1" dur="0.5s" fill="freeze" />
-      </line>
-      <circle cx={fx} cy={fy} r={6} fill="#fbbf24"
-        style={{ filter: 'drop-shadow(0 0 8px #f59e0b)' }}>
-        <animate attributeName="cx" from={fx} to={tx} dur="0.4s" fill="freeze" />
-        <animate attributeName="cy" from={fy} to={ty} dur="0.4s" fill="freeze" />
-        <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="0.5s" fill="freeze" />
-      </circle>
-      <circle cx={tx} cy={ty} r={1} fill="#fbbf24" fillOpacity={0}
-        style={{ filter: 'drop-shadow(0 0 12px #f59e0b)' }}>
-        <animate attributeName="r" values="1;1;22;36" keyTimes="0;0.74;0.87;1" dur="0.5s" fill="freeze" />
-        <animate attributeName="fill-opacity" values="0;0;0.85;0" keyTimes="0;0.74;0.87;1" dur="0.5s" fill="freeze" />
-      </circle>
+        strokeLinecap="round" style={{ animation: 'wh-beam-amber 0.5s forwards', strokeOpacity: 0 }} />
+      <TravelGroup fx={fx} fy={fy} tx={tx} ty={ty} dur="0.4s">
+        <circle r={6} fill="#fbbf24" style={{ filter: 'drop-shadow(0 0 8px #f59e0b)', animation: 'wh-proj-fade-plasma 0.5s forwards' }} />
+      </TravelGroup>
+      <circle cx={tx} cy={ty} r={1} fill="#fbbf24"
+        style={{ filter: 'drop-shadow(0 0 12px #f59e0b)', animation: 'wh-impact-amber 0.5s forwards' }} />
     </g>
   );
 }
@@ -1315,26 +1262,17 @@ export default function Warhammer40kBoard({
                   const slashLen = Math.round(2 * size * Math.SQRT2);
                   return (
                     <g key={animKey} style={{ pointerEvents: 'none' }}>
-                      {/* Slash 1: top-left to bottom-right */}
                       <line x1={midX - size} y1={midY - size} x2={midX + size} y2={midY + size}
                         stroke="rgba(255,255,255,0.9)" strokeWidth={6} strokeLinecap="round"
-                        strokeDasharray={slashLen} strokeDashoffset={slashLen}>
-                        <animate attributeName="stroke-dashoffset" from={slashLen} to={0} dur="0.2s" fill="freeze" />
-                        <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.48;1" dur="0.6s" fill="freeze" />
-                      </line>
-                      {/* Slash 2: top-right to bottom-left */}
+                        strokeDasharray={slashLen}
+                        style={{ animation: 'wh-slash1 0.6s forwards', strokeDashoffset: slashLen }} />
                       <line x1={midX + size} y1={midY - size} x2={midX - size} y2={midY + size}
                         stroke="rgba(255,255,255,0.9)" strokeWidth={6} strokeLinecap="round"
-                        strokeDasharray={slashLen} strokeDashoffset={slashLen}>
-                        <animate attributeName="stroke-dashoffset" from={slashLen} to={0} begin="0.08s" dur="0.2s" fill="freeze" />
-                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.48;1" dur="0.6s" fill="freeze" />
-                      </line>
-                      {/* Expanding impact ring */}
+                        strokeDasharray={slashLen}
+                        style={{ animation: 'wh-slash2 0.6s forwards', strokeDashoffset: slashLen, opacity: 0 }} />
                       <circle cx={midX} cy={midY} r={size * 0.55} fill="none"
-                        stroke="rgba(255,255,255,0.35)" strokeWidth={3} opacity={0}>
-                        <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.18;1" dur="0.6s" fill="freeze" />
-                        <animate attributeName="r" from={size * 0.55} to={size * 1.5} dur="0.6s" fill="freeze" />
-                      </circle>
+                        stroke="rgba(255,255,255,0.35)" strokeWidth={3}
+                        style={{ animation: 'wh-slash-ring 0.6s forwards', opacity: 0 }} />
                     </g>
                   );
                 }

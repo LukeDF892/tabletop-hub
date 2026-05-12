@@ -567,6 +567,57 @@ function markerPos(unit: UnitMarker): { x: number; y: number } {
   return { x: unit.x + 0.5, y: unit.y + 0.5 };
 }
 
+// Minimum edge-to-edge distance across all model position pairs between two units.
+function minUnitEdgeDist(a: UnitMarker, b: UnitMarker): number {
+  const aPos = a.modelPositions && a.modelPositions.length > 0
+    ? a.modelPositions : [{ x: a.x + 0.5, y: a.y + 0.5 }];
+  const bPos = b.modelPositions && b.modelPositions.length > 0
+    ? b.modelPositions : [{ x: b.x + 0.5, y: b.y + 0.5 }];
+  const rA = BASE_RADIUS_INCHES[a.baseSize ?? "infantry"];
+  const rB = BASE_RADIUS_INCHES[b.baseSize ?? "infantry"];
+  let min = Infinity;
+  for (const ap of aPos) {
+    for (const bp of bPos) {
+      const d = Math.sqrt((ap.x - bp.x) ** 2 + (ap.y - bp.y) ** 2) - rA - rB;
+      if (d < min) min = d;
+    }
+  }
+  return min;
+}
+
+// Push overlapping unit tokens apart with 3-pass spring relaxation.
+// Called after deployment, movement, and charge to prevent visual overlap.
+const SEP_PAD = 0.25; // extra gap in inches beyond the two base radii
+
+function separateOverlapping(ms: UnitMarker[]): UnitMarker[] {
+  let cur = ms.map((m) => ({ ...m }));
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < cur.length; i++) {
+      const a = cur[i];
+      if (a.isDestroyed || a.isInReserve || a.isEmbarked) continue;
+      for (let j = i + 1; j < cur.length; j++) {
+        const b = cur[j];
+        if (b.isDestroyed || b.isInReserve || b.isEmbarked) continue;
+        const rA = BASE_RADIUS_INCHES[a.baseSize ?? "infantry"];
+        const rB = BASE_RADIUS_INCHES[b.baseSize ?? "infantry"];
+        const minD = rA + rB + SEP_PAD;
+        const ax = a.x + 0.5, ay = a.y + 0.5;
+        const bx = b.x + 0.5, by = b.y + 0.5;
+        const dx = bx - ax, dy = by - ay;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minD && dist > 0.001) {
+          const overlap = minD - dist;
+          const nx = dx / dist, ny = dy / dist;
+          const half = overlap / 2;
+          cur[i] = { ...a, x: Math.max(0, Math.min(59, ax - nx * half)) - 0.5, y: Math.max(0, Math.min(43, ay - ny * half)) - 0.5 };
+          cur[j] = { ...b, x: Math.max(0, Math.min(59, bx + nx * half)) - 0.5, y: Math.max(0, Math.min(43, by + ny * half)) - 0.5 };
+        }
+      }
+    }
+  }
+  return cur;
+}
+
 // ─── Transport helpers ─────────────────────────────────────────────────────────
 
 function isTransportUnit(m: UnitMarker): boolean {
@@ -1325,9 +1376,22 @@ export default function WarhammerGameRoom() {
   const [fightBackMode, setFightBackMode] = useState(false);
   const [fightPhaseStep, setFightPhaseStep] = useState<'active' | 'fightback'>('active');
 
+  // ── AI save prompt (P1 must click "Roll Saves" to continue AI attack) ──
+  const [aiSavePrompt, setAiSavePrompt] = useState<string | null>(null);
+  const aiSaveResolveRef = useRef<(() => void) | null>(null);
+
   // ── Combat animations ──
   const [activeAnimation, setActiveAnimation] = useState<AnimationEvent | null>(null);
   const pendingAnimationRef = useRef<(() => void) | null>(null);
+  const [showAnimDebug, setShowAnimDebug] = useState(false);
+  const animDebugTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function triggerAnimation(event: AnimationEvent) {
+    if (animDebugTimerRef.current) clearTimeout(animDebugTimerRef.current);
+    setShowAnimDebug(true);
+    animDebugTimerRef.current = setTimeout(() => setShowAnimDebug(false), 1000);
+    setActiveAnimation(event);
+  }
 
   function handleAnimationComplete() {
     setActiveAnimation(null);
@@ -1701,7 +1765,8 @@ export default function WarhammerGameRoom() {
         } else if (isVsAI) {
           // Build the AI's default army from the chosen faction
           const aiFaction = (savedState?.aiArmyFaction as string | undefined) ?? "Space Marines";
-          const spec = buildDefaultAIArmySpec(aiFaction);
+          const aiPointsLimit = typeof game.points_limit === "number" ? game.points_limit : 2000;
+          const spec = buildDefaultAIArmySpec(aiFaction, aiPointsLimit);
           const aiRow: ArmyRow = {
             id: "ai-army",
             name: `AI — ${aiFaction}`,
@@ -1910,6 +1975,7 @@ export default function WarhammerGameRoom() {
       }
       return m;
     });
+    updatedMarkers = separateOverlapping(updatedMarkers);
     setMarkers(updatedMarkers);
 
     const deployed = marker.attachedCharacterName
@@ -2077,13 +2143,13 @@ export default function WarhammerGameRoom() {
         continue;
       }
 
-      // Check if within engagement range (1") of an enemy
+      // Check if within engagement range (1" edge-to-edge) of an enemy
       const engaged = currentMarkers.some(
         (em) =>
           em.player !== player &&
           !em.isDestroyed &&
           !em.isInReserve &&
-          Math.sqrt((em.x - m.x) ** 2 + (em.y - m.y) ** 2) <= 1
+          minUnitEdgeDist(m, em) <= 1
       );
       if (engaged) {
         updatedMarkers = updatedMarkers.map((mk) =>
@@ -2248,6 +2314,7 @@ export default function WarhammerGameRoom() {
 
     if (activePlayer === firstPlayerThisRound) {
       const secondPlayer: "P1" | "P2" = firstPlayerThisRound === "P1" ? "P2" : "P1";
+      console.log('[TURN] firstPlayer done →', secondPlayer, 'goes next (round', stateRef.current.round, ')');
       setActivePlayer(secondPlayer);
       setGamePhase("command");
       setDestroyedThisTurn([]);
@@ -2284,6 +2351,7 @@ export default function WarhammerGameRoom() {
       setMarkers((prev) =>
         prev.map((m) => m.player === activePlayer ? { ...m, feelNoPain: undefined } : m)
       );
+      console.log('[TURN] secondPlayer done → end of round', stateRef.current.round, 'scoring');
       addLog(`${activePlayer}'s turn complete. End of Round ${round} — click "End Round" to continue.`, "system");
     }
   }
@@ -2328,7 +2396,7 @@ export default function WarhammerGameRoom() {
         }
         const engaged = markers.some(
           (em) => em.player !== activePlayer && !em.isDestroyed && !em.isInReserve
-            && Math.sqrt((em.x - m.x) ** 2 + (em.y - m.y) ** 2) <= 1
+            && minUnitEdgeDist(m, em) <= 1
         );
         return !engaged;
       });
@@ -2427,9 +2495,9 @@ export default function WarhammerGameRoom() {
       return;
     }
     const nextRound = round + 1;
-    // Tie first player to round number: P1 in odd rounds, P2 in even rounds
-    const newFirstPlayer: "P1" | "P2" = nextRound % 2 === 1 ? "P1" : "P2";
-    console.log('[ROUND BOUNDARY] round=', nextRound, 'firstPlayer=', newFirstPlayer);
+    // Alternate first player each round from whoever went first this round
+    const newFirstPlayer: "P1" | "P2" = firstPlayerThisRound === "P1" ? "P2" : "P1";
+    console.log('[NEW ROUND]', { nextRound, prevFirst: firstPlayerThisRound, newFirst: newFirstPlayer });
     setFirstPlayerThisRound(newFirstPlayer);
     setRound(nextRound);
     setActivePlayer(newFirstPlayer);
@@ -2761,22 +2829,21 @@ export default function WarhammerGameRoom() {
       const dx = x - oldX;
       const dy = y - oldY;
       const newInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
-      setMarkers((prev) =>
-        prev.map((m) => {
-          if (m.id === moveUnit) {
-            const newModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
-            return { ...m, x, y, hasAdvanced: moveAdvance, inCover: newInCover, modelPositions: newModelPositions };
-          }
-          if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
-            const nx = Math.max(0, Math.min(59, m.x + dx));
-            const ny = Math.max(0, Math.min(43, m.y + dy));
-            const charInCover = mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h);
-            const newCharModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
-            return { ...m, x: nx, y: ny, hasAdvanced: moveAdvance, inCover: charInCover, modelPositions: newCharModelPositions };
-          }
-          return m;
-        })
-      );
+      const afterMove = separateOverlapping(markers.map((m) => {
+        if (m.id === moveUnit) {
+          const newModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
+          return { ...m, x, y, hasAdvanced: moveAdvance, inCover: newInCover, modelPositions: newModelPositions };
+        }
+        if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
+          const nx = Math.max(0, Math.min(59, m.x + dx));
+          const ny = Math.max(0, Math.min(43, m.y + dy));
+          const charInCover = mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h);
+          const newCharModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
+          return { ...m, x: nx, y: ny, hasAdvanced: moveAdvance, inCover: charInCover, modelPositions: newCharModelPositions };
+        }
+        return m;
+      }));
+      setMarkers(afterMove);
       if (moveAdvance) {
         setAdvancedThisTurn((prev) => [...prev, moveUnit]);
       }
@@ -2810,21 +2877,20 @@ export default function WarhammerGameRoom() {
       const dx = x - attacker.x;
       const dy = y - attacker.y;
       const chargeInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
-      setMarkers((prev) =>
-        prev.map((m) => {
-          if (m.id === chargeMove.unitId) {
-            const newModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
-            return { ...m, x, y, hasCharged: true, inCover: chargeInCover, modelPositions: newModelPositions };
-          }
-          if (charId && m.id === charId) {
-            const nx = Math.max(0, Math.min(59, m.x + dx));
-            const ny = Math.max(0, Math.min(43, m.y + dy));
-            const newCharModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
-            return { ...m, x: nx, y: ny, inCover: mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h), modelPositions: newCharModelPositions };
-          }
-          return m;
-        })
-      );
+      const afterCharge = separateOverlapping(markers.map((m) => {
+        if (m.id === chargeMove.unitId) {
+          const newModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
+          return { ...m, x, y, hasCharged: true, inCover: chargeInCover, modelPositions: newModelPositions };
+        }
+        if (charId && m.id === charId) {
+          const nx = Math.max(0, Math.min(59, m.x + dx));
+          const ny = Math.max(0, Math.min(43, m.y + dy));
+          const newCharModelPositions = m.modelPositions?.map((pos) => ({ x: pos.x + dx, y: pos.y + dy }));
+          return { ...m, x: nx, y: ny, inCover: mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h), modelPositions: newCharModelPositions };
+        }
+        return m;
+      }));
+      setMarkers(afterCharge);
       addLog(`Charge succeeds! ${attacker.unitName} moves to (${x}, ${y}) — adjacent to ${target.unitName}.`, attacker.player);
       setChargedThisTurn((prev) => [...prev, chargeMove.unitId]);
       setChargeMove(null);
@@ -2904,12 +2970,10 @@ export default function WarhammerGameRoom() {
             if (weapon?.range) {
               const rangeIn = parseStat(weapon.range);
               if (rangeIn > 0) {
-                const aPos = markerPos(attacker);
-                const tPos = markerPos(m);
-                const dist = Math.sqrt((aPos.x - tPos.x) ** 2 + (aPos.y - tPos.y) ** 2);
+                const dist = minUnitEdgeDist(attacker, m);
                 if (dist > rangeIn) {
                   addLog(
-                    `Target out of range (${dist.toFixed(1)}" away, weapon range ${rangeIn}").`,
+                    `Target out of range (${dist.toFixed(1)}" edge-to-edge, weapon range ${rangeIn}").`,
                     "system"
                   );
                   return;
@@ -2947,7 +3011,7 @@ export default function WarhammerGameRoom() {
           pendingAnimationRef.current = () => {
             setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
           };
-          setActiveAnimation({ type: 'shoot', fromId: combat.attackerId!, toId: markerId, weaponName });
+          triggerAnimation({ type: 'shoot', fromId: combat.attackerId!, toId: markerId, weaponName });
           setSelectedMarkerId(markerId);
           return;
         }
@@ -2992,29 +3056,15 @@ export default function WarhammerGameRoom() {
         if (combat.step === "selectTarget") {
           const attacker = markers.find((mk) => mk.id === combat.attackerId);
           if (!attacker || m.player === attacker.player) return;
-          // Check edge-to-edge engagement range: any attacker model within 1" edge-to-edge of any target model
-          const aPositions = attacker.modelPositions && attacker.modelPositions.length > 0
-            ? attacker.modelPositions
-            : [markerPos(attacker)];
-          const tPositions = m.modelPositions && m.modelPositions.length > 0
-            ? m.modelPositions
-            : [markerPos(m)];
-          const aRadius = BASE_RADIUS_INCHES[attacker.baseSize ?? 'infantry'];
-          const tRadius = BASE_RADIUS_INCHES[m.baseSize ?? 'infantry'];
-          const inEngagement = aPositions.some((ap) =>
-            tPositions.some((tp) => {
-              const dist = Math.sqrt((ap.x - tp.x) ** 2 + (ap.y - tp.y) ** 2);
-              return dist - aRadius - tRadius <= 1;
-            })
-          );
-          if (!inEngagement) {
+          // Check edge-to-edge engagement range: must be within 1" edge-to-edge
+          if (minUnitEdgeDist(attacker, m) > 1) {
             addLog(`${m.unitName} not in engagement range (within 1" edge-to-edge).`, "system");
             return;
           }
           pendingAnimationRef.current = () => {
             setCombat((prev) => ({ ...prev, targetId: markerId, step: "hitRolls" }));
           };
-          setActiveAnimation({ type: 'melee', fromId: combat.attackerId!, toId: markerId });
+          triggerAnimation({ type: 'melee', fromId: combat.attackerId!, toId: markerId });
           setSelectedMarkerId(markerId);
           return;
         }
@@ -3314,13 +3364,11 @@ export default function WarhammerGameRoom() {
     const target = markers.find((m) => m.id === targetId);
     if (!attacker || !target) return;
 
-    const aChargePos = markerPos(attacker);
-    const tChargePos = markerPos(target);
-    const dist = Math.sqrt((aChargePos.x - tChargePos.x) ** 2 + (aChargePos.y - tChargePos.y) ** 2);
+    const dist = minUnitEdgeDist(attacker, target);
 
     // 10th ed: charge declaration requires target within 12"
     if (dist > 12) {
-      addLog(`Cannot charge ${target.unitName} — target is ${dist.toFixed(1)}" away (charges require 12" or less).`, attacker.player);
+      addLog(`Cannot charge ${target.unitName} — target is ${dist.toFixed(1)}" edge-to-edge (charges require 12" or less).`, attacker.player);
       setCombat(INIT_COMBAT);
       setSelectedMarkerId(null);
       return;
@@ -3776,6 +3824,13 @@ export default function WarhammerGameRoom() {
             const result = resolveAIAttack(attacker, action.weaponIdx, target);
             const weaponName = attacker.weapons[action.weaponIdx]?.name ?? "weapon";
 
+            // Show hits, pause for P1 to roll saves
+            addLog(`AI: ${attacker.unitName} fires ${weaponName} at ${target.unitName} — ${result.hits} hit(s).`, "P2");
+            setAiSavePrompt(`Roll saves for ${target.unitName}`);
+            await new Promise<void>((resolve) => { aiSaveResolveRef.current = resolve; });
+            if (cancelled) { setAiSavePrompt(null); break; }
+            setAiSavePrompt(null);
+
             local = local.map((m) => {
               if (m.id === action.targetId) {
                 const destroyed = result.targetDestroyed;
@@ -3791,7 +3846,7 @@ export default function WarhammerGameRoom() {
             setMarkers([...local]);
             setShotThisTurn((prev) => [...prev, action.attackerId]);
             addLog(
-              `AI: ${attacker.unitName} shoots ${target.unitName} with ${weaponName} — ${result.hits} hits, ${result.unsavedWounds} unsaved, ${result.totalDamage} damage.${result.targetDestroyed ? ` ${target.unitName} destroyed!` : ""}`,
+              `AI: ${result.unsavedWounds} unsaved wound(s), ${result.totalDamage} damage.${result.targetDestroyed ? ` ${target.unitName} destroyed!` : ""}`,
               "P2"
             );
           }
@@ -3874,6 +3929,13 @@ export default function WarhammerGameRoom() {
             const result = resolveAIAttack(attacker, action.weaponIdx, target);
             const weaponName = attacker.weapons[action.weaponIdx]?.name ?? "melee";
 
+            // Show hits, pause for P1 to acknowledge saves
+            addLog(`AI: ${attacker.unitName} attacks ${target.unitName} with ${weaponName} — ${result.hits} hit(s).`, "P2");
+            setAiSavePrompt(`Roll saves for ${target.unitName}`);
+            await new Promise<void>((resolve) => { aiSaveResolveRef.current = resolve; });
+            if (cancelled) { setAiSavePrompt(null); break; }
+            setAiSavePrompt(null);
+
             local = local.map((m) => {
               if (m.id === action.targetId) {
                 const destroyed = result.targetDestroyed;
@@ -3889,7 +3951,7 @@ export default function WarhammerGameRoom() {
             setMarkers([...local]);
             setFoughtThisTurn((prev) => [...prev, action.attackerId]);
             addLog(
-              `AI: ${attacker.unitName} fights ${target.unitName} with ${weaponName} — ${result.hits} hits, ${result.unsavedWounds} unsaved, ${result.totalDamage} damage.${result.targetDestroyed ? ` ${target.unitName} destroyed!` : ""}`,
+              `AI: ${result.unsavedWounds} unsaved wound(s), ${result.totalDamage} damage.${result.targetDestroyed ? ` ${target.unitName} destroyed!` : ""}`,
               "P2"
             );
           }
@@ -3920,6 +3982,104 @@ export default function WarhammerGameRoom() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAIGame, activePlayer, gamePhase, roomPhase, fightPhaseStep]);
+
+  // ─── AI fight-back (when human P1 finishes fighting, P2/AI fights back) ──────
+  useEffect(() => {
+    if (!isAIGame || activePlayer !== "P1" || gamePhase !== "fight" || fightPhaseStep !== "fightback" || roomPhase !== "game") return;
+
+    let cancelled = false;
+    const pendingTimers: ReturnType<typeof setTimeout>[] = [];
+    function delay(ms: number): Promise<void> {
+      return new Promise((resolve) => {
+        const t = setTimeout(() => { if (!cancelled) resolve(); }, ms);
+        pendingTimers.push(t);
+      });
+    }
+
+    setAiThinking(true);
+
+    async function runAIFightback() {
+      try {
+        addLog("🤖 AI Fight-Back.", "system");
+        await delay(600);
+        let local = [...markers];
+        const fights = computeAIFights("P2", local, foughtThisTurn);
+
+        for (const action of fights) {
+          if (cancelled) break;
+          if (action.type !== "fight") continue;
+          await delay(1200);
+          if (cancelled) break;
+
+          const attacker = local.find((m) => m.id === action.attackerId);
+          const target = local.find((m) => m.id === action.targetId);
+          if (!attacker || !target || target.isDestroyed) continue;
+
+          const result = resolveAIAttack(attacker, action.weaponIdx, target);
+          const weaponName = attacker.weapons[action.weaponIdx]?.name ?? "melee";
+
+          addLog(`AI fight-back: ${attacker.unitName} strikes ${target.unitName} with ${weaponName} — ${result.hits} hit(s).`, "P2");
+          setAiSavePrompt(`Roll saves for ${target.unitName}`);
+          await new Promise<void>((resolve) => { aiSaveResolveRef.current = resolve; });
+          if (cancelled) { setAiSavePrompt(null); break; }
+          setAiSavePrompt(null);
+
+          local = local.map((m) => {
+            if (m.id === action.targetId) {
+              const destroyed = result.targetDestroyed;
+              if (destroyed) {
+                setDestroyedThisTurn((p) => [...p, m.id]);
+                setDestroyedThisPhase((p) => [...p, m.id]);
+              }
+              return { ...m, currentWounds: result.newTargetWounds, modelCount: result.newModelCount, isDestroyed: destroyed };
+            }
+            if (m.id === action.attackerId) return { ...m, hasFought: true };
+            return m;
+          });
+          setMarkers([...local]);
+          setFoughtThisTurn((prev) => [...prev, action.attackerId]);
+          addLog(
+            `AI fight-back: ${result.unsavedWounds} unsaved, ${result.totalDamage} dmg.${result.targetDestroyed ? ` ${target.unitName} destroyed!` : ""}`,
+            "P2"
+          );
+        }
+
+        if (!cancelled) {
+          setFoughtThisTurn([]);
+          setFoughtThisPhase(new Set());
+          setFightBackMode(false);
+          setFightPhaseStep("active");
+          setDestroyedThisPhase([]);
+          // Battle-shock + advance phase for P1 (active player)
+          const needsTest = local.filter(
+            (m) => m.player === "P1" && !m.isDestroyed && !m.isInReserve && !m.isAttached && m.currentWounds < m.maxWounds / 2
+          );
+          if (needsTest.length > 0) {
+            setBattleShockPhase(true);
+            setBattleShockQueue(needsTest.map((m) => m.id));
+            setBattleShockTested(new Set());
+            setBattleShockResults({});
+            setMarkers(local);
+          } else {
+            const afterShock = resolveBattleShock("P1", local);
+            setMarkers(afterShock);
+            finishAfterBattleShock(afterShock);
+          }
+        }
+      } finally {
+        if (!cancelled) setAiThinking(false);
+      }
+    }
+
+    runAIFightback();
+
+    return () => {
+      cancelled = true;
+      pendingTimers.forEach(clearTimeout);
+      setAiThinking(false);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAIGame, activePlayer, gamePhase, fightPhaseStep, roomPhase]);
 
   // ─── AI auto-deployment ───────────────────────────────────────────────────
   useEffect(() => {
@@ -4610,9 +4770,11 @@ export default function WarhammerGameRoom() {
               </p>
               <button
                 onClick={() => {
+                  const defender: "P1" | "P2" = activePlayer === "P1" ? "P2" : "P1";
                   setFightPhaseStep('fightback');
                   setFightBackMode(true);
-                  addLog(`${activePlayer} done fighting — fight-back phase begins.`, "system");
+                  if (gameMode === "solo") setSoloSide(defender);
+                  addLog(`${activePlayer} done fighting — ${defender} fight-back begins.`, "system");
                 }}
                 className="w-full py-1.5 rounded-lg text-xs font-semibold"
                 style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.3)" }}
@@ -4622,18 +4784,20 @@ export default function WarhammerGameRoom() {
             </div>
           )}
 
-          {combat.step === "idle" && fightPhaseStep === 'fightback' && (
+          {combat.step === "idle" && fightPhaseStep === 'fightback' && !isAIGame && (
             <div className="space-y-1">
               <p className="text-xs" style={{ color: "#3b82f6" }}>
                 {activePlayer === "P1" ? "P2" : "P1"}: click an engaged unit to fight back.
               </p>
-              <button
-                onClick={advancePhase}
-                className="w-full py-1.5 rounded-lg text-xs font-semibold"
-                style={{ backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.35)" }}
-              >
-                End Fight Phase →
-              </button>
+              {(gameMode !== "2player" || localRole === (activePlayer === "P1" ? "P2" : "P1")) && (
+                <button
+                  onClick={advancePhase}
+                  className="w-full py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ backgroundColor: "rgba(217,119,6,0.15)", color: "#d97706", border: "1px solid rgba(217,119,6,0.35)" }}
+                >
+                  End Fight Phase →
+                </button>
+              )}
             </div>
           )}
 
@@ -5014,10 +5178,25 @@ export default function WarhammerGameRoom() {
               </span>
             </div>
           )}
-          {isAIGame && activePlayer === "P1" && (
+          {isAIGame && activePlayer === "P1" && !aiSavePrompt && (
             <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#f87171", border: "1px solid rgba(220,38,38,0.3)" }}>
               vs AI
             </span>
+          )}
+          {aiSavePrompt && (
+            <button
+              onClick={() => {
+                if (aiSaveResolveRef.current) {
+                  aiSaveResolveRef.current();
+                  aiSaveResolveRef.current = null;
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold animate-pulse"
+              style={{ backgroundColor: "rgba(220,38,38,0.2)", color: "#f87171", border: "1px solid rgba(220,38,38,0.5)" }}
+            >
+              <Shield size={12} />
+              Roll Saves — {aiSavePrompt}
+            </button>
           )}
           {/* Multiplayer: role badge + syncing indicator */}
           {gameMode === "2player" && localRole !== "loading" && (
@@ -5854,6 +6033,11 @@ export default function WarhammerGameRoom() {
               />
             );
           })()}
+          {showAnimDebug && (
+            <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: 'red', color: 'white', fontWeight: 'bold', fontSize: 18, padding: '8px 20px', borderRadius: 8, pointerEvents: 'none' }}>
+              ANIMATING
+            </div>
+          )}
           <DiceRollerPopup
             request={diceRequest}
             onDismiss={dismissDice}

@@ -1,6 +1,11 @@
 import type { UnitMarker } from "./gameTypes";
 import type { MapPreset } from "./mapPresets";
 import type { WeaponProfile } from "./types";
+import { BASE_RADIUS_INCHES } from "./unitSilhouettes";
+import { SM_UNITS } from "./space-marines";
+import { DA_UNITS } from "./dark-angels";
+import { TYRANID_UNITS } from "./tyranids";
+import { NECRON_UNITS } from "./necrons";
 
 // ─── Default AI army composition ─────────────────────────────────────────────
 
@@ -15,42 +20,58 @@ export interface AIArmySpec {
   entries: AIArmyEntry[];
 }
 
-const DEFAULT_ARMIES: Record<string, AIArmyEntry[]> = {
-  "Space Marines": [
-    { unitId: "sm-captain",              modelCount: 1,  quantity: 1 }, // 80 pts
-    { unitId: "sm-intercessors",         modelCount: 5,  quantity: 2 }, // 90×2=180
-    { unitId: "sm-tactical-squad",       modelCount: 5,  quantity: 1 }, // 75
-    { unitId: "sm-terminators",          modelCount: 5,  quantity: 1 }, // 175
-    { unitId: "sm-redemptor-dreadnought",modelCount: 1,  quantity: 1 }, // 185
-    { unitId: "sm-predator-annihilator", modelCount: 1,  quantity: 1 }, // 150
-  ],
-  "Dark Angels": [
-    { unitId: "da-azrael",                   modelCount: 1, quantity: 1 }, // 130
-    { unitId: "da-deathwing-terminators",    modelCount: 5, quantity: 2 }, // 175×2=350
-    { unitId: "da-deathwing-knights",        modelCount: 5, quantity: 1 }, // 200
-    { unitId: "da-ravenwing-black-knights",  modelCount: 3, quantity: 1 }, // 135
-    { unitId: "da-ravenwing-dark-talon",     modelCount: 1, quantity: 1 }, // 180
-  ],
-  "Tyranids": [
-    { unitId: "tyr-tyranid-prime",    modelCount: 1,  quantity: 1 }, // 75
-    { unitId: "tyr-termagants",       modelCount: 10, quantity: 2 }, // 40×2=80
-    { unitId: "tyr-hormagaunts",      modelCount: 10, quantity: 2 }, // 50×2=100
-    { unitId: "tyr-tyranid-warriors", modelCount: 3,  quantity: 1 }, // 95
-    { unitId: "tyr-genestealers",     modelCount: 5,  quantity: 2 }, // 95×2=190
-    { unitId: "tyr-carnifex",         modelCount: 1,  quantity: 2 }, // 115×2=230
-  ],
-  "Necrons": [
-    { unitId: "nec-overlord",              modelCount: 1, quantity: 1 }, // 80
-    { unitId: "nec-warriors-flayer",       modelCount: 10,quantity: 2 }, // 130×2=260
-    { unitId: "nec-immortals-blaster",     modelCount: 5, quantity: 1 }, // 130
-    { unitId: "nec-lychguard-warscythes",  modelCount: 5, quantity: 1 }, // 100
-    { unitId: "nec-canoptek-wraiths",      modelCount: 3, quantity: 1 }, // 110
-    { unitId: "nec-doomsday-ark",          modelCount: 1, quantity: 1 }, // 195
-  ],
-};
+// Build AI army dynamically up to pointLimit by adding units sorted by tactical value.
+export function buildDefaultAIArmySpec(factionName: string, pointLimit = 2000): AIArmySpec {
+  const allUnits = (() => {
+    switch (factionName) {
+      case "Space Marines": return SM_UNITS;
+      case "Dark Angels":   return DA_UNITS;
+      case "Tyranids":      return TYRANID_UNITS;
+      case "Necrons":       return NECRON_UNITS;
+      default:              return SM_UNITS;
+    }
+  })();
 
-export function buildDefaultAIArmySpec(factionName: string): AIArmySpec {
-  const entries = DEFAULT_ARMIES[factionName] ?? DEFAULT_ARMIES["Space Marines"];
+  // Score units by tactical value: mix of expected damage output and durability.
+  // Characters are added first (one per faction), then ranked combat units fill the rest.
+  const scoreFn = (u: typeof allUnits[0]) => {
+    const pts = u.points ?? 0;
+    if (pts === 0) return -1;
+    const models = u.models?.min ?? 1;
+    const wounds = u.stats?.wounds ?? 1;
+    const toughness = u.stats?.toughness ?? 4;
+    // Use wounds×toughness per point as proxy for durability value
+    return (wounds * models * toughness) / pts;
+  };
+
+  const sorted = [...allUnits]
+    .filter((u) => (u.points ?? 0) > 0 && !u.isEpicHero)
+    .sort((a, b) => scoreFn(b) - scoreFn(a));
+
+  // Add one character if available
+  const character = allUnits.find(
+    (u) => u.role === "Character" && !u.isEpicHero && (u.points ?? 0) > 0
+  );
+
+  const entries: AIArmyEntry[] = [];
+  let spent = 0;
+
+  if (character) {
+    entries.push({ unitId: character.id, modelCount: character.models?.min ?? 1, quantity: 1 });
+    spent += character.points ?? 0;
+  }
+
+  for (const unit of sorted) {
+    if (unit.role === "Character") continue; // already added one character
+    const cost = unit.points ?? 0;
+    if (cost === 0) continue;
+    if (spent + cost <= pointLimit) {
+      entries.push({ unitId: unit.id, modelCount: unit.models?.min ?? 1, quantity: 1 });
+      spent += cost;
+    }
+    if (spent >= pointLimit * 0.95) break;
+  }
+
   return { factionName, entries };
 }
 
@@ -79,10 +100,35 @@ function markerCenter(m: UnitMarker): { x: number; y: number } {
   return { x: m.x + 0.5, y: m.y + 0.5 };
 }
 
+function allPositions(m: UnitMarker): { x: number; y: number }[] {
+  if (m.modelPositions && m.modelPositions.length > 0) return m.modelPositions;
+  return [{ x: m.x + 0.5, y: m.y + 0.5 }];
+}
+
+// Minimum center-to-center distance across all model pairs (used for movement/charge targeting).
 export function unitDist(a: UnitMarker, b: UnitMarker): number {
-  const pa = markerCenter(a);
-  const pb = markerCenter(b);
-  return Math.sqrt((pa.x - pb.x) ** 2 + (pa.y - pb.y) ** 2);
+  const aps = allPositions(a);
+  const bps = allPositions(b);
+  let min = Infinity;
+  for (const ap of aps) for (const bp of bps) {
+    const d = Math.sqrt((ap.x - bp.x) ** 2 + (ap.y - bp.y) ** 2);
+    if (d < min) min = d;
+  }
+  return min;
+}
+
+// Minimum edge-to-edge distance across all model pairs (used for range and engagement checks).
+export function minUnitEdgeDist(a: UnitMarker, b: UnitMarker): number {
+  const aps = allPositions(a);
+  const bps = allPositions(b);
+  const rA = BASE_RADIUS_INCHES[a.baseSize ?? 'infantry'];
+  const rB = BASE_RADIUS_INCHES[b.baseSize ?? 'infantry'];
+  let min = Infinity;
+  for (const ap of aps) for (const bp of bps) {
+    const d = Math.sqrt((ap.x - bp.x) ** 2 + (ap.y - bp.y) ** 2) - rA - rB;
+    if (d < min) min = d;
+  }
+  return min;
 }
 
 function parseStat(val: string): number {
@@ -376,7 +422,7 @@ export function computeAIMovements(
 
   for (const unit of myUnits) {
     // Units already in engagement range stay put
-    const inCombat = enemies.some((e) => unitDist(unit, e) <= 1.5);
+    const inCombat = enemies.some((e) => minUnitEdgeDist(unit, e) <= 1);
     if (inCombat) continue;
 
     const movement = parseStat(unit.stats.movement);
@@ -494,7 +540,7 @@ export function computeAIShooting(
   const actions: AIAction[] = [];
 
   for (const unit of myUnits) {
-    const inCombat = enemies.some((e) => unitDist(unit, e) <= 1.5);
+    const inCombat = enemies.some((e) => minUnitEdgeDist(unit, e) <= 1);
     if (inCombat) continue;
 
     const ranged = rangedWeapons(unit);
@@ -508,7 +554,7 @@ export function computeAIShooting(
       if (maxRange === 0) continue;
 
       for (const enemy of enemies) {
-        const d = unitDist(unit, enemy);
+        const d = minUnitEdgeDist(unit, enemy);
         if (d > maxRange) continue;
         if (!hasLOS(unit, enemy, mapPreset)) continue;
 
@@ -552,11 +598,11 @@ export function computeAICharges(
   const actions: AIAction[] = [];
 
   for (const unit of myUnits) {
-    const alreadyEngaged = enemies.some((e) => unitDist(unit, e) <= 1.5);
+    const alreadyEngaged = enemies.some((e) => minUnitEdgeDist(unit, e) <= 1);
     if (alreadyEngaged) continue;
 
     const target = enemies
-      .filter((e) => unitDist(unit, e) <= 12)
+      .filter((e) => minUnitEdgeDist(unit, e) <= 12)
       .reduce<UnitMarker | null>((best, e) => {
         if (!best) return e;
         return unitDist(unit, e) < unitDist(unit, best) ? e : best;
@@ -602,7 +648,7 @@ export function computeAIFights(
   const actions: AIAction[] = [];
 
   for (const unit of myUnits) {
-    const engagedEnemies = enemies.filter((e) => unitDist(unit, e) <= 2);
+    const engagedEnemies = enemies.filter((e) => minUnitEdgeDist(unit, e) <= 1);
     if (engagedEnemies.length === 0) continue;
 
     const melee = meleeWeapons(unit);
