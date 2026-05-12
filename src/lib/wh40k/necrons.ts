@@ -12,6 +12,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 12, save: "2+/4++", wounds: 18, leadership: "3+", oc: 5 },
     models: { min: 1, max: 1 },
     points: 440,
+    baseSizeMm: 130,
     weapons: [
       { name: "Sceptre of Eternal Glory", type: "Melee", attacks: "6", skill: "WS2+", strength: "16", ap: "-4", damage: "D6+2" },
       { name: "Annihilator Beam", type: "Heavy", range: '36"', attacks: "3", skill: "BS2+", strength: "16", ap: "-4", damage: "6" },
@@ -34,6 +35,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "2+/4++", wounds: 6, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 95,
+    baseSizeMm: 40,
     weapons: [
       { name: "Staff of the Destroyer", type: "Melee", attacks: "5", skill: "WS2+", strength: "7", ap: "-2", damage: "3" },
       { name: "Gauntlet of Fire", type: "Pistol", range: '12"', attacks: "6", skill: "BS-", strength: "5", ap: "-1", damage: "1", keywords: ["Torrent"] },
@@ -55,6 +57,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "2+", wounds: 5, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 80,
+    baseSizeMm: 32,
     weapons: [
       { name: "Tachyon Arrow", type: "Heavy", range: '120"', attacks: "1", skill: "BS2+", strength: "16", ap: "-5", damage: "D6+2", keywords: ["One Shot"] },
       { name: "Staff of Light (Ranged)", type: "Assault", range: '18"', attacks: "3", skill: "BS2+", strength: "5", ap: "-2", damage: "1" },
@@ -90,6 +93,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 4, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 55,
+    baseSizeMm: 32,
     weapons: [
       { name: "Arkana Conduit", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "-2", damage: "1" },
     ],
@@ -110,6 +114,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 6, save: "3+", wounds: 5, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 75,
+    baseSizeMm: 32,
     weapons: [
       { name: "Staff of Light (Ranged)", type: "Assault", range: '18"', attacks: "3", skill: "BS2+", strength: "5", ap: "-2", damage: "1" },
       { name: "Warscythe", type: "Melee", attacks: "4", skill: "WS2+", strength: "7", ap: "-2", damage: "2" },
@@ -130,6 +135,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "2+", wounds: 4, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 45,
+    baseSizeMm: 32,
     weapons: [
       { name: "Relic Gauss Blaster", type: "Assault", range: '30"', attacks: "3", skill: "BS2+", strength: "5", ap: "-2", damage: "2" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "2", skill: "WS3+", strength: "5", ap: "0", damage: "1" },
@@ -150,6 +156,7 @@ export const NECRON_UNITS: Unit[] = [
     models: { min: 10, max: 20 },
     points: 130,
     pointsPerModel: 13,
+    baseSizeMm: 32,
     weapons: [
       { name: "Gauss Flayer", type: "Rapid Fire", range: '24"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -170,6 +177,7 @@ export const NECRON_UNITS: Unit[] = [
     models: { min: 10, max: 20 },
     points: 130,
     pointsPerModel: 13,
+    baseSizeMm: 32,
     weapons: [
       { name: "Gauss Reaper", type: "Assault", range: '18"', attacks: "2", skill: "BS3+", strength: "5", ap: "-2", damage: "1", keywords: ["Lethal Hits"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -190,6 +198,7 @@ export const NECRON_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 85,
     pointsPerModel: 17,
+    baseSizeMm: 32,
     weapons: [
       { name: "Gauss Blaster", type: "Rapid Fire", range: '24"', attacks: "1", skill: "BS3+", strength: "5", ap: "-2", damage: "2" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -210,6 +219,7 @@ export const NECRON_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 85,
     pointsPerModel: 17,
+    baseSizeMm: 32,
     weapons: [
       { name: "Tesla Carbine", type: "Assault", range: '24"', attacks: "2", skill: "BS3+", strength: "5", ap: "0", damage: "1", keywords: ["Sustained Hits 2"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -230,6 +240,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 95,
+    baseSizeMm: 32,
     weapons: [
       { name: "Warscythe", type: "Melee", attacks: "3", skill: "WS3+", strength: "7", ap: "-2", damage: "2" },
     ],
@@ -248,6 +259,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+/4++", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 105,
+    baseSizeMm: 32,
     weapons: [
       { name: "Hyperphase Sword", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "-2", damage: "1" },
     ],
@@ -268,6 +280,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 1, leadership: "7+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 75,
+    baseSizeMm: 32,
     weapons: [
       { name: "Synaptic Disintegrator", type: "Heavy", range: '36"', attacks: "1", skill: "BS3+", strength: "5", ap: "-2", damage: "2", keywords: ["Precision"] },
     ],
@@ -288,6 +301,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "4+", wounds: 2, leadership: "7+", oc: 1 },
     models: { min: 5, max: 20 },
     points: 60,
+    baseSizeMm: 32,
     weapons: [
       { name: "Flayer Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "4", ap: "-1", damage: "1" },
     ],
@@ -308,6 +322,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 5, save: "3+/4++", wounds: 2, leadership: "5+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 100,
+    baseSizeMm: 32,
     weapons: [
       { name: "Rod of Covenant (Ranged)", type: "Assault", range: '12"', attacks: "2", skill: "BS3+", strength: "6", ap: "-2", damage: "2" },
       { name: "Rod of Covenant (Melee)", type: "Melee", attacks: "2", skill: "WS3+", strength: "6", ap: "-2", damage: "2" },
@@ -329,6 +344,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+", wounds: 4, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 70,
+    baseSizeMm: 32,
     weapons: [
       { name: "Aeonstave (Ranged)", type: "Assault", range: '18"', attacks: "1", skill: "BS2+", strength: "8", ap: "-2", damage: "3" },
       { name: "Aeonstave (Melee)", type: "Melee", attacks: "3", skill: "WS3+", strength: "6", ap: "-2", damage: "2" },
@@ -348,6 +364,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+/5++", wounds: 4, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 70,
+    baseSizeMm: 32,
     weapons: [
       { name: "Plasmic Lance (Ranged)", type: "Assault", range: '18"', attacks: "3", skill: "BS2+", strength: "9", ap: "-3", damage: "D3", keywords: ["Hazardous"] },
       { name: "Plasmic Lance (Melee)", type: "Melee", attacks: "3", skill: "WS3+", strength: "6", ap: "-2", damage: "1" },
@@ -367,6 +384,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+", wounds: 4, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 65,
+    baseSizeMm: 32,
     weapons: [
       { name: "Abyssal Lance", type: "Assault", range: '18"', attacks: "3", skill: "BS2+", strength: "6", ap: "-2", damage: "2", keywords: ["Psychic"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "-1", damage: "1" },
@@ -386,6 +404,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+", wounds: 4, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 65,
+    baseSizeMm: 32,
     weapons: [
       { name: "Canoptek Cloak Blades", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "-1", damage: "1" },
       { name: "Staff of Light (Ranged)", type: "Assault", range: '18"', attacks: "3", skill: "BS2+", strength: "5", ap: "-2", damage: "1" },
@@ -406,6 +425,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 6, save: "3+", wounds: 6, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 90,
+    baseSizeMm: 50,
     weapons: [
       { name: "Flensing Claw", type: "Melee", attacks: "5", skill: "WS2+", strength: "7", ap: "-2", damage: "2" },
       { name: "Hyperphase Harvester", type: "Melee", attacks: "3", skill: "WS2+", strength: "10", ap: "-3", damage: "3" },
@@ -427,6 +447,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 6, save: "3+", wounds: 4, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 75,
+    baseSizeMm: 32,
     weapons: [
       { name: "Enmitic Disintegrator Pistols ×6", type: "Pistol", range: '12"', attacks: "6", skill: "BS2+", strength: "5", ap: "-2", damage: "1", keywords: ["Precision"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "0", damage: "1" },
@@ -449,6 +470,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 10, save: "3+", wounds: 11, leadership: "3+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 130,
+    baseSizeMm: 120,
     weapons: [
       { name: "Tesla Cannon", type: "Heavy", range: '24"', attacks: "4", skill: "BS2+", strength: "7", ap: "-2", damage: "2", keywords: ["Sustained Hits 2"] },
       { name: "Gauss Cannon", type: "Heavy", range: '24"', attacks: "2", skill: "BS2+", strength: "6", ap: "-2", damage: "3" },
@@ -471,6 +493,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+/4++", wounds: 6, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 100,
+    baseSizeMm: 40,
     weapons: [
       { name: "Eldritch Lance", type: "Heavy", range: '36"', attacks: "2", skill: "BS2+", strength: "10", ap: "-3", damage: "D3+3" },
       { name: "Mechanical Limbs", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
@@ -491,6 +514,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+", wounds: 5, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 80,
+    baseSizeMm: 32,
     weapons: [
       { name: "Empathic Obliterator", type: "Melee", attacks: "5", skill: "WS2+", strength: "6", ap: "-2", damage: "2", keywords: ["Devastating Wounds"] },
     ],
@@ -511,6 +535,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 6, save: "2+", wounds: 5, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 85,
+    baseSizeMm: 40,
     weapons: [
       { name: "Warscythe", type: "Melee", attacks: "4", skill: "WS2+", strength: "7", ap: "-2", damage: "2" },
       { name: "Voidblade", type: "Melee", attacks: "3", skill: "WS2+", strength: "6", ap: "-4", damage: "1" },
@@ -531,6 +556,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 6, save: "3+", wounds: 4, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 80,
+    baseSizeMm: 40,
     weapons: [
       { name: "Ghostwalk Blade", type: "Melee", attacks: "5", skill: "WS2+", strength: "7", ap: "-3", damage: "2" },
     ],
@@ -552,6 +578,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 6, save: "3+", wounds: 6, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 90,
+    baseSizeMm: 40,
     weapons: [
       { name: "Tachyon Arrow", type: "Heavy", range: '120"', attacks: "1", skill: "BS2+", strength: "16", ap: "-5", damage: "D6+2", keywords: ["One Shot"] },
       { name: "Warscythe", type: "Melee", attacks: "4", skill: "WS2+", strength: "7", ap: "-2", damage: "2" },
@@ -573,6 +600,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+/4++", wounds: 5, leadership: "3+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 95,
+    baseSizeMm: 32,
     weapons: [
       { name: "The Staff of Tomorrow", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
     ],
@@ -593,6 +621,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "4+", wounds: 2, leadership: "7+", oc: 1 },
     models: { min: 2, max: 2 },
     points: 40,
+    baseSizeMm: 32,
     weapons: [
       { name: "Scouring Eye", type: "Assault", range: '12"', attacks: "2", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
       { name: "Scything Tendrils", type: "Melee", attacks: "3", skill: "WS4+", strength: "5", ap: "0", damage: "1" },
@@ -614,6 +643,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 5, save: "3+", wounds: 3, leadership: "6+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 90,
+    baseSizeMm: 40,
     weapons: [
       { name: "Ophydian Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "7", ap: "-2", damage: "2" },
       { name: "Enmitic Exterminator", type: "Assault", range: '18"', attacks: "2", skill: "BS3+", strength: "5", ap: "-2", damage: "1", keywords: ["Rapid Fire 1"] },
@@ -633,6 +663,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 10, save: "3+", wounds: 10, leadership: "6+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 120,
+    baseSizeMm: 90,
     weapons: [
       { name: "Heat Ray (Focused)", type: "Heavy", range: '12"', attacks: "3", skill: "BS3+", strength: "9", ap: "-4", damage: "D6" },
       { name: "Heat Ray (Dispersed)", type: "Heavy", range: '12"', attacks: "D6+2", skill: "BS3+", strength: "5", ap: "-1", damage: "1", keywords: ["Torrent"] },
@@ -655,6 +686,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 5, save: "4+/4++", wounds: 3, leadership: "7+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 105,
+    baseSizeMm: 40,
     weapons: [
       { name: "Vicious Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "6", ap: "-2", damage: "2" },
       { name: "Transdimensional Beamer", type: "Assault", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "-3", damage: "1" },
@@ -675,6 +707,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 6, save: "3+", wounds: 3, leadership: "7+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 90,
+    baseSizeMm: 40,
     weapons: [
       { name: "Gauss Cannon", type: "Heavy", range: '24"', attacks: "2", skill: "BS3+", strength: "6", ap: "-2", damage: "3" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS4+", strength: "5", ap: "0", damage: "1" },
@@ -698,6 +731,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 5, save: "3+/4++", wounds: 2, leadership: "7+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 75,
+    baseSizeMm: 75,
     weapons: [
       { name: "Twin Gauss Blaster", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "5", ap: "-2", damage: "2", keywords: ["Twin-linked"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS4+", strength: "4", ap: "0", damage: "1" },
@@ -720,6 +754,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 7, save: "3+", wounds: 4, leadership: "7+", oc: 1 },
     models: { min: 1, max: 3 },
     points: 60,
+    baseSizeMm: 50,
     weapons: [
       { name: "Enmitic Annihilator", type: "Heavy", range: '36"', attacks: "1", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+2", keywords: ["Blast"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "1", skill: "WS4+", strength: "6", ap: "0", damage: "1" },
@@ -739,6 +774,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 11, save: "3+", wounds: 10, leadership: "7+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 160,
+    baseSizeMm: 90,
     weapons: [
       { name: "Doomsday Blaster (Stationary)", type: "Heavy", range: '48"', attacks: "1", skill: "BS3+", strength: "14", ap: "-4", damage: "D6+2" },
       { name: "Doomsday Blaster (Moved)", type: "Heavy", range: '48"', attacks: "1", skill: "BS4+", strength: "10", ap: "-3", damage: "D3+1" },
@@ -760,6 +796,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 9, save: "3+", wounds: 7, leadership: "7+", oc: 2 },
     models: { min: 1, max: 3 },
     points: 75,
+    baseSizeMm: 60,
     weapons: [
       { name: "Automaton Claws", type: "Melee", attacks: "4", skill: "WS4+", strength: "8", ap: "-2", damage: "2" },
       { name: "Particle Beamer", type: "Heavy", range: '18"', attacks: "D3", skill: "BS4+", strength: "6", ap: "0", damage: "1", keywords: ["Blast"] },
@@ -780,6 +817,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 9, save: "3+", wounds: 8, leadership: "7+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 80,
+    baseSizeMm: 60,
     weapons: [
       { name: "Atomiser Beam", type: "Heavy", range: '18"', attacks: "D6", skill: "BS3+", strength: "6", ap: "-2", damage: "1", keywords: ["Torrent"] },
       { name: "Reanimation Claws", type: "Melee", attacks: "4", skill: "WS4+", strength: "8", ap: "-1", damage: "2" },
@@ -800,6 +838,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '20"', toughness: 9, save: "3+", wounds: 9, leadership: "7+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 155,
+    baseSizeMm: 130,
     weapons: [
       { name: "Death Ray", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "16", ap: "-4", damage: "D3+3", keywords: ["Devastating Wounds"] },
       { name: "Twin Heavy Gauss Cannon", type: "Heavy", range: '24"', attacks: "4", skill: "BS3+", strength: "9", ap: "-4", damage: "D3+3", keywords: ["Twin-linked"] },
@@ -820,6 +859,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 12, save: "2+/4++", wounds: 20, leadership: "4+", oc: 5 },
     models: { min: 1, max: 1 },
     points: 370,
+    baseSizeMm: 100,
     weapons: [
       { name: "Gaze of Death", type: "Heavy", range: '18"', attacks: "D3+3", skill: "BS2+", strength: "12", ap: "-3", damage: "3", keywords: ["Devastating Wounds"] },
       { name: "Scythe of the Nightbringer", type: "Melee", attacks: "6", skill: "WS2+", strength: "14", ap: "-4", damage: "D6+2", keywords: ["Devastating Wounds"] },
@@ -840,6 +880,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 12, save: "2+/4++", wounds: 20, leadership: "4+", oc: 5 },
     models: { min: 1, max: 1 },
     points: 300,
+    baseSizeMm: 100,
     weapons: [
       { name: "Grand Illusion", type: "Heavy", range: '24"', attacks: "6", skill: "BS2+", strength: "8", ap: "-2", damage: "2", keywords: ["Psychic"] },
       { name: "Blades of Trickery", type: "Melee", attacks: "8", skill: "WS2+", strength: "10", ap: "-3", damage: "3" },
@@ -860,6 +901,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 12, save: "2+/4++", wounds: 20, leadership: "4+", oc: 5 },
     models: { min: 1, max: 1 },
     points: 310,
+    baseSizeMm: 130,
     weapons: [
       { name: "Voltaic Storm", type: "Heavy", range: '24"', attacks: "12", skill: "BS2+", strength: "5", ap: "-1", damage: "1", keywords: ["Sustained Hits 1"] },
       { name: "Crackling Tendrils", type: "Melee", attacks: "8", skill: "WS2+", strength: "12", ap: "-3", damage: "D3+3" },
@@ -881,6 +923,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 14, save: "2+", wounds: 35, leadership: "4+", oc: 8 },
     models: { min: 1, max: 1 },
     points: 520,
+    baseSizeMm: 160,
     weapons: [
       { name: "Synaptic Obliterators ×2", type: "Heavy", range: '36"', attacks: "6", skill: "BS3+", strength: "12", ap: "-3", damage: "D3+3" },
       { name: "Enmitic Annihilator ×2", type: "Heavy", range: '36"', attacks: "2", skill: "BS3+", strength: "14", ap: "-4", damage: "D6+2" },
@@ -904,6 +947,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 11, save: "3+", wounds: 12, leadership: "6+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 195,
+    baseSizeMm: 120,
     weapons: [
       { name: "Doomsday Cannon (Stationary)", type: "Heavy", range: '72"', attacks: "1", skill: "BS3+", strength: "20", ap: "-5", damage: "7" },
       { name: "Doomsday Cannon (Moved)", type: "Heavy", range: '72"', attacks: "1", skill: "BS4+", strength: "14", ap: "-4", damage: "5" },
@@ -925,6 +969,7 @@ export const NECRON_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 9, save: "3+", wounds: 8, leadership: "6+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 115,
+    baseSizeMm: 120,
     weapons: [
       { name: "Tesla Destructor", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "7", ap: "-2", damage: "2", keywords: ["Sustained Hits 2"] },
       { name: "Gauss Cannon", type: "Heavy", range: '24"', attacks: "2", skill: "BS3+", strength: "6", ap: "-2", damage: "3" },

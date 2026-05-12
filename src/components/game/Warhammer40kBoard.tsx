@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import type { UnitMarker, RangeIndicator } from "@/lib/wh40k/gameTypes";
 import type { TerrainPiece, MapObjective, DeploymentZone } from "@/lib/wh40k/mapPresets";
-import { getUnitIcon, getSilhouettePath, silhouetteTypeForUnit, BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
+import { getUnitIcon, getSilhouettePath, silhouetteTypeForUnit, getUnitRadius } from "@/lib/wh40k/unitSilhouettes";
 import { hexPackPositions } from "@/lib/wh40k/hexPack";
 
 // Board: 60" wide × 44" tall. 1 SVG unit = 1 inch.
@@ -657,8 +657,7 @@ export default function Warhammer40kBoard({
               </radialGradient>
               {/* Clip paths for unit silhouettes — one per model for multi-model units */}
               {activeMarkers.flatMap((m) => {
-                const baseSize = m.baseSize ?? "infantry";
-                const r = BASE_RADIUS_INCHES[baseSize] * INCH_PX;
+                const r = getUnitRadius(m) * INCH_PX;
                 const isMulti = (m.modelCount ?? 1) > 1;
                 if (!isMulti) {
                   const cx = (m.x + 0.5) * INCH_PX;
@@ -947,16 +946,15 @@ export default function Warhammer40kBoard({
                 return null;
               })()}
 
-              {/* Engagement range rings — red dashed circle for units within 1" of an enemy */}
+              {/* Engagement range rings — red dashed circle for units within 1" edge-to-edge of an enemy */}
               {activeMarkers.map((m) => {
                 const isEngaged = activeMarkers.some(
                   (e) =>
                     e.player !== m.player &&
-                    Math.sqrt((e.x - m.x) ** 2 + (e.y - m.y) ** 2) <= 1
+                    Math.sqrt((e.x - m.x) ** 2 + (e.y - m.y) ** 2) - getUnitRadius(e) - getUnitRadius(m) <= 1
                 );
                 if (!isEngaged) return null;
-                const baseSize = m.baseSize ?? "infantry";
-                const r = BASE_RADIUS_INCHES[baseSize] * INCH_PX;
+                const r = getUnitRadius(m) * INCH_PX;
                 const cx = (m.x + 0.5) * INCH_PX;
                 const cy = (m.y + 0.5) * INCH_PX;
                 return (
@@ -975,8 +973,7 @@ export default function Warhammer40kBoard({
 
               {/* Unit markers */}
               {activeMarkers.map((m) => {
-                const baseSize = m.baseSize ?? "infantry";
-                const r = BASE_RADIUS_INCHES[baseSize] * INCH_PX;
+                const r = getUnitRadius(m) * INCH_PX;
                 const isSelected = m.id === selectedMarkerId;
                 const hasActed = actedThisTurn.includes(m.id);
                 const isP1 = m.player === "P1";
@@ -996,7 +993,7 @@ export default function Warhammer40kBoard({
                 const isDamaged = m.currentWounds < maxW;
 
                 // Label: show "+ CharName" if character is attached
-                const silType = silhouetteTypeForUnit(m.faction ?? "", baseSize);
+                const silType = silhouetteTypeForUnit(m.faction ?? "", m.baseSize ?? "infantry");
                 const silPath = getSilhouettePath(silType);
                 const silScale = (r * 0.82) / 10;
                 const displayName = m.attachedCharacterName

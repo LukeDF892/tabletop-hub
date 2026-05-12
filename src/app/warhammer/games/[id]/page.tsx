@@ -13,7 +13,7 @@ import type { UnitMarker, RolloffResult, RangeIndicator } from "@/lib/wh40k/game
 import type { Unit } from "@/lib/wh40k/types";
 import { MAP_PRESETS, DEFAULT_PRESET, getPresetById } from "@/lib/wh40k/mapPresets";
 import type { MapPreset } from "@/lib/wh40k/mapPresets";
-import { BASE_RADIUS_INCHES } from "@/lib/wh40k/unitSilhouettes";
+import { getUnitRadius } from "@/lib/wh40k/unitSilhouettes";
 import { hexPackPositions } from "@/lib/wh40k/hexPack";
 import type { BaseSize } from "@/lib/wh40k/gameTypes";
 import { FACTION_RULES, getFactionRules } from "@/lib/wh40k/factionRules";
@@ -573,8 +573,8 @@ function minUnitEdgeDist(a: UnitMarker, b: UnitMarker): number {
     ? a.modelPositions : [{ x: a.x + 0.5, y: a.y + 0.5 }];
   const bPos = b.modelPositions && b.modelPositions.length > 0
     ? b.modelPositions : [{ x: b.x + 0.5, y: b.y + 0.5 }];
-  const rA = BASE_RADIUS_INCHES[a.baseSize ?? "infantry"];
-  const rB = BASE_RADIUS_INCHES[b.baseSize ?? "infantry"];
+  const rA = getUnitRadius(a);
+  const rB = getUnitRadius(b);
   let min = Infinity;
   for (const ap of aPos) {
     for (const bp of bPos) {
@@ -598,8 +598,8 @@ function separateOverlapping(ms: UnitMarker[]): UnitMarker[] {
       for (let j = i + 1; j < cur.length; j++) {
         const b = cur[j];
         if (b.isDestroyed || b.isInReserve || b.isEmbarked) continue;
-        const rA = BASE_RADIUS_INCHES[a.baseSize ?? "infantry"];
-        const rB = BASE_RADIUS_INCHES[b.baseSize ?? "infantry"];
+        const rA = getUnitRadius(a);
+        const rB = getUnitRadius(b);
         const minD = rA + rB + SEP_PAD;
         const ax = a.x + 0.5, ay = a.y + 0.5;
         const bx = b.x + 0.5, by = b.y + 0.5;
@@ -771,6 +771,7 @@ function buildMarkers(army: ArmyRow, player: "P1" | "P2"): UnitMarker[] {
         attachedCharacterName,
         keywords: unit.keywords ?? [],
         teleportHomer: unit.teleportHomer ?? false,
+        baseSizeMm: unit.baseSizeMm,
       });
 
       if (charMarker) markers.push(charMarker);
@@ -2671,7 +2672,10 @@ export default function WarhammerGameRoom() {
         return;
       }
       const enemies = activeMarkers.filter((m) => m.player !== marker.player);
-      const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < 3);
+      const tooClose = enemies.some((e) => {
+        const edgeDist = Math.sqrt((x + 0.5 - (e.x + 0.5)) ** 2 + (y + 0.5 - (e.y + 0.5)) ** 2) - getUnitRadius(marker) - getUnitRadius(e);
+        return edgeDist < 3;
+      });
       if (tooClose) {
         addLog("Homer arrival must be more than 3\" from all enemy models.", "system");
         return;
@@ -2679,9 +2683,9 @@ export default function WarhammerGameRoom() {
     } else if (reservesMode === 'place_deepstrike') {
       // Deep strike: must be 9"+ edge-to-edge from all enemy units
       const enemies = activeMarkers.filter((m) => m.player !== marker.player);
-      const myRadius = BASE_RADIUS_INCHES[marker.baseSize ?? 'infantry'];
+      const myRadius = getUnitRadius(marker);
       const tooClose = enemies.some((e) => {
-        const eRadius = BASE_RADIUS_INCHES[e.baseSize ?? 'infantry'];
+        const eRadius = getUnitRadius(e);
         const dist = Math.sqrt((x + 0.5 - (e.x + 0.5)) ** 2 + (y + 0.5 - (e.y + 0.5)) ** 2);
         return dist - eRadius - myRadius < 9;
       });
@@ -2865,8 +2869,8 @@ export default function WarhammerGameRoom() {
         addLog(`Too far — ${dist.toFixed(1)}" exceeds charge roll of ${chargeMove.maxDist}".`, "system");
         return;
       }
-      const distToTarget = Math.sqrt((x - target.x) ** 2 + (y - target.y) ** 2);
-      if (distToTarget > 2) {
+      const distToTarget = Math.sqrt((x - target.x) ** 2 + (y - target.y) ** 2) - getUnitRadius(attacker) - getUnitRadius(target);
+      if (distToTarget > 1) {
         addLog(`Charge move must end within engagement range (1") of ${target.unitName}.`, "system");
         return;
       }
@@ -3404,7 +3408,7 @@ export default function WarhammerGameRoom() {
     }
 
     // Now roll the charge (after Overwatch decision)
-    const dist = Math.sqrt((attacker.x - target.x) ** 2 + (attacker.y - target.y) ** 2);
+    const dist = minUnitEdgeDist(attacker, target);
     const roll1 = d6();
     const roll2 = d6();
     const total = roll1 + roll2;
@@ -5966,11 +5970,11 @@ export default function WarhammerGameRoom() {
               if (reservesMode === 'place_deepstrike') {
                 const enemies = activeMarkersCells.filter((m) => m.player !== activePlayer);
                 const dsUnit = markers.find((m) => m.id === reservesUnitId);
-                const dsMyRadius = dsUnit ? BASE_RADIUS_INCHES[dsUnit.baseSize ?? 'infantry'] : 0.5;
+                const dsMyRadius = dsUnit ? getUnitRadius(dsUnit) : 0.5;
                 for (let cx = 0; cx < 60; cx++) {
                   for (let cy = 0; cy < BOARD_H_CONST; cy++) {
                     const tooClose = enemies.some((e) => {
-                      const eRadius = BASE_RADIUS_INCHES[e.baseSize ?? 'infantry'];
+                      const eRadius = getUnitRadius(e);
                       const dist = Math.sqrt((cx + 0.5 - (e.x + 0.5)) ** 2 + (cy + 0.5 - (e.y + 0.5)) ** 2);
                       return dist - eRadius - dsMyRadius < 9;
                     });

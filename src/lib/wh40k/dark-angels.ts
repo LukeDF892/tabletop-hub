@@ -13,6 +13,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 6, save: "2+/4++", wounds: 8, leadership: "6+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 300,
+    baseSizeMm: 40,
     weapons: [
       { name: "The Lion Sword", type: "Melee", attacks: "6", skill: "WS2+", strength: "8", ap: "-3", damage: "3" },
       { name: "Fealty", type: "Melee", attacks: "3", skill: "WS2+", strength: "10", ap: "-4", damage: "D3+3" },
@@ -36,6 +37,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "2+/4++", wounds: 6, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 130,
+    baseSizeMm: 40,
     weapons: [
       { name: "Sword of Secrets", type: "Melee", attacks: "5", skill: "WS2+", strength: "6", ap: "-3", damage: "2" },
       { name: "Lion's Wrath", type: "Pistol", range: '12"', attacks: "3", skill: "BS2+", strength: "4", ap: "-1", damage: "1" },
@@ -59,6 +61,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 4, save: "2+/4++", wounds: 5, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 95,
+    baseSizeMm: 40,
     weapons: [
       { name: "Thunder Hammer", type: "Melee", attacks: "4", skill: "WS2+", strength: "10", ap: "-2", damage: "3", keywords: ["Devastating Wounds"] },
       { name: "Storm Shield", type: "Melee", attacks: "2", skill: "WS2+", strength: "5", ap: "-1", damage: "1" },
@@ -88,6 +91,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 5, save: "3+/4++", wounds: 5, leadership: "5+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 130,
+    baseSizeMm: 90,
     weapons: [
       { name: "Corvex", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
       { name: "Plasma Cannon (Standard)", type: "Heavy", range: '36"', attacks: "2", skill: "BS2+", strength: "7", ap: "-2", damage: "2" },
@@ -111,6 +115,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 5, leadership: "6+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 100,
+    baseSizeMm: 40,
     weapons: [
       { name: "Force Sword", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-3", damage: "2", keywords: ["Lethal Hits"] },
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
@@ -133,6 +138,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     models: { min: 3, max: 6 },
     points: 180,
     pointsPerModel: 60,
+    baseSizeMm: 32,
     weapons: [
       { name: "Calibanite War Blade", type: "Melee", attacks: "4", skill: "WS2+", strength: "5", ap: "-3", damage: "2" },
       { name: "Mace of Absolution", type: "Melee", attacks: "3", skill: "WS2+", strength: "8", ap: "-2", damage: "2" },
@@ -157,6 +163,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 6, save: "3+/4++", wounds: 6, leadership: "4+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 150,
+    baseSizeMm: 90,
     weapons: [
       { name: "Twin Auto Boltstorm Gauntlets", type: "Pistol", range: '12"', attacks: "6", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Power Sword", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "-2", damage: "1", keywords: ["Lethal Hits"] },
@@ -180,6 +187,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 5, save: "2+/4++", wounds: 3, leadership: "5+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 200,
+    baseSizeMm: 40,
     weapons: [
       { name: "Mace of Absolution", type: "Melee", attacks: "4", skill: "WS2+", strength: "8", ap: "-2", damage: "2" },
       { name: "Flail of the Unforgiven (Champion)", type: "Melee", attacks: "5", skill: "WS2+", strength: "9", ap: "-3", damage: "3" },
@@ -209,6 +217,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 5, save: "2+", wounds: 3, leadership: "5+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 175,
+    baseSizeMm: 40,
     weapons: [
       { name: "Storm Bolter", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Power Fist", type: "Melee", attacks: "3", skill: "WS3+", strength: "8", ap: "-2", damage: "2" },
@@ -236,6 +245,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 5, save: "2+", wounds: 3, leadership: "5+", oc: 1 },
     models: { min: 5, max: 5 },
     points: 175,
+    baseSizeMm: 40,
     weapons: [
       { name: "Storm Bolter", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Power Fist", type: "Melee", attacks: "3", skill: "WS3+", strength: "8", ap: "-2", damage: "2" },
@@ -260,6 +270,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 5, save: "3+", wounds: 3, leadership: "5+", oc: 2 },
     models: { min: 3, max: 6 },
     points: 135,
+    baseSizeMm: 75,
     weapons: [
       { name: "Corvus Hammer", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "-1", damage: "1" },
       { name: "Plasma Talon (Standard)", type: "Pistol", range: '18"', attacks: "2", skill: "BS3+", strength: "7", ap: "-2", damage: "2" },
@@ -290,6 +301,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '20-60"', toughness: 9, save: "3+", wounds: 12, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 180,
+    baseSizeMm: 130,
     weapons: [
       { name: "Rift Cannon", type: "Heavy", range: '24"', attacks: "3", skill: "BS3+", strength: "12", ap: "-4", damage: "6", keywords: ["Devastating Wounds (auto-wound 4+)"] },
       { name: "Hurricane Bolter", type: "Assault", range: '24"', attacks: "8", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
@@ -312,6 +324,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "2+", wounds: 5, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 90,
+    baseSizeMm: 40,
     weapons: [
       { name: "Crozius of the Ancients", type: "Melee", attacks: "5", skill: "WS2+", strength: "5", ap: "-2", damage: "2" },
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
@@ -333,6 +346,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 4, leadership: "6+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 55,
+    baseSizeMm: 32,
     weapons: [
       { name: "Bolt Rifle", type: "Rapid Fire", range: '30"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -355,6 +369,7 @@ const DA_EXCLUSIVE_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 9, save: "3+", wounds: 9, leadership: "6+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 130,
+    baseSizeMm: 90,
     weapons: [
       { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Armoured Hull", type: "Melee", attacks: "3", skill: "WS4+", strength: "6", ap: "0", damage: "1" },

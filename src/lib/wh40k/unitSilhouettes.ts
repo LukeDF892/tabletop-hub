@@ -1,4 +1,4 @@
-import type { BaseSize } from "./gameTypes";
+import type { BaseSize, UnitMarker } from "./gameTypes";
 
 export type SilhouetteType =
   | "space_marine_infantry"
@@ -166,17 +166,29 @@ export function getUnitIcon(keywords: string[]): string {
   return "M0,-6 A6,6 0 1,1 0,6 A6,6 0 1,1 0,-6";
 }
 
-// Radius multipliers (in inches on the board) per base size
+// Radius in inches per BaseSize category, derived from official GW base diameters.
+// Formula: radius_inches = diameter_mm / (2 * 25.4)
 export const BASE_RADIUS_INCHES: Record<BaseSize, number> = {
-  infantry:       0.5,
-  elite_infantry: 0.8,
-  terminator:     0.8,
-  cavalry:        1.2,
-  bike:           1.2,
-  dreadnought:    1.0,
-  walker:         1.0,
-  monster:        1.6,
-  vehicle:        1.6,
-  titan:          2.4,
-  superheavy:     2.4,
+  infantry:       0.63,  // 32mm round  (modern Primaris/Necron infantry)
+  elite_infantry: 0.79,  // 40mm round  (jump-pack Primaris, etc.)
+  terminator:     0.79,  // 40mm round
+  cavalry:        1.48,  // 75mm oval   (bikes, Ravenwing — major-axis radius)
+  bike:           1.48,  // 75mm oval
+  dreadnought:    1.18,  // 60mm round
+  walker:         1.18,  // 60mm round
+  monster:        1.97,  // 100mm round (Carnifex, Hive Tyrant, etc.)
+  vehicle:        2.07,  // 105mm round (Predator/Rhino class)
+  titan:          3.15,  // 160mm round (Knights)
+  superheavy:     3.15,  // 160mm round
 };
+
+const MM_TO_INCH_RADIUS = 1 / (2 * 25.4);
+
+// Returns the collision/rendering radius in inches for a UnitMarker.
+// Uses the unit's explicit baseSizeMm when available; falls back to the BaseSize category default.
+export function getUnitRadius(unit: UnitMarker): number {
+  if (unit.baseSizeMm && unit.baseSizeMm > 0) {
+    return unit.baseSizeMm * MM_TO_INCH_RADIUS;
+  }
+  return BASE_RADIUS_INCHES[unit.baseSize ?? 'infantry'];
+}

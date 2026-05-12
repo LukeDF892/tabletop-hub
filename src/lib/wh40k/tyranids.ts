@@ -11,6 +11,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 10, save: "2+/4++", wounds: 12, leadership: "7+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 250,
+    baseSizeMm: 100,
     weapons: [
       { name: "Bone Sabres", type: "Melee", attacks: "8", skill: "WS2+", strength: "8", ap: "-3", damage: "3", keywords: ["Precision", "Devastating Wounds"] },
     ],
@@ -30,6 +31,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 9, save: "2+/4++", wounds: 10, leadership: "7+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 215,
+    baseSizeMm: 100,
     weapons: [
       { name: "Monstrous Bonesword & Lashwhip", type: "Melee", attacks: "5", skill: "WS2+", strength: "8", ap: "-2", damage: "3" },
       { name: "Monstrous Scything Talons", type: "Melee", attacks: "6", skill: "WS2+", strength: "9", ap: "-2", damage: "3" },
@@ -64,6 +66,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 9, save: "2+/4++", wounds: 10, leadership: "7+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 190,
+    baseSizeMm: 100,
     weapons: [
       { name: "Monstrous Bonesword & Lashwhip", type: "Melee", attacks: "5", skill: "WS2+", strength: "8", ap: "-2", damage: "3" },
       { name: "Bio-Plasma", type: "Heavy", range: '18"', attacks: "D3+3", skill: "BS3+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
@@ -84,6 +87,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 7, save: "4+/4++", wounds: 7, leadership: "7+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 95,
+    baseSizeMm: 100,
     weapons: [
       { name: "Psychic Lash", type: "Melee", attacks: "4", skill: "WS3+", strength: "6", ap: "-1", damage: "2", keywords: ["Devastating Wounds"] },
       { name: "Neural Ganglion", type: "Heavy", range: '18"', attacks: "6", skill: "BS3+", strength: "5", ap: "-1", damage: "1", keywords: ["Lethal Hits"] },
@@ -104,6 +108,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 5, save: "4+/5++", wounds: 6, leadership: "7+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 90,
+    baseSizeMm: 40,
     weapons: [
       { name: "Broodlord Claws and Talons", type: "Melee", attacks: "6", skill: "WS2+", strength: "6", ap: "-2", damage: "2", keywords: ["Sustained Hits 2"] },
     ],
@@ -123,6 +128,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "3+", wounds: 5, leadership: "7+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 75,
+    baseSizeMm: 40,
     weapons: [
       { name: "Deathspitter", type: "Assault", range: '24"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "1" },
       { name: "Boneswords", type: "Melee", attacks: "5", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
@@ -142,6 +148,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 5, save: "3+", wounds: 5, leadership: "7+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 65,
+    baseSizeMm: 40,
     weapons: [
       { name: "Deathspitter", type: "Assault", range: '24"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "1" },
       { name: "Boneswords", type: "Melee", attacks: "5", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
@@ -161,6 +168,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 11, save: "2+", wounds: 16, leadership: "7+", oc: 5 },
     models: { min: 1, max: 1 },
     points: 190,
+    baseSizeMm: 120,
     weapons: [
       { name: "Stinger Salvoes", type: "Ranged", range: '24"', attacks: "8", skill: "BS4+", strength: "5", ap: "0", damage: "1" },
       { name: "Massive Crushing Claws", type: "Melee", attacks: "5", skill: "WS3+", strength: "10", ap: "-3", damage: "3", keywords: ["Devastating Wounds"] },
@@ -184,6 +192,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 10, save: "2+", wounds: 10, leadership: "8+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 140,
+    baseSizeMm: 100,
     weapons: [
       { name: "Scything Talons", type: "Melee", attacks: "6", skill: "WS2+", strength: "10", ap: "-2", damage: "3", keywords: ["Sustained Hits 1"] },
       { name: "Crushing Claws", type: "Melee", attacks: "4", skill: "WS2+", strength: "14", ap: "-3", damage: "D6+2", keywords: ["Devastating Wounds"] },
@@ -205,6 +214,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 5, save: "3+", wounds: 5, leadership: "7+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 75,
+    baseSizeMm: 40,
     weapons: [
       { name: "Barbed Ovipositor", type: "Melee", attacks: "5", skill: "WS2+", strength: "5", ap: "-2", damage: "1", keywords: ["Precision"] },
       { name: "Claws and Teeth", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "-1", damage: "1" },
@@ -226,6 +236,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '9"', toughness: 5, save: "3+", wounds: 6, leadership: "7+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 75,
+    baseSizeMm: 40,
     weapons: [
       { name: "Flesh Hooks", type: "Heavy", range: '12"', attacks: "4", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
       { name: "Rending Claws & Scything Talons", type: "Melee", attacks: "6", skill: "WS2+", strength: "6", ap: "-2", damage: "2" },
@@ -246,6 +257,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 13, save: "2+", wounds: 18, leadership: "7+", oc: 5 },
     models: { min: 1, max: 1 },
     points: 285,
+    baseSizeMm: 120,
     weapons: [
       { name: "Massive Crushing Claws", type: "Melee", attacks: "8", skill: "WS2+", strength: "14", ap: "-4", damage: "D6+2" },
       { name: "Psychic Barrage", type: "Heavy", range: '24"', attacks: "D6+3", skill: "BS3+", strength: "8", ap: "-2", damage: "2", keywords: ["Devastating Wounds", "Psychic"] },
@@ -265,6 +277,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 13, save: "2+", wounds: 18, leadership: "7+", oc: 5 },
     models: { min: 1, max: 1 },
     points: 305,
+    baseSizeMm: 120,
     weapons: [
       { name: "Taloned Forelimbs", type: "Melee", attacks: "10", skill: "WS2+", strength: "12", ap: "-3", damage: "3" },
       { name: "Claws and Teeth", type: "Melee", attacks: "4", skill: "WS3+", strength: "8", ap: "-1", damage: "D3" },
@@ -286,6 +299,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 10, max: 20 },
     points: 60,
     pointsPerModel: 6,
+    baseSizeMm: 25,
     weapons: [
       { name: "Fleshborer", type: "Assault", range: '18"', attacks: "1", skill: "BS4+", strength: "5", ap: "0", damage: "1" },
       { name: "Claws and Teeth", type: "Melee", attacks: "1", skill: "WS4+", strength: "3", ap: "0", damage: "1" },
@@ -308,6 +322,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 10, max: 20 },
     points: 70,
     pointsPerModel: 7,
+    baseSizeMm: 25,
     weapons: [
       { name: "Scything Talons", type: "Melee", attacks: "2", skill: "WS4+", strength: "3", ap: "0", damage: "1", keywords: ["Sustained Hits 1"] },
     ],
@@ -326,6 +341,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 5, save: "4+", wounds: 3, leadership: "7+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 70,
+    baseSizeMm: 40,
     weapons: [
       { name: "Deathspitter", type: "Assault", range: '24"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "1" },
       { name: "Scything Talons", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "0", damage: "1", keywords: ["Sustained Hits 1"] },
@@ -358,6 +374,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 55,
     pointsPerModel: 11,
+    baseSizeMm: 32,
     weapons: [
       { name: "Barblauncher", type: "Heavy", range: '24"', attacks: "D6", skill: "BS4+", strength: "5", ap: "0", damage: "1", keywords: ["Blast"] },
       { name: "Claws and Teeth", type: "Melee", attacks: "1", skill: "WS4+", strength: "3", ap: "0", damage: "1" },
@@ -376,6 +393,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 3, save: "6+", wounds: 1, leadership: "8+", oc: 2 },
     models: { min: 10, max: 20 },
     points: 45,
+    baseSizeMm: 25,
     weapons: [
       { name: "Claws and Teeth", type: "Melee", attacks: "1", skill: "WS5+", strength: "3", ap: "0", damage: "1" },
     ],
@@ -395,6 +413,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 3, max: 6 },
     points: 45,
     pointsPerModel: 15,
+    baseSizeMm: 40,
     weapons: [
       { name: "Ripping Claws", type: "Melee", attacks: "4", skill: "WS5+", strength: "3", ap: "0", damage: "1" },
     ],
@@ -414,6 +433,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '9"', toughness: 5, save: "3+", wounds: 2, leadership: "7+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 70,
+    baseSizeMm: 32,
     weapons: [
       { name: "Leaper's Talons", type: "Melee", attacks: "4", skill: "WS3+", strength: "6", ap: "-2", damage: "1", keywords: ["Sustained Hits 1"] },
     ],
@@ -434,6 +454,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 95,
     pointsPerModel: 19,
+    baseSizeMm: 32,
     weapons: [
       { name: "Rending Claws", type: "Melee", attacks: "4", skill: "WS2+", strength: "4", ap: "-2", damage: "1", keywords: ["Sustained Hits 2"] },
     ],
@@ -452,6 +473,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '9"', toughness: 5, save: "3+", wounds: 5, leadership: "7+", oc: 1 },
     models: { min: 1, max: 3 },
     points: 70,
+    baseSizeMm: 40,
     canDeepStrike: true,
     weapons: [
       { name: "Flesh Hooks", type: "Heavy", range: '12"', attacks: "4", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
@@ -473,6 +495,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 5, save: "4+/4++", wounds: 7, leadership: "7+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 60,
+    baseSizeMm: 40,
     weapons: [
       { name: "Piercing Claws and Talons", type: "Melee", attacks: "6", skill: "WS2+", strength: "6", ap: "-2", damage: "1", keywords: ["Precision"] },
     ],
@@ -491,6 +514,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 5, save: "4+", wounds: 3, leadership: "8+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 75,
+    baseSizeMm: 50,
     canDeepStrike: true,
     weapons: [
       { name: "Rending Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "-1", damage: "1" },
@@ -511,6 +535,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 4, save: "3+/5++", wounds: 3, leadership: "7+", oc: 0 },
     models: { min: 3, max: 6 },
     points: 90,
+    baseSizeMm: 40,
     weapons: [
       { name: "Warp Blast", type: "Assault", range: '18"', attacks: "1", skill: "BS-", strength: "10", ap: "-3", damage: "D3+3", keywords: ["Devastating Wounds", "Psychic"] },
       { name: "Claws and Teeth", type: "Melee", attacks: "2", skill: "WS4+", strength: "3", ap: "0", damage: "1" },
@@ -531,6 +556,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 8, save: "3+", wounds: 4, leadership: "8+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 95,
+    baseSizeMm: 50,
     weapons: [
       { name: "Scything Talons and Rending Claws", type: "Melee", attacks: "5", skill: "WS3+", strength: "5", ap: "-1", damage: "1" },
       { name: "Bone Cleaver, Lash Whip and Rending Claws", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "-1", damage: "2" },
@@ -551,6 +577,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 1, max: 3 },
     points: 30,
     pointsPerModel: 30,
+    baseSizeMm: 50,
     weapons: [
       { name: "Acid Maw", type: "Melee", attacks: "2", skill: "WS4+", strength: "5", ap: "-2", damage: "D3" },
       { name: "Flamespurt", type: "Heavy", range: '12"', attacks: "D6", skill: "BS-", strength: "5", ap: "-1", damage: "1", keywords: ["Torrent", "Ignores Cover"] },
@@ -569,6 +596,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 6, save: "5+", wounds: 3, leadership: "7+", oc: 0 },
     models: { min: 3, max: 3 },
     points: 70,
+    baseSizeMm: 40,
     weapons: [
       { name: "Toxic Lashes", type: "Melee", attacks: "3", skill: "WS4+", strength: "4", ap: "-1", damage: "1", keywords: ["Lethal Hits"] },
     ],
@@ -586,6 +614,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 10, save: "3+", wounds: 13, leadership: "7+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 160,
+    baseSizeMm: 100,
     weapons: [
       { name: "Massive Scything Talons", type: "Melee", attacks: "6", skill: "WS3+", strength: "10", ap: "-2", damage: "D3+2" },
       { name: "Psychic Overload", type: "Heavy", range: '18"', attacks: "D6+3", skill: "BS-", strength: "7", ap: "-2", damage: "D3", keywords: ["Psychic", "Devastating Wounds"] },
@@ -605,6 +634,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 9, save: "3+", wounds: 10, leadership: "8+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 125,
+    baseSizeMm: 100,
     weapons: [
       { name: "Psychoclastic Torrent", type: "Heavy", range: '12"', attacks: "D6", skill: "BS-", strength: "6", ap: "-1", damage: "1", keywords: ["Torrent", "Ignores Cover"] },
       { name: "Talons and Betentacled Maw", type: "Melee", attacks: "D6+1", skill: "WS3+", strength: "6", ap: "-1", damage: "2", keywords: ["Anti-Psyker 4+", "Devastating Wounds"] },
@@ -624,6 +654,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 10, save: "3+", wounds: 9, leadership: "8+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 175,
+    baseSizeMm: 100,
     weapons: [
       { name: "Bio-Plasma (Shrieking)", type: "Heavy", range: '18"', attacks: "D6+1", skill: "BS3+", strength: "8", ap: "-3", damage: "2", keywords: ["Hazardous"] },
       { name: "Massive Crushing Claws", type: "Melee", attacks: "6", skill: "WS2+", strength: "12", ap: "-3", damage: "D6+1" },
@@ -645,6 +676,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 10, max: 20 },
     points: 70,
     pointsPerModel: 7,
+    baseSizeMm: 32,
     weapons: [
       { name: "Fleshborer", type: "Assault", range: '18"', attacks: "1", skill: "BS4+", strength: "5", ap: "0", damage: "1" },
       { name: "Blinding Venom", type: "Melee", attacks: "1", skill: "WS4+", strength: "3", ap: "0", damage: "1", keywords: ["Anti-Infantry 4+"] },
@@ -664,6 +696,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 2, save: "6+", wounds: 1, leadership: "8+", oc: 0 },
     models: { min: 3, max: 9 },
     points: 45,
+    baseSizeMm: 40,
     weapons: [
       { name: "Spore Mine Detonation", type: "Melee", attacks: "1", skill: "WS-", strength: "6", ap: "-2", damage: "2", keywords: ["Blast", "Devastating Wounds"] },
     ],
@@ -683,6 +716,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '4"', toughness: 4, save: "7+", wounds: 3, leadership: "8+", oc: 0 },
     models: { min: 1, max: 3 },
     points: 40,
+    baseSizeMm: 40,
     weapons: [
       { name: "Mucolid Detonation", type: "Melee", attacks: "1", skill: "WS-", strength: "8", ap: "-3", damage: "D6+2", keywords: ["Blast", "Devastating Wounds"] },
     ],
@@ -703,6 +737,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '20"', toughness: 9, save: "3+", wounds: 12, leadership: "8+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 165,
+    baseSizeMm: 120,
     weapons: [
       { name: "Stinger Salvoes", type: "Ranged", range: '24"', attacks: "8", skill: "BS3+", strength: "5", ap: "0", damage: "1" },
       { name: "Twin Heavy Venom Cannon", type: "Heavy", range: '36"', attacks: "D3", skill: "BS3+", strength: "9", ap: "-2", damage: "3", keywords: ["Blast", "Twin-linked"] },
@@ -724,6 +759,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '20"', toughness: 9, save: "3+", wounds: 12, leadership: "8+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 195,
+    baseSizeMm: 120,
     weapons: [
       { name: "Drool Cannon", type: "Heavy", range: '12"', attacks: "2D6", skill: "BS-", strength: "8", ap: "-1", damage: "1", keywords: ["Torrent"] },
       { name: "Tentaclids", type: "Heavy", range: '36"', attacks: "4", skill: "BS3+", strength: "7", ap: "0", damage: "2", keywords: ["Anti-Vehicle 4+", "Devastating Wounds"] },
@@ -748,6 +784,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 1, max: 3 },
     points: 125,
     pointsPerModel: 125,
+    baseSizeMm: 100,
     weapons: [
       { name: "Bio-Plasma", type: "Heavy", range: '18"', attacks: "D3+3", skill: "BS3+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
       { name: "Scything Talons", type: "Melee", attacks: "6", skill: "WS3+", strength: "10", ap: "-2", damage: "3" },
@@ -780,6 +817,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 10, save: "3+", wounds: 12, leadership: "8+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 125,
+    baseSizeMm: 120,
     weapons: [
       { name: "Bio-Plasmic Cannon", type: "Heavy", range: '36"', attacks: "6", skill: "BS3+", strength: "9", ap: "-3", damage: "2", keywords: ["Blast", "Hazardous", "Lethal Hits"] },
       { name: "Powerful Limbs", type: "Melee", attacks: "4", skill: "WS4+", strength: "8", ap: "-1", damage: "2" },
@@ -798,6 +836,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 12, save: "2+", wounds: 14, leadership: "8+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 190,
+    baseSizeMm: 120,
     weapons: [
       { name: "Rupture Cannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "16", ap: "-4", damage: "D6+4" },
       { name: "Fleshborer Hive", type: "Heavy", range: '18"', attacks: "2D6", skill: "BS4+", strength: "5", ap: "0", damage: "1" },
@@ -821,6 +860,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 11, save: "3+", wounds: 12, leadership: "8+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 120,
+    baseSizeMm: 100,
     weapons: [
       { name: "Shovelling Claws", type: "Melee", attacks: "4", skill: "WS3+", strength: "8", ap: "-1", damage: "2" },
       { name: "Grasping Tongue", type: "Melee", attacks: "1", skill: "WS3+", strength: "10", ap: "-3", damage: "D6+2" },
@@ -839,6 +879,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 7, save: "3+", wounds: 4, leadership: "8+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 95,
+    baseSizeMm: 40,
     weapons: [
       { name: "Impaler Cannon", type: "Heavy", range: '36"', attacks: "4", skill: "BS4+", strength: "5", ap: "0", damage: "1", keywords: ["Indirect Fire"] },
       { name: "Shockcannon", type: "Heavy", range: '24"', attacks: "2", skill: "BS3+", strength: "7", ap: "-1", damage: "3", keywords: ["Anti-Vehicle 4+"] },
@@ -862,6 +903,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 10, save: "3+", wounds: 14, leadership: "8+", oc: 4 },
     models: { min: 1, max: 1 },
     points: 135,
+    baseSizeMm: 100,
     weapons: [
       { name: "Distensible Jaw", type: "Melee", attacks: "1", skill: "WS3+", strength: "5", ap: "0", damage: "3", keywords: ["Anti-Infantry 4+", "Devastating Wounds", "Extra Attacks"] },
       { name: "Mawloc Scything Talons", type: "Melee", attacks: "16", skill: "WS3+", strength: "8", ap: "-2", damage: "1" },
@@ -882,6 +924,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 10, save: "3+", wounds: 14, leadership: "8+", oc: 4 },
     models: { min: 1, max: 1 },
     points: 170,
+    baseSizeMm: 100,
     weapons: [
       { name: "Bio-Electric Pulse", type: "Ranged", range: '12"', attacks: "6", skill: "BS3+", strength: "5", ap: "0", damage: "1", keywords: ["Sustained Hits 2"] },
       { name: "Trygon Scything Talons", type: "Melee", attacks: "12", skill: "WS3+", strength: "9", ap: "-2", damage: "3" },
@@ -901,6 +944,7 @@ export const TYRANID_UNITS: Unit[] = [
     models: { min: 1, max: 3 },
     points: 45,
     pointsPerModel: 45,
+    baseSizeMm: 50,
     weapons: [
       { name: "Spore Mine Launcher", type: "Heavy", range: '48"', attacks: "1", skill: "BS4+", strength: "4", ap: "-2", damage: "D3", keywords: ["Blast", "Indirect Fire"] },
       { name: "Claws and Teeth", type: "Melee", attacks: "1", skill: "WS5+", strength: "3", ap: "0", damage: "1" },
@@ -919,6 +963,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 10, save: "3+", wounds: 13, leadership: "8+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 200,
+    baseSizeMm: 120,
     weapons: [
       { name: "Massive Toxic Lashes", type: "Melee", attacks: "6", skill: "WS3+", strength: "8", ap: "-2", damage: "2", keywords: ["Lethal Hits"] },
       { name: "Haemotoxin Glands", type: "Melee", attacks: "D6", skill: "WS4+", strength: "4", ap: "-1", damage: "1", keywords: ["Lethal Hits", "Anti-Infantry 3+"] },
@@ -941,6 +986,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 9, save: "3+", wounds: 10, leadership: "8+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 95,
+    baseSizeMm: 120,
     weapons: [
       { name: "Tentacle Clusters", type: "Melee", attacks: "5", skill: "WS4+", strength: "6", ap: "-1", damage: "1" },
       { name: "Barbed Stranglers", type: "Heavy", range: '24"', attacks: "D6+3", skill: "BS4+", strength: "6", ap: "-1", damage: "2", keywords: ["Blast"] },
@@ -961,6 +1007,7 @@ export const TYRANID_UNITS: Unit[] = [
     stats: { movement: '0"', toughness: 10, save: "3+", wounds: 10, leadership: "8+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 125,
+    baseSizeMm: 130,
     weapons: [
       { name: "Sporocyst Bio-Weapons", type: "Heavy", range: '24"', attacks: "10", skill: "BS4+", strength: "5", ap: "-1", damage: "2" },
       { name: "Flensing Whips", type: "Melee", attacks: "6", skill: "WS4+", strength: "7", ap: "-1", damage: "2" },

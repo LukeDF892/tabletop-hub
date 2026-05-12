@@ -69,6 +69,7 @@ export interface UnitMarker {
   inCover?: boolean;               // true = unit is within a Ruins terrain footprint (cover save bonus)
   feelNoPain?: number;             // FNP threshold (5 = 5+, 6 = 6+); cleared at end of turn
   teleportHomer?: boolean;         // unit can place a Teleport Homer after moving
+  baseSizeMm?: number;             // official GW base diameter in mm; drives getUnitRadius()
 }
 
 export interface DeploymentState {

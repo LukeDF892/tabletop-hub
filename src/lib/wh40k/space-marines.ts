@@ -11,6 +11,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "2+/4++", wounds: 8, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 160,
+    baseSizeMm: 40,
     weapons: [
       { name: "Gauntlets of Ultramar", type: "Ranged", range: '18"', attacks: "6", skill: "BS2+", strength: "4", ap: "-1", damage: "1" },
       { name: "Gauntlets of Ultramar", type: "Melee", attacks: "8", skill: "WS2+", strength: "8", ap: "-2", damage: "2" },
@@ -33,6 +34,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+/5++", wounds: 5, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 95,
+    baseSizeMm: 40,
     weapons: [
       { name: "Force Sword", type: "Melee", attacks: "5", skill: "WS2+", strength: "6", ap: "-2", damage: "D3" },
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
@@ -54,6 +56,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+/4++", wounds: 5, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 80,
+    baseSizeMm: 40,
     weapons: [
       { name: "Master-Crafted Power Weapon", type: "Melee", attacks: "5", skill: "WS2+", strength: "5", ap: "-2", damage: "2" },
       { name: "Neo-volkite Pistol", type: "Pistol", range: '12"', attacks: "2", skill: "BS2+", strength: "5", ap: "0", damage: "2" },
@@ -88,6 +91,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+/5++", wounds: 4, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 75,
+    baseSizeMm: 40,
     weapons: [
       { name: "Force Weapon", type: "Melee", attacks: "4", skill: "WS3+", strength: "6", ap: "-1", damage: "D3" },
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
@@ -108,6 +112,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 4, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 65,
+    baseSizeMm: 40,
     weapons: [
       { name: "Crozius Arcanum", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-1", damage: "2" },
       { name: "Absolvor Bolt Pistol", type: "Pistol", range: '18"', attacks: "1", skill: "BS2+", strength: "5", ap: "-1", damage: "2" },
@@ -128,6 +133,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "2+", wounds: 4, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 65,
+    baseSizeMm: 40,
     weapons: [
       { name: "Servo-arm", type: "Melee", attacks: "2", skill: "WS3+", strength: "8", ap: "-2", damage: "3" },
       { name: "Servo-harness Plasma Cutter", type: "Melee", attacks: "2", skill: "WS3+", strength: "6", ap: "-2", damage: "2" },
@@ -147,6 +153,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 4, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 70,
+    baseSizeMm: 40,
     weapons: [
       { name: "Master-Crafted Power Weapon", type: "Melee", attacks: "4", skill: "WS2+", strength: "5", ap: "-2", damage: "2" },
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS2+", strength: "4", ap: "0", damage: "1" },
@@ -168,6 +175,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 90,
     pointsPerModel: 18,
+    baseSizeMm: 32,
     weapons: [
       { name: "Auto Bolt Rifle", type: "Assault", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Bolt Rifle", type: "Rapid Fire", range: '30"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
@@ -201,6 +209,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 2 },
     models: { min: 5, max: 10 },
     points: 85,
+    baseSizeMm: 32,
     weapons: [
       { name: "Heavy Bolt Pistol", type: "Pistol", range: '18"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
       { name: "Astartes Chainsword", type: "Melee", attacks: "4", skill: "WS3+", strength: "4", ap: "-1", damage: "1" },
@@ -234,6 +243,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 75,
     pointsPerModel: 15,
+    baseSizeMm: 32,
     weapons: [
       { name: "Boltgun", type: "Rapid Fire", range: '24"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "2", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -258,6 +268,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 5, save: "3+", wounds: 3, leadership: "6+", oc: 2 },
     models: { min: 5, max: 10 },
     points: 100,
+    baseSizeMm: 40,
     weapons: [
       { name: "Heavy Bolt Rifle", type: "Heavy", range: '36"', attacks: "1", skill: "BS3+", strength: "5", ap: "-1", damage: "2" },
       { name: "Executor Bolt Rifle", type: "Heavy", range: '42"', attacks: "1", skill: "BS3+", strength: "5", ap: "-2", damage: "3" },
@@ -279,6 +290,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 5, save: "2+", wounds: 3, leadership: "6+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 175,
+    baseSizeMm: 40,
     weapons: [
       { name: "Storm Bolter", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Power Fist", type: "Melee", attacks: "3", skill: "WS3+", strength: "8", ap: "-2", damage: "2" },
@@ -303,6 +315,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 95,
+    baseSizeMm: 32,
     weapons: [
       { name: "Sternguard Bolt Rifle", type: "Assault", range: '30"', attacks: "2", skill: "BS2+", strength: "4", ap: "-2", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -321,6 +334,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 5, max: 5 },
     points: 75,
+    baseSizeMm: 32,
     weapons: [
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -339,6 +353,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 4, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 55,
+    baseSizeMm: 40,
     weapons: [
       { name: "Absolvor Bolt Pistol", type: "Pistol", range: '18"', attacks: "1", skill: "BS2+", strength: "5", ap: "-1", damage: "2" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -358,6 +373,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+/4++", wounds: 3, leadership: "6+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 115,
+    baseSizeMm: 32,
     weapons: [
       { name: "Master-Crafted Power Sword", type: "Melee", attacks: "4", skill: "WS2+", strength: "5", ap: "-3", damage: "2" },
       { name: "Heavy Bolt Pistol", type: "Pistol", range: '18"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
@@ -377,6 +393,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 95,
+    baseSizeMm: 32,
     canFly: true,
     weapons: [
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
@@ -401,6 +418,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 5, save: "3+", wounds: 4, leadership: "6+", oc: 2 },
     models: { min: 3, max: 6 },
     points: 130,
+    baseSizeMm: 75,
     weapons: [
       { name: "Outrider Bike Bolters", type: "Rapid Fire", range: '24"', attacks: "4", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "4", skill: "WS3+", strength: "5", ap: "0", damage: "1" },
@@ -420,6 +438,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 5, save: "3+", wounds: 3, leadership: "6+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 130,
+    baseSizeMm: 40,
     weapons: [
       { name: "Assault Bolter", type: "Assault", range: '18"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "1" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "5", ap: "0", damage: "1" },
@@ -440,6 +459,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 100,
+    baseSizeMm: 32,
     weapons: [
       { name: "Boltgun", type: "Rapid Fire", range: '24"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Missile Launcher (Frag)", type: "Heavy", range: '48"', attacks: "D6", skill: "BS3+", strength: "5", ap: "0", damage: "1" },
@@ -475,6 +495,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 11, save: "3+", wounds: 11, leadership: "6+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 130,
+    baseSizeMm: 90,
     weapons: [
       { name: "Predator Autocannon", type: "Heavy", range: '48"', attacks: "4", skill: "BS3+", strength: "9", ap: "-1", damage: "3" },
       { name: "Lascannon", type: "Heavy", range: '48"', attacks: "1", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+1" },
@@ -495,6 +516,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 13, save: "2+", wounds: 16, leadership: "6+", oc: 4 },
     models: { min: 1, max: 1 },
     points: 245,
+    baseSizeMm: 105,
     weapons: [
       { name: "Twin Lascannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+1" },
       { name: "Multi-melta", type: "Heavy", range: '18"', attacks: "2", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
@@ -515,6 +537,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 110,
+    baseSizeMm: 32,
     weapons: [
       { name: "Plasma Incinerator (Standard)", type: "Assault", range: '30"', attacks: "1", skill: "BS3+", strength: "7", ap: "-3", damage: "2" },
       { name: "Plasma Incinerator (Supercharge)", type: "Assault", range: '30"', attacks: "1", skill: "BS3+", strength: "8", ap: "-3", damage: "3", keywords: ["Hazardous"] },
@@ -534,6 +557,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 5, save: "3+", wounds: 3, leadership: "6+", oc: 1 },
     models: { min: 3, max: 6 },
     points: 95,
+    baseSizeMm: 40,
     weapons: [
       { name: "Melta Rifle", type: "Heavy", range: '18"', attacks: "1", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
@@ -553,6 +577,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 9, save: "2+", wounds: 8, leadership: "6+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 100,
+    baseSizeMm: 60,
     weapons: [
       { name: "Dreadnought Combat Weapon", type: "Melee", attacks: "5", skill: "WS3+", strength: "12", ap: "-2", damage: "3" },
       { name: "Multi-melta", type: "Heavy", range: '18"', attacks: "2", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
@@ -587,6 +612,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 9, save: "3+", wounds: 9, leadership: "5+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 130,
+    baseSizeMm: 90,
     weapons: [
       { name: "Twin Lascannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "12", ap: "-3", damage: "D6+2" },
       { name: "Missile Launcher (Krak)", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "8", ap: "-2", damage: "D6" },
@@ -609,6 +635,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 10, save: "3+", wounds: 12, leadership: "5+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 170,
+    baseSizeMm: 90,
     weapons: [
       { name: "Twin Multi-melta", type: "Heavy", range: '18"', attacks: "2", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 3"] },
       { name: "Twin Bolt Rifle", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
@@ -634,6 +661,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 9, save: "2+", wounds: 8, leadership: "5+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 155,
+    baseSizeMm: 60,
     weapons: [
       { name: "Multi-melta", type: "Heavy", range: '18"', attacks: "2", skill: "BS2+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
       { name: "Lascannon", type: "Heavy", range: '48"', attacks: "1", skill: "BS2+", strength: "12", ap: "-3", damage: "D6+1" },
@@ -657,6 +685,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 10, save: "2+", wounds: 9, leadership: "5+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 135,
+    baseSizeMm: 60,
     weapons: [
       { name: "Kheres Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS3+", strength: "7", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
       { name: "Dreadnought Combat Weapon", type: "Melee", attacks: "5", skill: "WS3+", strength: "12", ap: "-2", damage: "3" },
@@ -675,6 +704,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 10, save: "2+", wounds: 8, leadership: "5+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 150,
+    baseSizeMm: 60,
     weapons: [
       { name: "Seismic Hammer", type: "Melee", attacks: "3", skill: "WS2+", strength: "14", ap: "-3", damage: "D6" },
       { name: "Hurricane Bolter", type: "Rapid Fire", range: '24"', attacks: "6", skill: "BS4+", strength: "4", ap: "0", damage: "1" },
@@ -699,6 +729,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 12, save: "2+/4++", wounds: 14, leadership: "5+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 280,
+    baseSizeMm: 90,
     weapons: [
       { name: "Storm Cannon Array", type: "Heavy", range: '24"', attacks: "14", skill: "BS3+", strength: "7", ap: "-2", damage: "2" },
       { name: "Siege Drills", type: "Melee", attacks: "4", skill: "WS2+", strength: "16", ap: "-4", damage: "D6+2" },
@@ -721,6 +752,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 10, save: "3+", wounds: 12, leadership: "5+", oc: 3 },
     models: { min: 1, max: 1 },
     points: 185,
+    baseSizeMm: 90,
     weapons: [
       { name: "Macro Plasma Incinerator (Standard)", type: "Heavy", range: '36"', attacks: "5", skill: "BS3+", strength: "8", ap: "-3", damage: "3" },
       { name: "Macro Plasma Incinerator (Supercharge)", type: "Heavy", range: '36"', attacks: "5", skill: "BS3+", strength: "9", ap: "-4", damage: "4", keywords: ["Hazardous"] },
@@ -746,6 +778,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "4+", wounds: 2, leadership: "6+", oc: 2 },
     models: { min: 5, max: 10 },
     points: 65,
+    baseSizeMm: 25,
     pointsPerModel: 13,
     weapons: [
       { name: "Scout Sniper Rifle", type: "Heavy", range: '24"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1", keywords: ["Precision", "Indirect Fire"] },
@@ -766,6 +799,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 5, max: 10 },
     points: 85,
+    baseSizeMm: 32,
     weapons: [
       { name: "Bolt Carbine", type: "Assault", range: '18"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Combat Blade", type: "Melee", attacks: "3", skill: "WS3+", strength: "4", ap: "-1", damage: "1" },
@@ -784,6 +818,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 2 },
     models: { min: 5, max: 10 },
     points: 90,
+    baseSizeMm: 32,
     weapons: [
       { name: "Occulus Bolt Carbine", type: "Assault", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Ignores Cover", "Ignores Look Out Sir"] },
       { name: "Paired Combat Blades", type: "Melee", attacks: "4", skill: "WS3+", strength: "3", ap: "0", damage: "1" },
@@ -803,6 +838,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 2 },
     models: { min: 5, max: 10 },
     points: 100,
+    baseSizeMm: 32,
     weapons: [
       { name: "Marksman Bolt Carbine", type: "Assault", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "2" },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "3", ap: "0", damage: "1" },
@@ -824,6 +860,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 3, max: 3 },
     points: 90,
+    baseSizeMm: 40,
     weapons: [
       { name: "Accelerator Autocannon", type: "Heavy", range: '48"', attacks: "2", skill: "BS3+", strength: "6", ap: "-1", damage: "2" },
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
@@ -845,6 +882,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '5"', toughness: 5, save: "3+", wounds: 3, leadership: "6+", oc: 2 },
     models: { min: 3, max: 6 },
     points: 105,
+    baseSizeMm: 40,
     weapons: [
       { name: "Flamestorm Gauntlets", type: "Heavy", range: '12"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Torrent", "Twin-linked"] },
       { name: "Boltstorm Gauntlet", type: "Assault", range: '18"', attacks: "4", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
@@ -867,6 +905,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "2+", wounds: 5, leadership: "5+", oc: 1 },
     models: { min: 1, max: 1 },
     points: 80,
+    baseSizeMm: 40,
     weapons: [
       { name: "Absolvor Bolt Pistol", type: "Pistol", range: '18"', attacks: "1", skill: "BS3+", strength: "5", ap: "-1", damage: "2" },
       { name: "Executioner Relic Blade", type: "Melee", attacks: "4", skill: "WS2+", strength: "6", ap: "-3", damage: "3" },
@@ -887,6 +926,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 9, save: "3+", wounds: 10, leadership: "6+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 75,
+    baseSizeMm: 105,
     weapons: [
       { name: "Storm Bolter", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS4+", strength: "4", ap: "0", damage: "1" },
       { name: "Armoured Tracks", type: "Melee", attacks: "3", skill: "WS4+", strength: "7", ap: "0", damage: "1" },
@@ -907,6 +947,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 9, save: "3+", wounds: 10, leadership: "6+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 105,
+    baseSizeMm: 105,
     weapons: [
       { name: "Twin Assault Cannon", type: "Heavy", range: '24"', attacks: "6", skill: "BS4+", strength: "6", ap: "-1", damage: "1", keywords: ["Sustained Hits 1"] },
       { name: "Twin Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS4+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
@@ -931,6 +972,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '0"', toughness: 9, save: "3+", wounds: 8, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 65,
+    baseSizeMm: 90,
     weapons: [
       { name: "Storm Bolter x5", type: "Rapid Fire", range: '24"', attacks: "2", skill: "BS4+", strength: "4", ap: "0", damage: "1" },
       { name: "Armoured Hull", type: "Melee", attacks: "3", skill: "WS4+", strength: "6", ap: "0", damage: "1" },
@@ -951,6 +993,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 9, save: "3+", wounds: 11, leadership: "6+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 100,
+    baseSizeMm: 105,
     weapons: [
       { name: "Bellicatus Missile Array", type: "Heavy", range: '48"', attacks: "1", skill: "BS4+", strength: "8", ap: "-2", damage: "3" },
       { name: "Armoured Tracks", type: "Melee", attacks: "3", skill: "WS4+", strength: "7", ap: "0", damage: "1" },
@@ -973,6 +1016,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 12, save: "3+", wounds: 16, leadership: "6+", oc: 5 },
     models: { min: 1, max: 1 },
     points: 230,
+    baseSizeMm: 105,
     weapons: [
       { name: "Las-talon", type: "Heavy", range: '36"', attacks: "2", skill: "BS4+", strength: "16", ap: "-4", damage: "D6+1" },
       { name: "Heavy Onslaught Gatling Cannon", type: "Heavy", range: '24"', attacks: "12", skill: "BS4+", strength: "6", ap: "-1", damage: "1" },
@@ -1771,6 +1815,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 130,
     pointsPerModel: 26,
+    baseSizeMm: 32,
     weapons: [
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Vanguard Veteran Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "4", ap: "-1", damage: "1" },
@@ -1795,6 +1840,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 200,
     pointsPerModel: 40,
+    baseSizeMm: 40,
     weapons: [
       { name: "Thunder Hammer", type: "Melee", attacks: "4", skill: "WS3+", strength: "8", ap: "-2", damage: "2", keywords: ["Devastating Wounds"] },
       { name: "Storm Shield", type: "Melee", attacks: "1", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -1819,6 +1865,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 3, max: 6 },
     points: 140,
     pointsPerModel: 47,
+    baseSizeMm: 50,
     weapons: [
       { name: "Twin Flamer", type: "Ranged", range: '12"', attacks: "D6", skill: "BS N/A", strength: "4", ap: "0", damage: "1", keywords: ["Ignores Cover", "Torrent", "Twin-linked"] },
       { name: "Siege Drills", type: "Melee", attacks: "4", skill: "WS3+", strength: "10", ap: "-4", damage: "3" },
@@ -1843,6 +1890,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 3, max: 6 },
     points: 140,
     pointsPerModel: 47,
+    baseSizeMm: 50,
     weapons: [
       { name: "Grav-cannon", type: "Heavy", range: '24"', attacks: "3", skill: "BS3+", strength: "6", ap: "-1", damage: "3", keywords: ["Anti-Vehicle 2+"] },
       { name: "Centurion Bolters", type: "Ranged", range: '24"', attacks: "3", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Rapid Fire 3", "Twin-linked"] },
@@ -1866,6 +1914,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '6"', toughness: 4, save: "3+", wounds: 2, leadership: "6+", oc: 1 },
     models: { min: 3, max: 3 },
     points: 75,
+    baseSizeMm: 32,
     weapons: [
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Bolt Sniper Rifle", type: "Heavy", range: '36"', attacks: "1", skill: "BS3+", strength: "5", ap: "-2", damage: "3", keywords: ["Heavy", "Precision"] },
@@ -1892,6 +1941,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 5, max: 10 },
     points: 170,
     pointsPerModel: 34,
+    baseSizeMm: 32,
     weapons: [
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Castellan Launcher", type: "Ranged", range: '36"', attacks: "D3", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Blast", "Indirect Fire"] },
@@ -1919,6 +1969,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 3, max: 6 },
     points: 135,
     pointsPerModel: 45,
+    baseSizeMm: 75,
     weapons: [
       { name: "Heavy Bolt Pistol", type: "Pistol", range: '18"', attacks: "1", skill: "BS3+", strength: "4", ap: "-1", damage: "1" },
       { name: "Twin Bolt Rifle", type: "Ranged", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "-1", damage: "1", keywords: ["Twin-linked"] },
@@ -1938,6 +1989,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '12"', toughness: 6, save: "3+", wounds: 7, leadership: "6+", oc: 2 },
     models: { min: 1, max: 1 },
     points: 85,
+    baseSizeMm: 90,
     weapons: [
       { name: "Bolt Pistol", type: "Pistol", range: '12"', attacks: "1", skill: "BS3+", strength: "4", ap: "0", damage: "1" },
       { name: "Twin Bolt Rifle", type: "Ranged", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "-1", damage: "1", keywords: ["Twin-linked"] },
@@ -1963,6 +2015,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 9, save: "3+", wounds: 8, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 140,
+    baseSizeMm: 90,
     weapons: [
       { name: "Fragstorm Grenade Launcher (x2)", type: "Ranged", range: '18"', attacks: "D6", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Blast"] },
       { name: "Onslaught Gatling Cannon", type: "Ranged", range: '24"', attacks: "8", skill: "BS3+", strength: "5", ap: "0", damage: "1", keywords: ["Devastating Wounds"] },
@@ -1986,6 +2039,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 9, save: "3+", wounds: 8, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 155,
+    baseSizeMm: 90,
     weapons: [
       { name: "Stormfury Missiles", type: "Heavy", range: '48"', attacks: "2", skill: "BS2+", strength: "10", ap: "-2", damage: "D6+3" },
       { name: "Thunderstrike Las-talon", type: "Ranged", range: '36"', attacks: "2", skill: "BS2+", strength: "9", ap: "-3", damage: "D6+1" },
@@ -2009,6 +2063,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '14"', toughness: 9, save: "3+", wounds: 8, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 140,
+    baseSizeMm: 90,
     weapons: [
       { name: "Hammerstrike Missile Launcher", type: "Heavy", range: '36"', attacks: "2", skill: "BS3+", strength: "9", ap: "-3", damage: "D6" },
       { name: "Krakstorm Grenade Launcher (x2)", type: "Ranged", range: '18"', attacks: "2", skill: "BS3+", strength: "6", ap: "-1", damage: "D3" },
@@ -2030,6 +2085,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '8"', toughness: 7, save: "3+", wounds: 10, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 160,
+    baseSizeMm: 90,
     weapons: [
       { name: "Fragstorm Grenade Launcher", type: "Ranged", range: '18"', attacks: "D6", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Blast"] },
       { name: "Heavy Bolter", type: "Heavy", range: '36"', attacks: "3", skill: "BS3+", strength: "5", ap: "-1", damage: "2", keywords: ["Sustained Hits 1"] },
@@ -2059,6 +2115,7 @@ export const SM_UNITS: Unit[] = [
     models: { min: 1, max: 2 },
     points: 80,
     pointsPerModel: 40,
+    baseSizeMm: 60,
     weapons: [
       { name: "Twin Firestrike Las-talon", type: "Heavy", range: '36"', attacks: "2", skill: "BS3+", strength: "10", ap: "-3", damage: "D6+1", keywords: ["Twin-linked"] },
       { name: "Close Combat Weapon", type: "Melee", attacks: "3", skill: "WS3+", strength: "4", ap: "0", damage: "1" },
@@ -2082,6 +2139,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 9, save: "3+", wounds: 14, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 160,
+    baseSizeMm: 105,
     weapons: [
       { name: "Lancer Laser Destroyer", type: "Heavy", range: '72"', attacks: "2", skill: "BS3+", strength: "14", ap: "-4", damage: "D6+3" },
       { name: "Storm Bolter (x2)", type: "Ranged", range: '24"', attacks: "2", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Rapid Fire 2"] },
@@ -2101,6 +2159,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 9, save: "3+", wounds: 14, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 150,
+    baseSizeMm: 105,
     weapons: [
       { name: "Twin Heavy Onslaught Gatling Cannon", type: "Heavy", range: '24"', attacks: "12", skill: "BS3+", strength: "6", ap: "0", damage: "1", keywords: ["Devastating Wounds", "Twin-linked"] },
       { name: "Tempest Bolter (x2)", type: "Ranged", range: '24"', attacks: "4", skill: "BS3+", strength: "4", ap: "-1", damage: "1", keywords: ["Rapid Fire 4"] },
@@ -2120,6 +2179,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 9, save: "3+", wounds: 14, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 185,
+    baseSizeMm: 105,
     weapons: [
       { name: "Multi-melta (x2)", type: "Ranged", range: '18"', attacks: "2", skill: "BS3+", strength: "9", ap: "-4", damage: "D6", keywords: ["Melta 2"] },
       { name: "Twin Las-talon", type: "Ranged", range: '36"', attacks: "2", skill: "BS3+", strength: "10", ap: "-3", damage: "D6+1", keywords: ["Twin-linked"] },
@@ -2139,6 +2199,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 12, save: "3+", wounds: 16, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 285,
+    baseSizeMm: 105,
     weapons: [
       { name: "Heavy Onslaught Gatling Cannon", type: "Heavy", range: '24"', attacks: "12", skill: "BS3+", strength: "6", ap: "0", damage: "1", keywords: ["Devastating Wounds"] },
       { name: "Macro Plasma Incinerator (standard)", type: "Heavy", range: '36"', attacks: "D6+1", skill: "BS3+", strength: "8", ap: "-3", damage: "2", keywords: ["Blast"] },
@@ -2161,6 +2222,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 12, save: "2+", wounds: 16, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 270,
+    baseSizeMm: 105,
     weapons: [
       { name: "Hurricane Bolter (x2)", type: "Ranged", range: '24"', attacks: "6", skill: "BS3+", strength: "4", ap: "0", damage: "1", keywords: ["Rapid Fire 6", "Twin-linked"] },
       { name: "Twin Assault Cannon", type: "Ranged", range: '24"', attacks: "6", skill: "BS3+", strength: "6", ap: "0", damage: "1", keywords: ["Devastating Wounds", "Twin-linked"] },
@@ -2183,6 +2245,7 @@ export const SM_UNITS: Unit[] = [
     stats: { movement: '10"', toughness: 12, save: "2+", wounds: 16, leadership: "6+", oc: 0 },
     models: { min: 1, max: 1 },
     points: 255,
+    baseSizeMm: 105,
     weapons: [
       { name: "Flamestorm Cannon (x2)", type: "Ranged", range: '12"', attacks: "D6+3", skill: "BS N/A", strength: "6", ap: "-2", damage: "2", keywords: ["Ignores Cover", "Torrent"] },
       { name: "Twin Assault Cannon", type: "Ranged", range: '24"', attacks: "6", skill: "BS3+", strength: "6", ap: "0", damage: "1", keywords: ["Devastating Wounds", "Twin-linked"] },

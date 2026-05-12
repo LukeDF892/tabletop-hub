@@ -57,6 +57,7 @@ export interface Unit {
   canBeLeadBy?: string[];    // character IDs that can lead this unit
   pointsPerModel?: number;   // when set, cost = pointsPerModel × modelCount (overrides flat points)
   teleportHomer?: boolean;   // Ravenwing units that can deploy Teleport Homers
+  baseSizeMm?: number;       // official GW base diameter in mm (e.g. 32, 40, 60, 100)
 }
 
 export interface Stratagem {

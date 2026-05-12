@@ -1,7 +1,7 @@
 import type { UnitMarker } from "./gameTypes";
 import type { MapPreset } from "./mapPresets";
 import type { WeaponProfile } from "./types";
-import { BASE_RADIUS_INCHES } from "./unitSilhouettes";
+import { getUnitRadius } from "./unitSilhouettes";
 import { SM_UNITS } from "./space-marines";
 import { DA_UNITS } from "./dark-angels";
 import { TYRANID_UNITS } from "./tyranids";
@@ -121,8 +121,8 @@ export function unitDist(a: UnitMarker, b: UnitMarker): number {
 export function minUnitEdgeDist(a: UnitMarker, b: UnitMarker): number {
   const aps = allPositions(a);
   const bps = allPositions(b);
-  const rA = BASE_RADIUS_INCHES[a.baseSize ?? 'infantry'];
-  const rB = BASE_RADIUS_INCHES[b.baseSize ?? 'infantry'];
+  const rA = getUnitRadius(a);
+  const rB = getUnitRadius(b);
   let min = Infinity;
   for (const ap of aps) for (const bp of bps) {
     const d = Math.sqrt((ap.x - bp.x) ** 2 + (ap.y - bp.y) ** 2) - rA - rB;
