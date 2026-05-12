@@ -548,7 +548,7 @@ function applyPileIn(
       const d = Math.sqrt((tp.x - pos.x) ** 2 + (tp.y - pos.y) ** 2);
       if (d < nearestDist) { nearestDist = d; nearest = tp; }
     }
-    const stopAt = 0.55; // stay just outside base contact
+    const stopAt = 1.05; // base contact for 25mm infantry (radius ~0.5" each); prevents overlap
     if (nearestDist <= stopAt) return pos;
     const move = Math.min(maxMove, nearestDist - stopAt);
     return {
@@ -2427,8 +2427,9 @@ export default function WarhammerGameRoom() {
       return;
     }
     const nextRound = round + 1;
-    // Alternate who goes first each round
-    const newFirstPlayer: "P1" | "P2" = firstPlayerThisRound === "P1" ? "P2" : "P1";
+    // Tie first player to round number: P1 in odd rounds, P2 in even rounds
+    const newFirstPlayer: "P1" | "P2" = nextRound % 2 === 1 ? "P1" : "P2";
+    console.log('[ROUND BOUNDARY] round=', nextRound, 'firstPlayer=', newFirstPlayer);
     setFirstPlayerThisRound(newFirstPlayer);
     setRound(nextRound);
     setActivePlayer(newFirstPlayer);
@@ -2608,9 +2609,14 @@ export default function WarhammerGameRoom() {
         return;
       }
     } else if (reservesMode === 'place_deepstrike') {
-      // Deep strike: must be 9"+ from all enemy units
+      // Deep strike: must be 9"+ edge-to-edge from all enemy units
       const enemies = activeMarkers.filter((m) => m.player !== marker.player);
-      const tooClose = enemies.some((e) => Math.sqrt((x - e.x) ** 2 + (y - e.y) ** 2) < 9);
+      const myRadius = BASE_RADIUS_INCHES[marker.baseSize ?? 'infantry'];
+      const tooClose = enemies.some((e) => {
+        const eRadius = BASE_RADIUS_INCHES[e.baseSize ?? 'infantry'];
+        const dist = Math.sqrt((x + 0.5 - (e.x + 0.5)) ** 2 + (y + 0.5 - (e.y + 0.5)) ** 2);
+        return dist - eRadius - myRadius < 9;
+      });
       if (tooClose) {
         const msg = 'Must place more than 9" from all enemies!';
         addLog("Deep Strike must be placed more than 9\" from all enemy models.", "system");
@@ -2651,9 +2657,14 @@ export default function WarhammerGameRoom() {
     const isDP = isDropPod(marker);
     const embarkedInThis = transportContents[marker.id] ?? [];
     const reserveInCover = mapPreset.terrain.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
+    // Compute modelPositions for arriving deep-strike / homer units
+    let reserveModelPositions: { x: number; y: number }[] | undefined;
+    if ((marker.modelCount ?? 1) > 1) {
+      reserveModelPositions = hexPackPositions(x + 0.5, y + 0.5, marker.modelCount);
+    }
     setMarkers((prev) =>
       prev.map((m) => {
-        if (m.id === reservesUnitId) return { ...m, x, y, isInReserve: false, inCover: reserveInCover };
+        if (m.id === reservesUnitId) return { ...m, x, y, isInReserve: false, inCover: reserveInCover, modelPositions: reserveModelPositions };
         if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
           const dy2 = marker.player === "P1" ? -1 : 1;
           const cy = Math.max(0, Math.min(43, y + dy2));
@@ -2981,11 +2992,23 @@ export default function WarhammerGameRoom() {
         if (combat.step === "selectTarget") {
           const attacker = markers.find((mk) => mk.id === combat.attackerId);
           if (!attacker || m.player === attacker.player) return;
-          const aFightPos = markerPos(attacker);
-          const tFightPos = markerPos(m);
-          const dist = Math.sqrt((aFightPos.x - tFightPos.x) ** 2 + (aFightPos.y - tFightPos.y) ** 2);
-          if (dist > 2) {
-            addLog(`${m.unitName} not in engagement range (within 1").`, "system");
+          // Check edge-to-edge engagement range: any attacker model within 1" edge-to-edge of any target model
+          const aPositions = attacker.modelPositions && attacker.modelPositions.length > 0
+            ? attacker.modelPositions
+            : [markerPos(attacker)];
+          const tPositions = m.modelPositions && m.modelPositions.length > 0
+            ? m.modelPositions
+            : [markerPos(m)];
+          const aRadius = BASE_RADIUS_INCHES[attacker.baseSize ?? 'infantry'];
+          const tRadius = BASE_RADIUS_INCHES[m.baseSize ?? 'infantry'];
+          const inEngagement = aPositions.some((ap) =>
+            tPositions.some((tp) => {
+              const dist = Math.sqrt((ap.x - tp.x) ** 2 + (ap.y - tp.y) ** 2);
+              return dist - aRadius - tRadius <= 1;
+            })
+          );
+          if (!inEngagement) {
+            addLog(`${m.unitName} not in engagement range (within 1" edge-to-edge).`, "system");
             return;
           }
           pendingAnimationRef.current = () => {
@@ -3697,7 +3720,7 @@ export default function WarhammerGameRoom() {
           for (const action of moves) {
             if (cancelled) break;
             if (action.type !== "move") continue;
-            await delay(350);
+            await delay(1200);
             if (cancelled) break;
 
             const marker = local.find((m) => m.id === action.markerId);
@@ -3711,11 +3734,16 @@ export default function WarhammerGameRoom() {
               (t) => action.targetX >= t.x && action.targetX < t.x + t.w && action.targetY >= t.y && action.targetY < t.y + t.h
             );
             const oldX = marker.x, oldY = marker.y;
+            const dx = action.targetX - oldX;
+            const dy = action.targetY - oldY;
             local = local.map((m) => {
-              if (m.id === action.markerId) return { ...m, x: action.targetX, y: action.targetY, hasAdvanced: false, inCover: newInCover };
+              if (m.id === action.markerId) {
+                const newModelPositions = m.modelPositions?.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+                return { ...m, x: action.targetX, y: action.targetY, hasAdvanced: action.advance ?? false, inCover: newInCover, modelPositions: newModelPositions };
+              }
               if (marker.attachedCharacterId && m.id === marker.attachedCharacterId) {
-                const nx = Math.max(0, Math.min(59, m.x + (action.targetX - oldX)));
-                const ny = Math.max(0, Math.min(43, m.y + (action.targetY - oldY)));
+                const nx = Math.max(0, Math.min(59, m.x + dx));
+                const ny = Math.max(0, Math.min(43, m.y + dy));
                 return { ...m, x: nx, y: ny, inCover: mapPreset.terrain.some((t) => nx >= t.x && nx < t.x + t.w && ny >= t.y && ny < t.y + t.h) };
               }
               return m;
@@ -3738,7 +3766,7 @@ export default function WarhammerGameRoom() {
           for (const action of shots) {
             if (cancelled) break;
             if (action.type !== "shoot") continue;
-            await delay(400);
+            await delay(1200);
             if (cancelled) break;
 
             const attacker = local.find((m) => m.id === action.attackerId);
@@ -3782,7 +3810,7 @@ export default function WarhammerGameRoom() {
           for (const action of charges) {
             if (cancelled) break;
             if (action.type !== "charge") continue;
-            await delay(400);
+            await delay(1200);
             if (cancelled) break;
 
             const attacker = local.find((m) => m.id === action.attackerId);
@@ -3836,7 +3864,7 @@ export default function WarhammerGameRoom() {
           for (const action of fights) {
             if (cancelled) break;
             if (action.type !== "fight") continue;
-            await delay(400);
+            await delay(1200);
             if (cancelled) break;
 
             const attacker = local.find((m) => m.id === action.attackerId);
@@ -5758,10 +5786,16 @@ export default function WarhammerGameRoom() {
               const activeMarkersCells = markers.filter((m) => !m.isDestroyed && !m.isInReserve);
               if (reservesMode === 'place_deepstrike') {
                 const enemies = activeMarkersCells.filter((m) => m.player !== activePlayer);
+                const dsUnit = markers.find((m) => m.id === reservesUnitId);
+                const dsMyRadius = dsUnit ? BASE_RADIUS_INCHES[dsUnit.baseSize ?? 'infantry'] : 0.5;
                 for (let cx = 0; cx < 60; cx++) {
                   for (let cy = 0; cy < BOARD_H_CONST; cy++) {
-                    const tooClose = enemies.some((e) => Math.sqrt((cx - e.x) ** 2 + (cy - e.y) ** 2) < 9);
-                    if (!tooClose) reservesHighlightCells.add(`${cx},${cy}`);
+                    const tooClose = enemies.some((e) => {
+                      const eRadius = BASE_RADIUS_INCHES[e.baseSize ?? 'infantry'];
+                      const dist = Math.sqrt((cx + 0.5 - (e.x + 0.5)) ** 2 + (cy + 0.5 - (e.y + 0.5)) ** 2);
+                      return dist - eRadius - dsMyRadius < 9;
+                    });
+                    if (!tooClose) reservesHighlightCells!.add(`${cx},${cy}`);
                   }
                 }
               } else if (mapPreset.deploymentType === 'dawn_of_war') {
